@@ -1,1 +1,1 @@
-# pet
+# Performance Estimation Tool (PET)
