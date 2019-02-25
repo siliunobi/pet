@@ -1,0 +1,11 @@
+1. 加Monitor
+2. Msg加括号
+3. 加一下equation，所有只有obj的rule，重新定义f函数
+
+rule ->
+
+ceq f(<O : Client | attr : x >) = true if cond .
+  eq  f(<O : Client | attr : x >) = true .
+
+
+
