@@ -17,7 +17,7 @@ mod RAMP-SNOW-ANALYSIS is
   ops xl yl zl : -> LocalVar .
 
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init(180,20,0,25,50,2,2,0,uniform) .
+   eq initState = init(360,40,0,25,50,2,2,0,uniform) .
 
 
   ---(
@@ -104,5 +104,5 @@ mod RAMP-SNOW-ANALYSIS is
         
 endm
 
-set clear rules off .
-rewrite initConfig .
+---set clear rules off .
+---rewrite initConfig .

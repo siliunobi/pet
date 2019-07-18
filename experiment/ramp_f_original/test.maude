@@ -7,7 +7,7 @@ mod RAMP-SNOW-ANALYSIS is
 
   subsort Config < State .
 
-  eq LIMIT = 100000.0 .
+  eq LIMIT = 1.0e+100 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
@@ -17,7 +17,7 @@ mod RAMP-SNOW-ANALYSIS is
   ops xl yl zl : -> LocalVar .
 
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init(2,2,0,2,10,8,8,0,uniform) .
+   eq initState = init(200,200,0,40,50,2,2,0,uniform) .
 
 
   ---(
