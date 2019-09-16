@@ -9,8 +9,6 @@ mod CASSANDRA-ANALYSIS is
   eq LIMIT = 1.0e+1000000 .
 
   eq replicaFactor = 3 .
-  eq readLevel = quorum .
-  eq writeLevel = one .
 
 
   op initConfig : -> Config .
@@ -19,7 +17,7 @@ mod CASSANDRA-ANALYSIS is
 ---
   eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
       nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
-      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad) . 
+      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
 
 
   --- Init parameters 
@@ -34,6 +32,8 @@ mod CASSANDRA-ANALYSIS is
   eq nbOfKeys = 4 .  
   eq nbOfRepls = replicaFactor .
   eq kad = zipf .
+  eq readLevel = quorum .
+  eq writeLevel = one .
   eq delay = sampleLogNormal(0.0,1.0) .
 
 ---(

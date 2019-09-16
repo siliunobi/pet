@@ -150,17 +150,20 @@ mod INITIAL-STATES is
 
   op init : NzNat NzNat NzNat 
             NzNat NzNat NzNat NzNat
-            NzNat NzNat NzNat KeyAccessDistr -> Config .
+            NzNat NzNat NzNat KeyAccessDistr 
+            ConsistLevel ConsistLevel -> Config .
   op $init : NzNat NzNat NzNat NzNat
              NzNat NzNat  
              AddressList KeyVars KeyVars 
              NzNat NzNat NzNat NzNat 
-             KeyAccessDistr Config -> Config .
+             KeyAccessDistr 
+             ConsistLevel ConsistLevel Config -> Config .
   op $$init : NzNat NzNat NzNat NzNat
               NzNat NzNat  
               AddressList KeyVars KeyVars 
               NzNat NzNat NzNat NzNat 
-              KeyAccessDistr Nat Config -> Config .
+              KeyAccessDistr Nat 
+              ConsistLevel ConsistLevel Config -> Config .
 
 
   vars RTX WTX RWTX REPLS KEYS REPLS2 ROPS WOPS RWOPS R-OR-W-OR-RW N RF CLS CLS2 : Nat .
@@ -178,11 +181,12 @@ mod INITIAL-STATES is
   var VAR : LocalVar .
   vars KVARS KVARS' : KeyVars .
   var DS : Set{KeyValueVersion} .
+  vars RLVL WLVL : ConsistLevel .
 
 
   --- "keys" take the first KEYS of "keyList"
-  eq init(RTX,WTX,RWTX,CLS,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD) =       
-       $init(RTX,WTX,RWTX,CLS,REPLS,CLS,genAddrList(REPLS),kvars(KEYS,keyVars),kvars(KEYS,keyVars),RF,ROPS,WOPS,RWOPS,KAD, 
+  eq init(RTX,WTX,RWTX,CLS,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL) =       
+       $init(RTX,WTX,RWTX,CLS,REPLS,CLS,genAddrList(REPLS),kvars(KEYS,keyVars),kvars(KEYS,keyVars),RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,
          < 0 . 1 : Table | table: initTable(kvars(KEYS,keyVars)) >) { 0.0 | nil } < 0 . 2 : Monitor | log: empty > .
 
   op genAddrList : Nat -> AddressList .
@@ -199,8 +203,8 @@ mod INITIAL-STATES is
 
 
   --- generate clients
-  eq $init(RTX,WTX,RWTX,s CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C)
-   = $init(RTX,WTX,RWTX,CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C
+  eq $init(RTX,WTX,RWTX,s CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C)
+   = $init(RTX,WTX,RWTX,CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C
      < 1 . (s CLS) : Client | coord: (sampleUniWithInt(REPLS) + 1),
                               requestQueue: emptyTxnList,
                               executing: null, committed: null >)
@@ -208,15 +212,15 @@ mod INITIAL-STATES is
 
 
   --- generate replicas
-  eq $init(RTX,WTX,RWTX,0,s REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
-       $init(RTX,WTX,RWTX,0,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C      
+  eq $init(RTX,WTX,RWTX,0,s REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+       $init(RTX,WTX,RWTX,0,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C      
          < s REPLS : Server | respFromRepl: empty, reqConsLv: emptyReqConsLv,
                               datastore: empty >) . 
 
   --- uniformly assign each key to a replica
   --- "assign" also updates Table with the key and its replica
-  eq $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,(< K,VAR > ; KVARS),KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) = 
-       $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,assignKey(K,RF,RIDS,C)) . 
+  eq $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,(< K,VAR > ; KVARS),KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) = 
+       $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,assignKey(K,RF,RIDS,C)) . 
 
   --- update Table with the key and its replica
   op assignKey : Key NzNat AddressList Config -> Config .
@@ -255,23 +259,23 @@ mod INITIAL-STATES is
 
   --- generate txns
   --- all 3 remaining
-  eq $init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
-       $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,sampleUniWithInt(s RTX + s WTX + s RWTX),C) .
+  eq $init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+       $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,sampleUniWithInt(s RTX + s WTX + s RWTX),RLVL,WLVL,C) .
 
 
-  eq $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,R-OR-W-OR-RW,C) =
+  eq $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,R-OR-W-OR-RW,RLVL,WLVL,C) =
        if R-OR-W-OR-RW < s RTX
-         then $init(RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,C)) 
+         then $init(RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
          else if s RTX <= R-OR-W-OR-RW and R-OR-W-OR-RW < s RTX + s WTX
-                then $init(s RTX,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,C)) 
-                else $init(s RTX,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+                then $init(s RTX,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
+                else $init(s RTX,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
               fi
        fi . 
 
-  op addRTxn : Nat Nat KeyVars KeyAccessDistr Config -> Config .
+  op addRTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config -> Config .
   op $addRTxn : Actor -> Actor .
 
-  op addWTxn : Nat Nat KeyVars KeyAccessDistr Config -> Config .
+  op addWTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config -> Config .
   op $addWTxn : Actor -> Actor .
 
   op addRWTxn : Nat Nat KeyVars KeyAccessDistr Config -> Config .
@@ -280,37 +284,37 @@ mod INITIAL-STATES is
   
 
   --- ro and wo remaining
-  eq $init(s RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
+  eq $init(s RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
        if sampleUniWithInt(s RTX + s WTX) < s RTX
-         then $init(RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,C)) 
-         else $init(s RTX,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,C)) 
+         then $init(RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
+         else $init(s RTX,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
        fi .
   
   --- ro and rw remaining
-  eq $init(s RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
+  eq $init(s RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
        if sampleUniWithInt(s RTX + s RWTX) < s RTX
-         then $init(RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,C)) 
-         else $init(s RTX,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+         then $init(RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
+         else $init(s RTX,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
        fi .
 
   --- wo and rw remaining
-  eq $init(0,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
+  eq $init(0,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
        if sampleUniWithInt(s WTX + s RWTX) < s WTX
-         then $init(0,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,C)) 
-         else $init(0,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+         then $init(0,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
+         else $init(0,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
        fi .
 
   --- only ro remaining
-  eq $init(s RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
-       $init(RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,C)) . 
+  eq $init(s RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+       $init(RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) . 
 
   --- only wo remaining
-  eq $init(0,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
-       $init(0,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,C)) . 
+  eq $init(0,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+       $init(0,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) . 
 
   --- only rw remaining
-  eq $init(0,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
-       $init(0,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) . 
+  eq $init(0,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+       $init(0,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) . 
 
 
 
@@ -372,34 +376,34 @@ mod INITIAL-STATES is
 
 
   --- if this is the first ro-txn to generate
- eq addRTxn(RID,ROPS,KVARS,KAD,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
+ eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
       < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addReads(ROPS,KVARS,KAD), 
                                                             readSet: empty, writeSet: empty, 
-                                                            version: 0.0, consLv: readLevel >, AS > C .
+                                                            version: 0.0, consLv: RLVL >, AS > C .
 
   --- if there is already some txn(s) generated
- eq addRTxn(RID,ROPS,KVARS,KAD,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
+ eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
        < 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' > ;; 
                                   < RID . (N + 1) : Txn | operations: addReads(ROPS,KVARS,KAD), 
                                                           readSet: empty, writeSet: empty, 
-                                                          version: 0.0, consLv: readLevel >), AS > C .
+                                                          version: 0.0, consLv: RLVL >), AS > C .
 
 
   --- if this is the first wo-txn to generate
-  eq addWTxn(RID,WOPS,KVARS,KAD,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
+  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
        < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addWrites(WOPS,KVARS,KAD), 
                                                              readSet: empty, writeSet: empty,
-                                                          version: 0.0, consLv: writeLevel >, AS > C .
+                                                          version: 0.0, consLv: WLVL >, AS > C .
 
   --- if there is already some txn(s) generated
-  eq addWTxn(RID,WOPS,KVARS,KAD,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
+  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
        < 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' > ;; 
                                   < RID . (N + 1) : Txn | operations: addWrites(WOPS,KVARS,KAD),  
-                                                          readSet: empty, writeSet: empty, version: 0.0, consLv: writeLevel >), AS > C .  
+                                                          readSet: empty, writeSet: empty, version: 0.0, consLv: WLVL >), AS > C .  
 
 
   --- when all txns have been generated, we pop up all objects, "C"
-  eq $init(0,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) = C . 
+  eq $init(0,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) = C . 
 
 ---(
   --- no client in model

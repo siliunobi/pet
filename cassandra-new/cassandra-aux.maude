@@ -9,9 +9,10 @@ mod CASSANDRA-AUX is
 
   var K : Key .  vars V V' : Value .  var CL : ConsistLevel .
   var OP : Operation .
-  vars O TID RID A A' S S' : Address . vars AS AS' : AttributeSet .
+  vars O TID RID RID' RID'' A A' S S' : Address . 
+  vars AS AS' : AttributeSet .
   vars TXNS TXNS' : Config .  vars TRANSES TRANSES' : ConfigList . 
-  var GT : Nat .  vars VERSION VERSION' : Version .
+  var GT : Nat .  vars VERSION VERSION' VERSION'' : Version .
   var WS : Set{KeyValue} .  var RS : Set{KeyVersion} . 
   var RESPONSES : Responses . var RCL : ReqConsLv .
   var RIDS : AddressSet . var DS : Set{KeyValueVersion} .
@@ -44,4 +45,25 @@ mod CASSANDRA-AUX is
   op _in_ : Address ReqConsLv -> Bool .
   eq TID in (RCL ; [TID,CL]) = true .
   eq TID in RCL = false [owise] .
+
+  op sameValue : ResponseSet -> Bool .
+  eq sameValue((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']), RSET))
+     = true .
+  eq sameValue(RSET) = false [owise] .
+
+
+  op sameResultForRead : ResponseSet -> KeyValueVersion .
+  eq sameResultForRead((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']), RSET))
+     = [K,V,max(VERSION,VERSION')] .
+
+  op allSameValue : ResponseSet -> Bool .
+  eq allSameValue((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']),
+                   response(RID'',[K,V,VERSION'']), RSET))
+     = true .
+  eq allSameValue(RSET) = false [owise] .
+
+  op sameResultForReadAll : ResponseSet -> KeyValueVersion .
+  eq sameResultForReadAll((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']),
+                   response(RID'',[K,V,VERSION'']), RSET))
+     = [K,V,max(VERSION,max(VERSION',VERSION''))] .
 endm

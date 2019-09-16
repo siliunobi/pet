@@ -92,45 +92,74 @@ mod CASSANDRA is
 
 
 
- rl [read-at-coord] : 
-     < S : Server | respFromRepl: (TID |-> RSET,RESPONSES), AS >
+ rl [read-at-coord-one] : 
+     < S : Server | reqConsLv: (RCL ; [TID,1]),
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
      {GT, msg readResponse(TID,KVV) from RID to S} 
    =>
-     < S : Server | respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > .
-
-
- crl [from-coord-to-client-cl-less-than-rf] : 
-     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+     < S : Server | reqConsLv: RCL,
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     { GT | SL }
+     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))] .
+
+
+
+ rl [read-at-coord-quorum] : 
+     < S : Server | reqConsLv: (RCL ; [TID,2]),
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg readResponse(TID,KVV) from RID to S} 
+   =>
+     if | (response(RID,KVV),RSET) | == 2
+       then if sameValue((response(RID,KVV),RSET))
+              then < S : Server | reqConsLv: RCL,
+                         respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+                   [delay + GT, done(TID, sameResultForRead((response(RID,KVV),RSET)))]
+              else < S : Server | reqConsLv: (RCL ; [TID,2]),
+                         respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+            fi
+       else if | (response(RID,KVV),RSET) | == 3
+              then if sameValue((response(RID,KVV),RSET))
+                     then < S : Server | reqConsLv: RCL,
+                                respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+                          [delay + GT, done(TID, sameResultForRead((response(RID,KVV),RSET)))]  
+                     else < S : Server | reqConsLv: RCL,
+                                respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+                          [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]  --- currently, use the latest value! alternatively, use "error"
+
+                   fi 
+              else < S : Server | reqConsLv: (RCL ; [TID,2]),
+                         respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+             fi
+     fi .
+
+
+ rl [read-at-coord-all] : 
+     < S : Server | reqConsLv: (RCL ; [TID,3]),
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg readResponse(TID,KVV) from RID to S} 
+   =>
+     if | (response(RID,KVV),RSET) | == 3
+       then if allSameValue((response(RID,KVV),RSET))     
+              then < S : Server | reqConsLv: RCL,
+                                  respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+                   [delay + GT, done(TID, sameResultForReadAll((response(RID,KVV),RSET)))]  
+              else < S : Server | reqConsLv: RCL,
+                                  respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+                   [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]  --- currently, use the latest value! alternatively, use "error"
+            fi
+       else < S : Server | reqConsLv: (RCL ; [TID,3]),
+                           respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+     fi .
+
+
+ crl [read-at-coord-later-response] : 
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg readResponse(TID,KVV) from RID to S} 
    =>
      < S : Server | reqConsLv: RCL,
-                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > 
-     { GT | SL }
-     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
-     if | (response(RID,KVV),RSET) | =/= replicaFactor /\
-        | (response(RID,KVV),RSET) | == CL .  
-
-
-  *** NEW
- ceq eagerEnabled(< S : Server | reqConsLv: (RCL ; [TID,CL]),
-                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > CONFIG) 
-   = true if | (response(RID,KVV),RSET) | =/= replicaFactor /\
-        | (response(RID,KVV),RSET) | == CL .
-
-
- crl [from-coord-to-client-cl-equals-to-rf] : 
-     < S : Server | reqConsLv: (RCL ; [TID,CL]),
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     {GT | SL}
-   =>
-     {GT | SL}
-     < S : Server | reqConsLv: RCL,
-                    respFromRepl: RESPONSES, AS >
-     genReadRepairs(GT,(response(RID,KVV),RSET),S)
-     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
-     if | (response(RID,KVV),RSET) | == replicaFactor /\
-        | (response(RID,KVV),RSET) | == CL .   
+     if (not TID in RCL) .
+
 
   op genReadRepairs : Float ResponseSet Address -> Config .
   eq genReadRepairs(GT,RSET,S) = 
@@ -141,13 +170,6 @@ mod CASSANDRA is
        [delay + GT, msg readRepair(KVV) from S to RID]
        $genReadRepairs(GT,KVV,RIDS,S) .
   eq $genReadRepairs(GT,KVV,emptyAddrSet,S) = null .
-
-
-  *** NEW
- ceq eagerEnabled(< S : Server | reqConsLv: (RCL ; [TID,CL]),
-                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > CONFIG) 
-   = true if | (response(RID,KVV),RSET) | == replicaFactor /\
-        | (response(RID,KVV),RSET) | == CL .
 
 
  crl [from-coord-to-client-cl-less-than-rf-later-readrepair] : 
