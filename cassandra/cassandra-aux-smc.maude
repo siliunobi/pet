@@ -2,6 +2,7 @@ load replica-table-smc
 
 mod CASSANDRA-AUX is
   pr CASSANDRA-SERVER-CLIENT .
+  inc REPLICA-TABLE .
 
 *** NEW
   op delay : -> Delay .

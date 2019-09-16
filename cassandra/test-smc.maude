@@ -4,16 +4,35 @@ mod CASSANDRA-ANALYSIS is
   inc CASSANDRA .
   inc APMAUDE .
   inc SAMPLER .
+  inc INITIAL-STATES .
 
   eq LIMIT = 1.0e+1000000 .
 
-  eq delay = sampleLogNormal(3.0,2.0) .
   eq replicaFactor = 3 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
+  eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
+      nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
+      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad) . 
 
+  --- Init parameters 
+  eq nbOfRoTxns = 1 .  
+  eq nbOfWoTxns = 0 .  
+  eq nbOfRwTxns = 0 .
+  eq nbOfOpsPerRoTxn = 1 .
+  eq nbOfOpsPerWoTxn = 0 .
+  eq nbOfOpsPerRwTxn = 0 .  --- must be even number
+  eq nbOfCls = 4 .
+  eq nbOfServs  = 2 .  
+  eq nbOfKeys = 2 .  
+  eq nbOfRepls = replicaFactor .
+  eq kad = zipf .
+  eq delay = sampleLogNormal(3.0,2.0) .
+
+
+---(
     eq initState =
        { 0.0 | nil }
        { 0.0, start to 1} { 0.0, start to 2}
@@ -59,7 +78,7 @@ mod CASSANDRA-ANALYSIS is
 	   < 40 : Server | localRing: (([0],10),([4],20),([8],30),([12],40)), 
                        respFromRepl: empty, reqConsLv: empty,
                        datastore: [1,"a",0.0] > .
-
+)
 
 endm
 

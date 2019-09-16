@@ -86,7 +86,8 @@ fmod CASSANDRA-SORTS is
 
 *** NEW
   sorts Version KeyVersion KeyValue Record ConfigList Operation 
-        LockedKey Response KeyValueVersion ReqConsLv Key Value .
+        LockedKey Response KeyValueVersion ReqConsLv Key Value
+        LocalVar .
   subsort String < Value .
   subsort Config < ConfigList .
   subsort Float < Version .
@@ -124,6 +125,7 @@ view KeyValueVersion from TRIV to CASSANDRA-SORTS is sort Elt to KeyValueVersion
 view Key      from TRIV to CASSANDRA-SORTS is sort Elt to Key .      endv
 view Value    from TRIV to CASSANDRA-SORTS is sort Elt to Value .    endv
 view Content from TRIV to ACTOR-MODEL is sort Elt to Content . endv 
+view LocalVar from TRIV to CASSANDRA-SORTS is sort Elt to LocalVar . endv 
 
 *** NEW
 fmod VECTOR-TIME is
@@ -132,6 +134,7 @@ endfm
 
 fmod CASSANDRA-IFACE is
     pr TUPLE2{Position,Address} * (sort Tuple2 to RingPair) .
+    pr MAP{LocalVar,Value} * (sort Map{LocalVar,Value} to LocalVars) .
 
 *** NEW
   pr SET{KeyVersion} .
@@ -267,6 +270,10 @@ fmod CASSANDRA-SERVER-CLIENT is
 
   op Timer : -> ActorType .
   op globalTime:_ : Nat -> Attribute .
+
+
+  op Table : -> ActorType .
+  op table:_ : ReplicaTable -> Attribute .
 
   op Monitor : -> ActorType .
   op log:_ : Log -> Attribute .

@@ -1,5 +1,5 @@
 load cassandra-smc
----(
+
 mod KEY-VARS is
   inc CASSANDRA-SERVER-CLIENT .
 
@@ -146,14 +146,14 @@ mod INITIAL-STATES is
 
 
   op init : NzNat NzNat NzNat 
-            NzNat NzNat NzNat 
+            NzNat NzNat NzNat NzNat
             NzNat NzNat NzNat KeyAccessDistr -> Config .
-  op $init : NzNat NzNat NzNat 
+  op $init : NzNat NzNat NzNat NzNat
              NzNat NzNat  
              AddressList KeyVars KeyVars 
              NzNat NzNat NzNat NzNat 
              KeyAccessDistr Config -> Config .
-  op $$init : NzNat NzNat NzNat 
+  op $$init : NzNat NzNat NzNat NzNat
               NzNat NzNat  
               AddressList KeyVars KeyVars 
               NzNat NzNat NzNat NzNat 
@@ -174,13 +174,11 @@ mod INITIAL-STATES is
   var VARS : LocalVars .
   var VAR : LocalVar .
   vars KVARS KVARS' : KeyVars .
-  var EXPR : Expression .
-  var DS : Versions .
 
----(
+
   --- "keys" take the first KEYS of "keyList"
-  eq init(RTX,WTX,RWTX,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD) =       
-       $init(RTX,WTX,RWTX,REPLS,REPLS,genAddrList(REPLS),kvars(KEYS,keyVars),kvars(KEYS,keyVars),RF,ROPS,WOPS,RWOPS,KAD, 
+  eq init(RTX,WTX,RWTX,CLS,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD) =       
+       $init(RTX,WTX,RWTX,CLS,REPLS,REPLS,genAddrList(REPLS),kvars(KEYS,keyVars),kvars(KEYS,keyVars),RF,ROPS,WOPS,RWOPS,KAD, 
          < 0 . 1 : Table | table: initTable(kvars(KEYS,keyVars)) >) { 0.0 | nil } < 0 . 2 : Monitor | log: empty > .
 
   op genAddrList : Nat -> AddressList .
@@ -195,7 +193,13 @@ mod INITIAL-STATES is
   eq $initTable((< K,VAR > ; KVARS),[KEYREPLICAS]) = $initTable(KVARS,[replicatingSites(K,emptyAddrList) ;; KEYREPLICAS]) .
   eq $initTable(noKeyVar,[KEYREPLICAS]) = [KEYREPLICAS] . 
 
+  *** NEW
+  --- generate clients
+  eq $init(RTX,WTX,RWTX,s CLS,REPLS,REPLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C)
+   = $init(RTX,WTX,RWTX,CLS,REPLS,REPLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C
+     < 1 . (s CLS) : Client | coord: 10  >) .
 
+---(
   --- generate replicas
   eq $init(RTX,WTX,RWTX,s REPLS,REPLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C) =
        $init(RTX,WTX,RWTX,REPLS,REPLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,C      
@@ -433,4 +437,4 @@ mod INITIAL-STATES is
        init(RTX,WTX,RWTX,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD) .
 )
 endm
-)
+
