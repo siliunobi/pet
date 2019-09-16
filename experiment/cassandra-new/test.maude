@@ -1,0 +1,64 @@
+load initial-states
+
+  *** parameters:
+  *** consistency level
+
+mod CASSANDRA-ANALYSIS is
+  inc INITIAL-STATES .
+
+  eq LIMIT = 1.0e+1000000 .
+
+  eq replicaFactor = 3 .
+
+
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+
+---
+  eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
+      nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
+      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
+
+
+  --- Init parameters 
+  eq nbOfRoTxns = 4 .  
+  eq nbOfWoTxns = 4 .  
+  eq nbOfRwTxns = 0 .       --- must be 0
+  eq nbOfOpsPerRoTxn = 1 .  --- must be 1
+  eq nbOfOpsPerWoTxn = 1 .  --- must be 1
+  eq nbOfOpsPerRwTxn = 0 .  --- must be 0
+  eq nbOfCls = 4 .
+  eq nbOfServs  = 4 .  
+  eq nbOfKeys = 4 .  
+  eq nbOfRepls = replicaFactor .
+  eq kad = zipf .
+  eq readLevel = quorum .
+  eq writeLevel = one .
+  eq delay = sampleLogNormal(0.0,1.0) .
+
+---(
+  eq initState = 
+{0.0,start to 1 . 1} {0.0,start to 1 . 2} 
+{0.0 |
+nil} 
+< 1 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 2 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 3 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 0 . 1 : Table | table: [replicatingSites(k1, 3 ;; 2 ;; 1) ;;
+    replicatingSites(k2, 3 ;; 2 ;; 1) ;; replicatingSites(k3, 2 ;; 3 ;; 1)] > 
+< 0 . 2 : Monitor | log: empty > 
+< 1 . 1 : Client | requestQueue: 
+< 1 . 1 : Txn | operations: read(k1),readSet: empty,writeSet: empty,version:
+    0.0,consLv: 1 >,executing: null,committed: null,coord: 2 > 
+< 1 . 2 : Client | requestQueue: 
+< 2 . 1 : Txn | operations: write(k1, 964),readSet: empty,writeSet: empty,
+    version: 0.0,consLv: 1 >,executing: null,committed: null,coord: 2 > .
+)
+endm
+
+set clear rules off .
+
+rew initConfig .
