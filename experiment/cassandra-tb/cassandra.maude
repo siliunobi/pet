@@ -194,7 +194,7 @@ mod CASSANDRA is
                     committed: (TXNS' < TID : Txn | readSet: (RS,< K,VERSION' >),
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [delay + GT, start to A] .
+     [GT, start to A] .
 
 
   *** WRITES:
@@ -292,6 +292,6 @@ mod CASSANDRA is
                     committed: (TXNS' < TID : Txn | readSet: RS,
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [delay + GT, start to A] .
+     [GT, start to A] .
 
 endm

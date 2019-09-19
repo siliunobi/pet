@@ -15,7 +15,7 @@ mod CASSANDRA-ANALYSIS is
   eq initConfig = run(initState,LIMIT) .
 
 ---
-  eq initState = init(100,100,0,100,50,100,3,1,1,0,zipf,all,one) . 
+  eq initState = init($1,$2,0,$3,50,100,3,1,1,0,zipf,$4,one) . 
 
 
   --- Init parameters 
@@ -49,6 +49,7 @@ mod CASSANDRA-ANALYSIS is
   op totalRunTime : Log -> Float .
   op trt : Log Float -> Float .
 
+
   eq totalRunTime(LOG) = trt(LOG,0.0) .
   ---(
   eq trt((TID |-> 
@@ -63,13 +64,14 @@ mod CASSANDRA-ANALYSIS is
   eq trt(empty,T) = T .
   )
   *** NEW: false reads count
-  eq trt((TID |-> 
-      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) = 
+  eq trt((TID |->
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) =
        if GT' > T
          then trt(LOG,GT')
          else trt(LOG,T)
        fi .
   eq trt(empty,T) = T .
+
 
   --- Throughput
   op throughput : Log -> Float .

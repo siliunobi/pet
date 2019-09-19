@@ -53,6 +53,7 @@ mod CASSANDRA-ANALYSIS is
 
 
   eq totalRunTime(LOG) = trt(LOG,0.0) .
+  ---(
   eq trt((TID |-> 
       < RID |-> GT ; (RID |-> GT',VT) ; true ; RS ; WS >,LOG),T) = 
        if GT' > T
@@ -63,7 +64,15 @@ mod CASSANDRA-ANALYSIS is
       < VT ; VT' ; false ; RS ; WS >,LOG),T) = 
        trt(LOG,T) .
   eq trt(empty,T) = T .
-
+  )
+  *** NEW: false reads count
+  eq trt((TID |->
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) =
+       if GT' > T
+         then trt(LOG,GT')
+         else trt(LOG,T)
+       fi .
+  eq trt(empty,T) = T .
 
   --- Throughput
   op throughput : Log -> Float .
