@@ -20,7 +20,7 @@ mod CASSANDRA-ANALYSIS is
       nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
 )
 
-  eq initState = init(1,2,0,3,3,5,3,1,1,0,zipf,all,one) . 
+  eq initState = init(50,50,0,30,30,50,3,1,1,0,zipf,all,one) . 
 
 
   --- Init parameters 
@@ -79,7 +79,12 @@ mod CASSANDRA-ANALYSIS is
 
   --- Throughput
   op throughput : Log -> Float .
+  ---(
   eq throughput(LOG) = committedNumber(LOG) 
+                     / totalRunTime(LOG) .
+  )
+  *** NEW
+  eq throughput(LOG) = totalNumber(LOG) 
                      / totalRunTime(LOG) .
 
   op committedNumber : Log -> Float .
@@ -154,9 +159,9 @@ nil}
 )
 endm
 
-set clear rules off .
+---set clear rules off .
 
-rew initConfig .
+---rew initConfig .
 
 
 
