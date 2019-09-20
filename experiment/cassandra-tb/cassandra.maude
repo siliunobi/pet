@@ -21,7 +21,7 @@ mod CASSANDRA is
   vars READS@M WRITES@M : Set{KeyVersion} .
   vars GT GT' : Float . 
 
----
+
   rl [rcv-start-when-no-txn] :
      < A : Client | requestQueue: emptyTxnList, AS > 
      {GT, start to A} 
@@ -178,7 +178,6 @@ mod CASSANDRA is
        else < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
      fi .
 
-
   rl [rcv-done-read] :
      < O@M : Monitor | log: (TID |-> 
         < VTS1@M ; VTS2@M ; FLAG@M ; READS@M ; WRITES@M >,LOG@M) > 
@@ -195,6 +194,7 @@ mod CASSANDRA is
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
      [GT, start to A] .
+
 
 
   *** WRITES:

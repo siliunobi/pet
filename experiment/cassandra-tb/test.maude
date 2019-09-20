@@ -14,10 +14,13 @@ mod CASSANDRA-ANALYSIS is
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
----
+---(
   eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
       nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
       nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
+)
+
+  eq initState = init(1,2,0,3,3,5,3,1,1,0,zipf,all,one) . 
 
 
   --- Init parameters 
@@ -151,6 +154,9 @@ nil}
 )
 endm
 
----set clear rules off .
+set clear rules off .
 
----rew initConfig .
+rew initConfig .
+
+
+

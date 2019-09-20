@@ -81,14 +81,12 @@ mod CASSANDRA is
 
 
 
-
   rl [read-from-repl-to-coord] :
      < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
      {GT, msg readRequest(TID,K) from S to RID}
    => 
      < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
      [delay + GT, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
-
 
 
 

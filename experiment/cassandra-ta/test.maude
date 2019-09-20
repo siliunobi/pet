@@ -15,7 +15,7 @@ mod CASSANDRA-ANALYSIS is
   eq initConfig = run(initState,LIMIT) .
 
 ---
-  eq initState = init(100,100,0,100,50,100,3,1,1,0,zipf,all,one) . 
+  eq initState = init(3,3,0,5,3,5,3,1,1,0,zipf,all,one) . 
 
 
   --- Init parameters 
@@ -148,6 +148,8 @@ nil}
 )
 endm
 
----set clear rules off .
+set clear rules off .
 
----rew initConfig .
+rew initConfig .
+
+

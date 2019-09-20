@@ -64,7 +64,7 @@ fmod CASSANDRA-SORTS is
 
   op [_,_] : Address ConsistLevel -> ReqConsLv .
   op emptyReqConsLv : -> ReqConsLv [ctor] .
-  op _;_ : ReqConsLv ReqConsLv -> ReqConsLv [ctor assoc id: emptyReqConsLv] .
+  op _;_ : ReqConsLv ReqConsLv -> ReqConsLv [ctor assoc comm id: emptyReqConsLv] .
 
 endfm 
 view KeyVersion from TRIV to CASSANDRA-SORTS is sort Elt to KeyVersion . endv
