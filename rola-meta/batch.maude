@@ -1,0 +1,7 @@
+load ../automonitor.maude 
+load rola-aux-smc
+load sampler
+load rola-original
+
+(monitor ROLA .)
+(show module ROLA .)

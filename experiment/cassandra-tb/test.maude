@@ -1,0 +1,167 @@
+load initial-states
+
+  *** parameters:
+  *** consistency level
+
+mod CASSANDRA-ANALYSIS is
+  inc INITIAL-STATES .
+
+  eq LIMIT = 1.0e+1000000 .
+
+  eq replicaFactor = 3 .
+
+
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+
+---(
+  eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
+      nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
+      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
+)
+
+  eq initState = init(50,50,0,30,30,50,3,1,1,0,zipf,all,one) . 
+
+
+  --- Init parameters 
+  eq nbOfRoTxns = 4 .  
+  eq nbOfWoTxns = 4 .  
+  eq nbOfRwTxns = 0 .       --- must be 0
+  eq nbOfOpsPerRoTxn = 1 .  --- must be 1
+  eq nbOfOpsPerWoTxn = 1 .  --- must be 1
+  eq nbOfOpsPerRwTxn = 0 .  --- must be 0
+  eq nbOfCls = 4 .
+  eq nbOfServs  = 4 .  
+  eq nbOfKeys = 4 .  
+  eq nbOfRepls = 3 .
+  eq kad = zipf .
+  eq readLevel = quorum .
+  eq writeLevel = one .
+
+  eq delay = sampleLogNormal(0.0,1.0) .
+
+
+
+  --- Metrics
+  var LOG : Log .
+  vars TID RID M : Address .
+  vars GT GT' T N : Float .
+  vars RS WS : Set{KeyVersion} .
+  vars VT VT' : VectorTime .
+  var FLAG : Bool .
+  var C : Config .
+
+  op totalRunTime : Log -> Float .
+  op trt : Log Float -> Float .
+
+
+  eq totalRunTime(LOG) = trt(LOG,0.0) .
+  ---(
+  eq trt((TID |-> 
+      < RID |-> GT ; (RID |-> GT',VT) ; true ; RS ; WS >,LOG),T) = 
+       if GT' > T
+         then trt(LOG,GT')
+         else trt(LOG,T)
+       fi .
+  eq trt((TID |-> 
+      < VT ; VT' ; false ; RS ; WS >,LOG),T) = 
+       trt(LOG,T) .
+  eq trt(empty,T) = T .
+  )
+  *** NEW: false reads count
+  eq trt((TID |->
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) =
+       if GT' > T
+         then trt(LOG,GT')
+         else trt(LOG,T)
+       fi .
+  eq trt(empty,T) = T .
+
+  --- Throughput
+  op throughput : Log -> Float .
+  ---(
+  eq throughput(LOG) = committedNumber(LOG) 
+                     / totalRunTime(LOG) .
+  )
+  *** NEW
+  eq throughput(LOG) = totalNumber(LOG) 
+                     / totalRunTime(LOG) .
+
+  op committedNumber : Log -> Float .
+  op $committedNumber : Log Float -> Float .
+
+  eq committedNumber(LOG) = $committedNumber(LOG,0.0) .
+  eq $committedNumber((TID |-> 
+      < VT ; VT' ; true ; RS ; WS >,LOG),N) 
+      = $committedNumber(LOG,N + 1.0) .
+  eq $committedNumber((TID |-> 
+      < VT ; VT' ; false ; RS ; WS >,LOG),N) 
+      = $committedNumber(LOG,N) .
+  eq $committedNumber(empty,N) = N .
+
+
+  --- Avg latency
+  op avgLatency : Log -> Float .
+  eq avgLatency(LOG) = totalLatency(LOG) 
+                     / committedNumber(LOG) .
+
+  op totalLatency : Log -> Float .
+  op $totalLatency : Log Float -> Float .
+  
+  eq totalLatency(LOG) = $totalLatency(LOG,0.0) .
+  eq $totalLatency((TID |-> 
+      < RID |-> GT ; (RID |-> GT',VT) ; true ; RS ; WS >,LOG),T) 
+      = $totalLatency(LOG,T + GT' - GT) .
+  eq $totalLatency((TID |-> 
+      < VT ; VT' ; false ; RS ; WS >,LOG),T) 
+      = $totalLatency(LOG,T) .
+  eq $totalLatency(empty,T) = T .
+
+
+  --- Commit ratio
+  op cmtRatio : Log -> Float .
+  eq cmtRatio(LOG) = committedNumber(LOG) 
+                   / totalNumber(LOG) .
+
+  op totalNumber : Log -> Float .
+  op $totalNumber : Log Float -> Float .
+  eq totalNumber(LOG) = $totalNumber(LOG,0.0) .
+  eq $totalNumber((TID |-> < VT ; VT' ; FLAG ; RS ; WS >,LOG),N) 
+     = $totalNumber(LOG,N + 1.0) .
+  eq $totalNumber(empty,N) = N .  
+
+
+  --- PVESTA interfaces
+  eq val(0,< M : Monitor | log: LOG > C) = throughput(LOG) .
+  eq val(1,< M : Monitor | log: LOG > C) = avgLatency(LOG) .
+  eq val(2,< M : Monitor | log: LOG > C) = cmtRatio(LOG) .
+
+---(
+  eq initState = 
+{0.0,start to 1 . 1} {0.0,start to 1 . 2} 
+{0.0 |
+nil} 
+< 1 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 2 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 3 : Server | respFromRepl: empty,reqConsLv: emptyReqConsLv,datastore: ([k1,0,
+    0.0], [k2,0,0.0], [k3,0,0.0]) > 
+< 0 . 1 : Table | table: [replicatingSites(k1, 3 ;; 2 ;; 1) ;;
+    replicatingSites(k2, 3 ;; 2 ;; 1) ;; replicatingSites(k3, 2 ;; 3 ;; 1)] > 
+< 0 . 2 : Monitor | log: empty > 
+< 1 . 1 : Client | requestQueue: 
+< 1 . 1 : Txn | operations: read(k1),readSet: empty,writeSet: empty,version:
+    0.0,consLv: 1 >,executing: null,committed: null,coord: 2 > 
+< 1 . 2 : Client | requestQueue: 
+< 2 . 1 : Txn | operations: write(k1, 964),readSet: empty,writeSet: empty,
+    version: 0.0,consLv: 1 >,executing: null,committed: null,coord: 2 > .
+)
+endm
+
+---set clear rules off .
+
+---rew initConfig .
+
+
+

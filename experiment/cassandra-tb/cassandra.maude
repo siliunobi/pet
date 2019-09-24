@@ -1,0 +1,297 @@
+load cassandra-aux
+load sampler
+
+mod CASSANDRA is
+  inc CASSANDRA-AUX .
+  inc SCHEDULER .
+
+  var K : Key .  vars V V' : Value .  var CL : ConsistLevel .
+  var OP : Operation .
+  vars O TID RID A A' S S' TABLE : Address . vars AS AS' : AttributeSet .
+  vars TXNS TXNS' CONFIG : Config .  vars TRANSES TRANSES' : ConfigList . 
+  vars VERSION VERSION' : Version .
+  var WS : Set{KeyValue} .  var RS : Set{KeyVersion} . 
+  var RESPONSES : Responses . var RCL : ReqConsLv .
+  var RIDS : AddressSet . var DS : Set{KeyValueVersion} .
+  var RSET : ResponseSet . vars KVV KVV' : KeyValueVersion .  var FLAG : Bool . 
+  var SL : ScheduleList .    var REPLICA-TABLE : ReplicaTable . 
+
+  var O@M : Address .  var LOG@M : Log .
+  vars VTS1@M VTS2@M : VectorTime . var FLAG@M : Bool . 
+  vars READS@M WRITES@M : Set{KeyVersion} .
+  vars GT GT' : Float . 
+
+
+  rl [rcv-start-when-no-txn] :
+     < A : Client | requestQueue: emptyTxnList, AS > 
+     {GT, start to A} 
+   =>
+     < A : Client | requestQueue: emptyTxnList, AS > .
+
+
+  rl [dequeue] :
+     < O@M : Monitor | log: LOG@M >
+     < A : Client | requestQueue: (< TID : Txn | operations: OP, AS' > ;; TRANSES),
+                    executing: TXNS, AS > 
+     {GT, start to A} 
+   =>
+     < O@M : Monitor | log: 
+              insert(TID,< A |-> GT ; empty ; false ; empty ; empty >,LOG@M) >
+     < A : Client | requestQueue: TRANSES,
+                    executing: (< TID : Txn | operations: OP, AS' > TXNS), AS > .
+
+
+  *** READS:
+  rl [read-from-client-to-coord] :
+     { GT | SL }
+     < A : Client | executing: (< TID : Txn | operations: read(K),
+                                              consLv: CL, AS' > TXNS),
+                    coord: S, AS >
+   =>
+     { GT | SL }
+     < A : Client | executing: (< TID : Txn | operations: nil,
+                                              consLv: CL, AS' > TXNS),
+                    coord: S, AS >
+     [delay + GT, msg request(TID,read(K),CL) from A to S] .
+
+  *** NEW
+  eq eagerEnabled(< A : Client | executing: (< TID : Txn | operations: read(K),
+                                                           consLv: CL, AS' > TXNS),
+                                 coord: S, AS > CONFIG) = true .
+
+
+
+  rl [read-from-coord-to-replicas] :
+     < TABLE : Table | table: REPLICA-TABLE >
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: RESPONSES, AS >
+     {GT, msg request(TID,read(K),CL) from A to S}
+   => 
+     < TABLE : Table | table: REPLICA-TABLE >
+     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: insert(TID,empty,RESPONSES), AS > 
+     genReadRequests(GT,TID,K,replicas(K,REPLICA-TABLE),S) . 
+
+  op genReadRequests : Float Address Key AddressSet Address -> Config .
+  eq genReadRequests(GT,TID,K,(RID ; RIDS),S) = 
+       [delay + GT, msg readRequest(TID,K) from S to RID]
+       genReadRequests(GT,TID,K,RIDS,S) .
+  eq genReadRequests(GT,TID,K,emptyAddrSet,S) = null .
+
+
+
+
+
+  rl [read-from-repl-to-coord] :
+     < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+     {GT, msg readRequest(TID,K) from S to RID}
+   => 
+     < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+     [delay + GT, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
+
+
+
+
+ rl [read-at-coord] : 
+     < S : Server | respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg readResponse(TID,KVV) from RID to S} 
+   =>
+     < S : Server | respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > .
+
+
+ crl [from-coord-to-client-cl-less-than-rf] : 
+     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+     { GT | SL }
+   =>
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > 
+     { GT | SL }
+     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
+     if | (response(RID,KVV),RSET) | =/= replicaFactor /\
+        | (response(RID,KVV),RSET) | == CL .  
+
+
+  *** NEW
+ ceq eagerEnabled(< S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > CONFIG) 
+   = true if | (response(RID,KVV),RSET) | =/= replicaFactor /\
+        | (response(RID,KVV),RSET) | == CL .
+
+
+ crl [from-coord-to-client-cl-equals-to-rf] : 
+     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+     {GT | SL}
+   =>
+     {GT | SL}
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: RESPONSES, AS >
+     genReadRepairs(GT,(response(RID,KVV),RSET),S)
+     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
+     if | (response(RID,KVV),RSET) | == replicaFactor /\
+        | (response(RID,KVV),RSET) | == CL .   
+
+  op genReadRepairs : Float ResponseSet Address -> Config .
+  eq genReadRepairs(GT,RSET,S) = 
+       $genReadRepairs(GT,resultForRead(RSET),repairReplicas(resultForRead(RSET),RSET),S) .
+  
+  op $genReadRepairs : Float KeyValueVersion AddressSet Address -> Config .
+  eq $genReadRepairs(GT,KVV,(RID ; RIDS),S) =
+       [delay + GT, msg readRepair(KVV) from S to RID]
+       $genReadRepairs(GT,KVV,RIDS,S) .
+  eq $genReadRepairs(GT,KVV,emptyAddrSet,S) = null .
+
+
+  *** NEW
+ ceq eagerEnabled(< S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > CONFIG) 
+   = true if | (response(RID,KVV),RSET) | == replicaFactor /\
+        | (response(RID,KVV),RSET) | == CL .
+
+
+ crl [from-coord-to-client-cl-less-than-rf-later-readrepair] : 
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
+     {GT | SL}
+   =>
+     {GT | SL}
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: RESPONSES, AS >
+     genReadRepairs(GT,(response(RID,KVV),RSET),S)
+     if | (response(RID,KVV),RSET) | == replicaFactor /\
+        (not TID in RCL) .   
+
+  *** NEW
+ ceq eagerEnabled(< S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > CONFIG) 
+   = true if | (response(RID,KVV),RSET) | == replicaFactor /\
+             (not TID in RCL) .
+
+
+  rl [readrepair] :
+     < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+     {GT, msg readRepair([K,V',VERSION']) from S to RID}
+   => 
+     if VERSION' >= VERSION
+       then < RID : Server | datastore: (DS, [K,V',VERSION']), AS >
+       else < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+     fi .
+
+  rl [rcv-done-read] :
+     < O@M : Monitor | log: (TID |-> 
+        < VTS1@M ; VTS2@M ; FLAG@M ; READS@M ; WRITES@M >,LOG@M) > 
+     < A : Client | executing: (< TID : Txn | readSet: RS,
+                                              writeSet: WS,
+                                              version: VERSION, AS' > TXNS),
+                    committed: TXNS', AS >
+     {GT, done(TID,[K,V,VERSION'])}
+   =>
+     < O@M : Monitor | log: (TID |-> 
+        < VTS1@M ; insert(A,GT,VTS2@M) ; true ; (RS,< K,VERSION' >) ; kver(WS,VERSION) >, LOG@M) >
+     < A : Client | executing: TXNS,
+                    committed: (TXNS' < TID : Txn | readSet: (RS,< K,VERSION' >),
+                                                    writeSet: WS,
+                                                    version: VERSION, AS' >), AS >
+     [GT, start to A] .
+
+
+
+  *** WRITES:
+  rl [write-from-client-to-coord] :
+     { GT | SL }
+     < A : Client | executing: (< TID : Txn | operations: write(K,V),
+                                              consLv: CL, 
+                                              writeSet: WS,
+                                              version: VERSION, AS' > TXNS),
+                    coord: S, AS >
+   =>
+     { GT | SL }
+     < A : Client | executing: (< TID : Txn | operations: nil,
+                                              consLv: CL,
+                                              writeSet: (WS,< K,V >),
+                                              version: GT, AS' > TXNS),
+                    coord: S, AS >
+     [delay + GT, msg request(TID,write(K,V),GT,CL) from A to S] .
+
+  *** NEW
+  eq eagerEnabled(< A : Client | executing: (< TID : Txn | operations: write(K,V),
+                                              consLv: CL, 
+                                              writeSet: WS,
+                                              version: VERSION, AS' > TXNS),
+                    coord: S, AS > CONFIG) = true .
+
+
+  rl [write-from-coord-to-replicas] :
+     < TABLE : Table | table: REPLICA-TABLE >
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: RESPONSES, AS >
+     {GT, msg request(TID,write(K,V),GT',CL) from A to S}
+   => 
+     < TABLE : Table | table: REPLICA-TABLE >
+     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: insert(TID,empty,RESPONSES), AS > 
+     genWriteRequests(GT,TID,K,V,GT',replicas(K,REPLICA-TABLE),S) . 
+
+  op genWriteRequests : Float Address Key Value Version AddressSet Address -> Config .
+  eq genWriteRequests(GT,TID,K,V,VERSION,(RID ; RIDS),S) = 
+       [delay + GT, msg writeRequest(TID,[K,V,VERSION]) from S to RID]
+       genWriteRequests(GT,TID,K,V,VERSION,RIDS,S) .
+  eq genWriteRequests(GT,TID,K,V,VERSION,emptyAddrSet,S) = null .
+
+
+
+  rl [write-from-repl-to-coord] :
+     < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+     {GT, msg writeRequest(TID,[K,V',VERSION']) from S to RID}
+   => 
+     if VERSION' >= VERSION
+       then < RID : Server | datastore: (DS, [K,V',VERSION']), AS >
+            [delay + GT, msg writeResponse(TID,true) from RID to S]
+       else < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
+            [delay + GT, msg writeResponse(TID,false) from RID to S]
+     fi .
+
+
+  rl [write-at-coord] : 
+     < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg writeResponse(TID,FLAG) from RID to S} 
+   =>
+     if CL == | (response(RID,FLAG),RSET) |
+       then < S : Server | reqConsLv: RCL,
+                           respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
+            [delay + GT, done(TID,resultForWrite((response(RID,FLAG),RSET)))]
+       else < S : Server | reqConsLv: (RCL ; [TID,CL]),
+                           respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
+     fi .
+
+
+ crl [write-at-coord-later-coming] : 
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> RSET,RESPONSES), AS >
+     {GT, msg writeResponse(TID,FLAG) from RID to S} 
+   =>
+     < S : Server | reqConsLv: RCL,
+                    respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
+     if not (TID in RCL) .  
+
+
+  rl [rcv-done-write] :
+     < O@M : Monitor | log: (TID |-> 
+        < VTS1@M ; VTS2@M ; FLAG@M ; READS@M ; WRITES@M >, LOG@M) > 
+     < A : Client | executing: (< TID : Txn | readSet: RS,
+                                              writeSet: WS,
+                                              version: VERSION, AS' > TXNS),
+                    committed: TXNS', AS >
+     {GT, done(TID,FLAG)}
+   =>
+     < O@M : Monitor | log: (TID |-> 
+        < VTS1@M ; insert(A,GT,VTS2@M) ; true ; RS ; kver(WS,VERSION) >,LOG@M) >
+     < A : Client | executing: TXNS,
+                    committed: (TXNS' < TID : Txn | readSet: RS,
+                                                    writeSet: WS,
+                                                    version: VERSION, AS' >), AS >
+     [GT, start to A] .
+
+endm

@@ -1,0 +1,44 @@
+
+Server is now accepting a new connection...
+
+Parameters: 
+model: 		test.maude
+model arguments: 	
+formula: 	throughput.quatex
+alpha: 		0.05
+beta: 		0.0
+seed: 	501136601
+sims: 		60
+Params: 		0.05 0.01 0.01 10000000 0.0 0 
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	     With CETA extensions
+	    Maude-ceta 2.6 built: Nov  2 2011 12:54:56
+	    Copyright 1997-2010 SRI International
+		   Tue Oct 24 19:01:19 2017
+Server: Running the simulation batches on demand... Please wait.
+Server performed 429 batch(es) of 60 simulation(s) each.
+
+Server is now accepting a new connection...
+
+Parameters: 
+model: 		test.maude
+model arguments: 	
+formula: 	throughput.quatex
+alpha: 		0.05
+beta: 		0.0
+seed: 	8232467
+sims: 		60
+Params: 		0.05 0.01 0.01 10000000 0.0 0 
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	     With CETA extensions
+	    Maude-ceta 2.6 built: Nov  2 2011 12:54:56
+	    Copyright 1997-2010 SRI International
+		   Tue Oct 24 19:39:55 2017
+Server: Running the simulation batches on demand... Please wait.
+Server performed 773 batch(es) of 60 simulation(s) each.
+
+Server is now accepting a new connection...

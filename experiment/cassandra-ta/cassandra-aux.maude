@@ -1,0 +1,69 @@
+load replica-table
+
+mod CASSANDRA-AUX is
+  inc CASSANDRA-SERVER-CLIENT .
+  inc REPLICA-TABLE .
+
+*** NEW
+  op delay : -> Delay .
+
+  var K : Key .  vars V V' : Value .  var CL : ConsistLevel .
+  var OP : Operation .
+  vars O TID RID RID' RID'' A A' S S' : Address . 
+  vars AS AS' : AttributeSet .
+  vars TXNS TXNS' : Config .  vars TRANSES TRANSES' : ConfigList . 
+  var GT : Nat .  vars VERSION VERSION' VERSION'' : Version .
+  var WS : Set{KeyValue} .  var RS : Set{KeyVersion} . 
+  var RESPONSES : Responses . var RCL : ReqConsLv .
+  var RIDS : AddressSet . var DS : Set{KeyValueVersion} .
+  var RSET : ResponseSet . vars KVV KVV' : KeyValueVersion .  var FLAG : Bool . 
+
+
+  op repairReplicas : KeyValueVersion ResponseSet -> AddressSet .
+  eq repairReplicas(KVV,(response(RID,KVV'),RSET)) = 
+       if KVV == KVV'
+         then repairReplicas(KVV,RSET)
+         else RID ; repairReplicas(KVV,RSET)
+       fi .
+  eq repairReplicas(KVV,empty) = emptyAddrSet .
+
+  op resultForRead : ResponseSet -> KeyValueVersion .
+  op $resultForRead : ResponseSet KeyValueVersion -> KeyValueVersion .
+
+  eq resultForRead((response(RID,[K,V,VERSION]),RSET)) = $resultForRead(RSET,[K,V,VERSION]) .
+  eq $resultForRead(empty,KVV) = KVV .
+  eq $resultForRead((response(RID,[K,V,VERSION]),RSET),[K,V',VERSION']) =
+       if VERSION >= VERSION'
+         then $resultForRead(RSET,[K,V,VERSION])
+         else $resultForRead(RSET,[K,V',VERSION'])
+       fi .
+
+  op resultForWrite : ResponseSet -> Bool .
+  eq resultForWrite((response(RID,false),RSET)) = false .
+  eq resultForWrite(RSET) = true [owise] .
+
+  op _in_ : Address ReqConsLv -> Bool .
+  eq TID in (RCL ; [TID,CL]) = true .
+  eq TID in RCL = false [owise] .
+
+  op sameValue : ResponseSet -> Bool .
+  eq sameValue((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']), RSET))
+     = true .
+  eq sameValue(RSET) = false [owise] .
+
+
+  op sameResultForRead : ResponseSet -> KeyValueVersion .
+  eq sameResultForRead((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']), RSET))
+     = [K,V,max(VERSION,VERSION')] .
+
+  op allSameValue : ResponseSet -> Bool .
+  eq allSameValue((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']),
+                   response(RID'',[K,V,VERSION'']), RSET))
+     = true .
+  eq allSameValue(RSET) = false [owise] .
+
+  op sameResultForReadAll : ResponseSet -> KeyValueVersion .
+  eq sameResultForReadAll((response(RID,[K,V,VERSION]), response(RID',[K,V,VERSION']),
+                   response(RID'',[K,V,VERSION'']), RSET))
+     = [K,V,max(VERSION,max(VERSION',VERSION''))] .
+endm
