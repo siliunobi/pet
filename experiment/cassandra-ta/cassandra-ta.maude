@@ -52,7 +52,7 @@ mod CASSANDRA is
      < A : Client | executing: (< TID : Txn | operations: nil,
                                               consLv: CL, AS' > TXNS),
                     coord: S, AS >
-     [delay + GT, msg request(TID,read(K),CL) from A to S] .
+     [delay, msg request(TID,read(K),CL) from A to S] .
 
   *** NEW
   eq eagerEnabled(< A : Client | executing: (< TID : Txn | operations: read(K),
@@ -74,7 +74,7 @@ mod CASSANDRA is
 
   op genReadRequests : Float Address Key AddressSet Address -> Config .
   eq genReadRequests(GT,TID,K,(RID ; RIDS),S) = 
-       [delay + GT, msg readRequest(TID,K) from S to RID]
+       [delay, msg readRequest(TID,K) from S to RID]
        genReadRequests(GT,TID,K,RIDS,S) .
   eq genReadRequests(GT,TID,K,emptyAddrSet,S) = null .
 
@@ -86,7 +86,7 @@ mod CASSANDRA is
      {GT, msg readRequest(TID,K) from S to RID}
    => 
      < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
-     [delay + GT, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
+     [delay, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
 
 
 
@@ -97,7 +97,7 @@ mod CASSANDRA is
    =>
      < S : Server | reqConsLv: RCL,
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))] .
+     [delay, done(TID,resultForRead((response(RID,KVV),RSET)))] .
 
 
 
@@ -110,7 +110,7 @@ mod CASSANDRA is
        then if sameValue((response(RID,KVV),RSET))
               then < S : Server | reqConsLv: RCL,
                          respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-                   [delay + GT, done(TID, sameResultForRead((response(RID,KVV),RSET)))]
+                   [delay, done(TID, sameResultForRead((response(RID,KVV),RSET)))]
               else < S : Server | reqConsLv: (RCL ; [TID,2]),
                          respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
             fi
@@ -118,10 +118,10 @@ mod CASSANDRA is
               then if sameValue((response(RID,KVV),RSET))
                      then < S : Server | reqConsLv: RCL,
                                 respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-                          [delay + GT, done(TID, sameResultForRead((response(RID,KVV),RSET)))]  
+                          [delay, done(TID, sameResultForRead((response(RID,KVV),RSET)))]  
                      else < S : Server | reqConsLv: RCL,
                                 respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-                          [delay + GT, error(TID,resultForRead((response(RID,KVV),RSET)))]
+                          [delay, error(TID,resultForRead((response(RID,KVV),RSET)))]
 
                    fi 
               else < S : Server | reqConsLv: (RCL ; [TID,2]),
@@ -139,10 +139,10 @@ mod CASSANDRA is
        then if allSameValue((response(RID,KVV),RSET))     
               then < S : Server | reqConsLv: RCL,
                                   respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-                   [delay + GT, done(TID, sameResultForReadAll((response(RID,KVV),RSET)))]  
+                   [delay, done(TID, sameResultForReadAll((response(RID,KVV),RSET)))]  
               else < S : Server | reqConsLv: RCL,
                                   respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-                   [delay + GT, error(TID,resultForRead((response(RID,KVV),RSET)))]  --- currently, use the latest value! alternatively, use "error"
+                   [delay, error(TID,resultForRead((response(RID,KVV),RSET)))]  --- currently, use the latest value! alternatively, use "error"
             fi
        else < S : Server | reqConsLv: (RCL ; [TID,3]),
                            respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
@@ -165,7 +165,7 @@ mod CASSANDRA is
   
   op $genReadRepairs : Float KeyValueVersion AddressSet Address -> Config .
   eq $genReadRepairs(GT,KVV,(RID ; RIDS),S) =
-       [delay + GT, msg readRepair(KVV) from S to RID]
+       [delay, msg readRepair(KVV) from S to RID]
        $genReadRepairs(GT,KVV,RIDS,S) .
   eq $genReadRepairs(GT,KVV,emptyAddrSet,S) = null .
 
@@ -214,7 +214,7 @@ mod CASSANDRA is
                     committed: (TXNS' < TID : Txn | readSet: (RS,< K,VERSION' >),
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [GT, start to A] .
+     [0.0, start to A] .
 
 
   rl [rcv-error-read] :
@@ -232,7 +232,7 @@ mod CASSANDRA is
                     aborted: (TXNS' < TID : Txn | readSet: (RS,< K,VERSION' >),
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [GT, start to A] .
+     [0.0,  start to A] .
 
 
   *** WRITES:
@@ -250,7 +250,7 @@ mod CASSANDRA is
                                               writeSet: (WS,< K,V >),
                                               version: GT, AS' > TXNS),
                     coord: S, AS >
-     [delay + GT, msg request(TID,write(K,V),GT,CL) from A to S] .
+     [delay, msg request(TID,write(K,V),GT,CL) from A to S] .
 
   *** NEW
   eq eagerEnabled(< A : Client | executing: (< TID : Txn | operations: write(K,V),
@@ -273,7 +273,7 @@ mod CASSANDRA is
 
   op genWriteRequests : Float Address Key Value Version AddressSet Address -> Config .
   eq genWriteRequests(GT,TID,K,V,VERSION,(RID ; RIDS),S) = 
-       [delay + GT, msg writeRequest(TID,[K,V,VERSION]) from S to RID]
+       [delay, msg writeRequest(TID,[K,V,VERSION]) from S to RID]
        genWriteRequests(GT,TID,K,V,VERSION,RIDS,S) .
   eq genWriteRequests(GT,TID,K,V,VERSION,emptyAddrSet,S) = null .
 
@@ -285,9 +285,9 @@ mod CASSANDRA is
    => 
      if VERSION' >= VERSION
        then < RID : Server | datastore: (DS, [K,V',VERSION']), AS >
-            [delay + GT, msg writeResponse(TID,true) from RID to S]
+            [delay, msg writeResponse(TID,true) from RID to S]
        else < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
-            [delay + GT, msg writeResponse(TID,false) from RID to S]
+            [delay, msg writeResponse(TID,false) from RID to S]
      fi .
 
 
@@ -299,7 +299,7 @@ mod CASSANDRA is
      if CL == | (response(RID,FLAG),RSET) |
        then < S : Server | reqConsLv: RCL,
                            respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
-            [delay + GT, done(TID,resultForWrite((response(RID,FLAG),RSET)))]
+            [delay, done(TID,resultForWrite((response(RID,FLAG),RSET)))]
        else < S : Server | reqConsLv: (RCL ; [TID,CL]),
                            respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
      fi .
@@ -330,6 +330,6 @@ mod CASSANDRA is
                     committed: (TXNS' < TID : Txn | readSet: RS,
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [GT, start to A] .
+     [0.0, start to A] .
 
 endm
