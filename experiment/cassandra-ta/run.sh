@@ -3,20 +3,19 @@ host=`hostname -s`
 test_file=test.maude
 
 #metric="latency"
-metric="throughput"
-#metric="ratio"
+#metric="throughput"
+metric="readlatency"
 #for loads in 180 100 ;
 for loads in 180 ;
 do
 	for cls in 20 40 60 80 100 ;
-    #for cls in 100 ;
 	do
 		for rlevel in "one" "quorum" "all" ;
-        #for rlevel in "all" ;
 		do
 			conf="$metric-$loads-$cls-$rlevel"
 			
-			metric_file="throughput.quatex"
+			#metric_file="throughput.quatex"
+            metric_file="readlatency.quatex"
 			if [ $metric = 'latency' ];
 			then
 				metric_file="avglatency.quatex"
