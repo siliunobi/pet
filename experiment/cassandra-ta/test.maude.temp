@@ -116,6 +116,34 @@ mod CASSANDRA-ANALYSIS is
   eq $totalLatency(empty,T) = T .
 
 
+  --- readAvgLatency : Log -> Float .
+  op readAvgLatency : Log -> Float .
+  --- includes "error" reads
+  eq readAvgLatency(LOG) = readTotalLatency(LOG)
+                         / readNumber(LOG) .
+
+  op readTotalLatency : Log -> Float .
+  op $readTotalLatency : Log Float -> Float .
+
+  eq readTotalLatency(LOG) = $readTotalLatency(LOG,0.0) .
+  eq $readTotalLatency((TID |-> 
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; empty >,LOG),T) 
+      = $readTotalLatency(LOG,T + GT' - GT) .
+  eq $readTotalLatency((TID |-> 
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T)
+      = $readTotalLatency(LOG,T) [owise] .
+  eq $readTotalLatency(empty,T) = T .
+
+  op readNumber : Log -> Float .
+  op $readNumber : Log Float -> Float .
+  eq readNumber(LOG) = $readNumber(LOG,0.0) .
+  eq $readNumber((TID |-> < VT ; VT' ; FLAG ; RS ; empty >,LOG),N) 
+     = $readNumber(LOG,N + 1.0) .
+  eq $readNumber((TID |-> < VT ; VT' ; FLAG ; RS ; WS >,LOG),N) 
+     = $readNumber(LOG,N) [owise] .
+  eq $readNumber(empty,N) = N .  
+
+
   --- Commit ratio
   op cmtRatio : Log -> Float .
   eq cmtRatio(LOG) = committedNumber(LOG) 
@@ -133,6 +161,7 @@ mod CASSANDRA-ANALYSIS is
   eq val(0,< M : Monitor | log: LOG > C) = throughput(LOG) .
   eq val(1,< M : Monitor | log: LOG > C) = avgLatency(LOG) .
   eq val(2,< M : Monitor | log: LOG > C) = cmtRatio(LOG) .
+  eq val(3,< M : Monitor | log: LOG > C) = readAvgLatency(LOG) .  
 
 ---(
   eq initState = 
