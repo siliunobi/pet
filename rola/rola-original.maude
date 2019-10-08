@@ -370,7 +370,7 @@ k101l k102l k103l k104l k105l k106l k107l k108l k109l k110l k111l k112l k113l k1
         VL' := lat(VL,MD,TS) /\
         1STGETS' := remove(TID,RID',1STGETS) /\
         RIDS := 2ndSites(VL',RS',RID,REPLICA-TABLE) . 
-  
+      
 
 
 
