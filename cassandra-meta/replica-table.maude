@@ -1,0 +1,76 @@
+load prelim
+
+(fmod REPLICA-TABLE is
+  inc CASSANDRA-IFACE .
+
+  sort KeyReplicas .
+
+  op emptyTable : -> KeyReplicas [ctor] .
+  op replicatingSites : Key AddressList -> KeyReplicas [ctor] .  *** head of list is the coord
+  op _;;_ : KeyReplicas KeyReplicas -> KeyReplicas [ctor assoc comm id: emptyTable] .
+
+  op `[_`] : KeyReplicas -> ReplicaTable [ctor] .
+
+
+  var RT : KeyReplicas .
+  var K : Key .
+  var KS : KeySet .
+  vars RID RID' : Address .
+  var RIDS : AddressSet .
+  vars RIDSS RIDSS' : AddressList .
+  var WS : WriteSet .
+  var V : Value .
+
+  ---(
+  op replicas : WriteSet ReplicaTable -> AddressSet .
+  eq replicas(WS, [RT]) = replicas(WS, RT) .
+
+  op replicas : WriteSet KeyReplicas -> AddressSet .
+  eq replicas(empty,RT) = emptyAddrSet .
+  eq replicas((K |-> V,WS), replicatingSites(K,RIDSS) ;; RT) =
+       makeSet(RIDSS) ; replicas(WS,RT) .
+  eq replicas(WS,RT) = emptyAddrSet [owise] .
+  )
+
+  op allServers : KeyReplicas -> AddressSet .
+  eq allServers(replicatingSites(K,RIDSS) ;; RT) = 
+       makeSet(RIDSS) ; allServers(RT) .
+  eq allServers(emptyTable) = emptyAddrSet . 
+  
+  op makeSet : AddressList -> AddressSet .
+  eq makeSet((RID ;; RIDSS)) = RID ; makeSet(RIDSS) .
+  eq makeSet(emptyAddrList) = emptyAddrSet .
+
+  op preferredSite : Key KeyReplicas -> Address .
+  eq preferredSite(K,(replicatingSites(K,(RID ;; RIDSS)) ;; RT)) = RID .
+
+  op allPreferredSites : WriteSet KeyReplicas -> AddressSet .
+  eq allPreferredSites((K |-> V,WS), replicatingSites(K,(RID ;; RIDSS)) ;; RT) =
+       RID ; allPreferredSites(WS,RT) .
+  eq allPreferredSites(empty,RT) = emptyAddrSet .
+  eq allPreferredSites(WS,RT) = emptyAddrSet [owise] .
+
+  op preferredSite : Key ReplicaTable -> Address .
+  eq preferredSite(K,[RT]) = preferredSite(K,RT) .
+  op allServers : ReplicaTable -> AddressSet .
+  eq allServers([RT]) = allServers(RT) .
+  op allPreferredSites : WriteSet ReplicaTable -> AddressSet .
+  eq allPreferredSites(WS,[RT]) = allPreferredSites(WS,RT) .
+
+  op _in_ : Address AddressList -> Bool .
+  eq RID in (RIDSS ;; RID ;; RIDSS') = true .
+  eq RID in RIDSS = false [owise] .
+
+  op locRepWS : WriteSet Address ReplicaTable -> WriteSet .
+  op locRepWS : WriteSet Address KeyReplicas -> WriteSet .
+  eq locRepWS(WS,RID,[RT]) = locRepWS(WS,RID,RT) .
+  eq locRepWS((K |-> V,WS),RID,replicatingSites(K,RIDSS ;; RID ;; RIDSS') ;; RT) =
+       K |-> V, locRepWS(WS,RID,RT) .
+  eq locRepWS(WS,RID,RT) = empty [owise] .
+
+  op replicas : Key ReplicaTable -> AddressSet .
+  op replicas : Key KeyReplicas  -> AddressSet .
+  eq replicas(K,[RT]) = replicas(K,RT) .
+  eq replicas(K, replicatingSites(K,RIDSS) ;; RT) =
+       makeSet(RIDSS) .
+endfm)
