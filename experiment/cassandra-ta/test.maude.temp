@@ -76,15 +76,15 @@ mod CASSANDRA-ANALYSIS is
 
   --- Throughput
   op throughput : Log -> Float .
-  ---
+  ---(
   eq throughput(LOG) = committedNumber(LOG) 
                      / totalRunTime(LOG) .
-  
+  )
   *** NEW
-  ---(
+  ---
   eq throughput(LOG) = totalNumber(LOG) 
                      / totalRunTime(LOG) .
-  )
+  
   op committedNumber : Log -> Float .
   op $committedNumber : Log Float -> Float .
 

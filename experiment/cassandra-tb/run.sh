@@ -4,7 +4,8 @@ test_file=test.maude
 
 #metric="latency"
 metric="throughput"
-for loads in 180 100 ;
+#for loads in 180 100 ;
+for loads in 190 ;
 do
 	for cls in 20 40 60 80 100 ;
 	do

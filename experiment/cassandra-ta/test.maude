@@ -14,13 +14,9 @@ mod CASSANDRA-ANALYSIS is
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
----(
-  eq initState = init(nbOfRoTxns,nbOfWoTxns,nbOfRwTxns,
-      nbOfCls,nbOfServs,nbOfKeys,nbOfRepls,
-      nbOfOpsPerRoTxn,nbOfOpsPerWoTxn,nbOfOpsPerRwTxn,kad,readLevel,writeLevel) . 
-)
+---
+  eq initState = init(180,20,0,100,50,100,3,1,1,0,zipf,all,one) . 
 
-  eq initState = init(1,2,0,3,3,5,3,1,1,0,zipf,all,one) . 
 
   --- Init parameters 
   eq nbOfRoTxns = 5 .  
@@ -38,7 +34,7 @@ mod CASSANDRA-ANALYSIS is
   eq writeLevel = one .
 
   eq delay = sampleLogNormal(0.0,1.0) .
-
+  --- eq delay = genRandom(0.0, 1.0) .
 
 
   --- Metrics
@@ -52,6 +48,7 @@ mod CASSANDRA-ANALYSIS is
 
   op totalRunTime : Log -> Float .
   op trt : Log Float -> Float .
+
 
   eq totalRunTime(LOG) = trt(LOG,0.0) .
   ---(
@@ -67,6 +64,7 @@ mod CASSANDRA-ANALYSIS is
   eq trt(empty,T) = T .
   )
   *** NEW: false reads count
+  ---
   eq trt((TID |-> 
       < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) = 
        if GT' > T
@@ -74,6 +72,7 @@ mod CASSANDRA-ANALYSIS is
          else trt(LOG,T)
        fi .
   eq trt(empty,T) = T .
+  
 
   --- Throughput
   op throughput : Log -> Float .
@@ -82,9 +81,10 @@ mod CASSANDRA-ANALYSIS is
                      / totalRunTime(LOG) .
   )
   *** NEW
+  ---
   eq throughput(LOG) = totalNumber(LOG) 
                      / totalRunTime(LOG) .
-
+  
   op committedNumber : Log -> Float .
   op $committedNumber : Log Float -> Float .
 
@@ -160,5 +160,3 @@ endm
 ---set clear rules off .
 
 ---rew initConfig .
-
-
