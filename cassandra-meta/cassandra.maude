@@ -43,16 +43,16 @@ load sampler
 
   *** READS:
   rl [read-from-client-to-coord] :
-     { GT | SL }
+
      < A : Client | executing: (< TID : Txn | operations: read(K),
                                               consLv: CL, AS' > TXNS),
                     coord: S, AS >
    =>
-     { GT | SL }
+
      < A : Client | executing: (< TID : Txn | operations: nil,
                                               consLv: CL, AS' > TXNS),
                     coord: S, AS >
-     [delay + GT, msg request(TID,read(K),CL) from A to S] .
+     [delay, msg request(TID,read(K),CL) from A to S] .
 
 ---(
   *** NEW
@@ -71,13 +71,13 @@ load sampler
      < TABLE : Table | table: REPLICA-TABLE >
      < S : Server | reqConsLv: (RCL ; [TID,CL]),
                     respFromRepl: insert(TID,empty,RESPONSES), AS > 
-     genReadRequests(GT,TID,K,replicas(K,REPLICA-TABLE),S) . 
+     genReadRequests(TID,K,replicas(K,REPLICA-TABLE),S) . 
 
-  op genReadRequests : Float Address Key AddressSet Address -> Config .
-  eq genReadRequests(GT,TID,K,(RID ; RIDS),S) = 
-       [delay + GT, msg readRequest(TID,K) from S to RID]
-       genReadRequests(GT,TID,K,RIDS,S) .
-  eq genReadRequests(GT,TID,K,emptyAddrSet,S) = null .
+  op genReadRequests : Address Key AddressSet Address -> Config .
+  eq genReadRequests(TID,K,(RID ; RIDS),S) = 
+       [delay, msg readRequest(TID,K) from S to RID]
+       genReadRequests(TID,K,RIDS,S) .
+  eq genReadRequests(TID,K,emptyAddrSet,S) = null .
 
 
 
@@ -88,7 +88,7 @@ load sampler
      {GT, msg readRequest(TID,K) from S to RID}
    => 
      < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
-     [delay + GT, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
+     [delay, msg readResponse(TID,[K,V,VERSION]) from RID to S] .
 
 
 
@@ -103,12 +103,12 @@ load sampler
  crl [from-coord-to-client-cl-less-than-rf] : 
      < S : Server | reqConsLv: (RCL ; [TID,CL]),
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     { GT | SL }
+
    =>
      < S : Server | reqConsLv: RCL,
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS > 
-     { GT | SL }
-     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
+
+     [delay, done(TID,resultForRead((response(RID,KVV),RSET)))]
      if | (response(RID,KVV),RSET) | =/= replicaFactor /\
         | (response(RID,KVV),RSET) | == CL .  
 
@@ -124,25 +124,25 @@ load sampler
  crl [from-coord-to-client-cl-equals-to-rf] : 
      < S : Server | reqConsLv: (RCL ; [TID,CL]),
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     {GT | SL}
+
    =>
-     {GT | SL}
+
      < S : Server | reqConsLv: RCL,
                     respFromRepl: RESPONSES, AS >
-     genReadRepairs(GT,(response(RID,KVV),RSET),S)
-     [delay + GT, done(TID,resultForRead((response(RID,KVV),RSET)))]
+     genReadRepairs((response(RID,KVV),RSET),S)
+     [delay, done(TID,resultForRead((response(RID,KVV),RSET)))]
      if | (response(RID,KVV),RSET) | == replicaFactor /\
         | (response(RID,KVV),RSET) | == CL .   
 
-  op genReadRepairs : Float ResponseSet Address -> Config .
-  eq genReadRepairs(GT,RSET,S) = 
-       $genReadRepairs(GT,resultForRead(RSET),repairReplicas(resultForRead(RSET),RSET),S) .
+  op genReadRepairs : ResponseSet Address -> Config .
+  eq genReadRepairs(RSET,S) = 
+       $genReadRepairs(resultForRead(RSET),repairReplicas(resultForRead(RSET),RSET),S) .
   
-  op $genReadRepairs : Float KeyValueVersion AddressSet Address -> Config .
-  eq $genReadRepairs(GT,KVV,(RID ; RIDS),S) =
-       [delay + GT, msg readRepair(KVV) from S to RID]
-       $genReadRepairs(GT,KVV,RIDS,S) .
-  eq $genReadRepairs(GT,KVV,emptyAddrSet,S) = null .
+  op $genReadRepairs : KeyValueVersion AddressSet Address -> Config .
+  eq $genReadRepairs(KVV,(RID ; RIDS),S) =
+       [delay, msg readRepair(KVV) from S to RID]
+       $genReadRepairs(KVV,RIDS,S) .
+  eq $genReadRepairs(KVV,emptyAddrSet,S) = null .
 
 ---(
   *** NEW
@@ -155,12 +155,12 @@ load sampler
  crl [from-coord-to-client-cl-less-than-rf-later-readrepair] : 
      < S : Server | reqConsLv: RCL,
                     respFromRepl: (TID |-> (response(RID,KVV),RSET),RESPONSES), AS >
-     {GT | SL}
+     
    =>
-     {GT | SL}
+     
      < S : Server | reqConsLv: RCL,
                     respFromRepl: RESPONSES, AS >
-     genReadRepairs(GT,(response(RID,KVV),RSET),S)
+     genReadRepairs((response(RID,KVV),RSET),S)
      if | (response(RID,KVV),RSET) | == replicaFactor /\
         (not TID in RCL) .   
 ---(
@@ -196,7 +196,7 @@ load sampler
                     committed: (TXNS' < TID : Txn | readSet: (RS,< K,VERSION' >),
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [delay + GT, start to A] .
+     [delay, start to A] .
 
 
   *** WRITES:
@@ -214,7 +214,7 @@ load sampler
                                               writeSet: (WS,< K,V >),
                                               version: GT, AS' > TXNS),
                     coord: S, AS >
-     [delay + GT, msg request(TID,write(K,V),GT,CL) from A to S] .
+     [delay, msg request(TID,write(K,V),GT,CL) from A to S] .
 ---(
   *** NEW
   eq eagerEnabled(< A : Client | executing: (< TID : Txn | operations: write(K,V),
@@ -233,13 +233,13 @@ load sampler
      < TABLE : Table | table: REPLICA-TABLE >
      < S : Server | reqConsLv: (RCL ; [TID,CL]),
                     respFromRepl: insert(TID,empty,RESPONSES), AS > 
-     genWriteRequests(GT,TID,K,V,GT',replicas(K,REPLICA-TABLE),S) . 
+     genWriteRequests(TID,K,V,GT',replicas(K,REPLICA-TABLE),S) . 
 
-  op genWriteRequests : Float Address Key Value Version AddressSet Address -> Config .
-  eq genWriteRequests(GT,TID,K,V,VERSION,(RID ; RIDS),S) = 
-       [delay + GT, msg writeRequest(TID,[K,V,VERSION]) from S to RID]
-       genWriteRequests(GT,TID,K,V,VERSION,RIDS,S) .
-  eq genWriteRequests(GT,TID,K,V,VERSION,emptyAddrSet,S) = null .
+  op genWriteRequests : Address Key Value Version AddressSet Address -> Config .
+  eq genWriteRequests(TID,K,V,VERSION,(RID ; RIDS),S) = 
+       [delay, msg writeRequest(TID,[K,V,VERSION]) from S to RID]
+       genWriteRequests(TID,K,V,VERSION,RIDS,S) .
+  eq genWriteRequests(TID,K,V,VERSION,emptyAddrSet,S) = null .
 
 
 
@@ -249,9 +249,9 @@ load sampler
    => 
      if VERSION' >= VERSION
        then < RID : Server | datastore: (DS, [K,V',VERSION']), AS >
-            [delay + GT, msg writeResponse(TID,true) from RID to S]
+            [delay, msg writeResponse(TID,true) from RID to S]
        else < RID : Server | datastore: (DS, [K,V,VERSION]), AS >
-            [delay + GT, msg writeResponse(TID,false) from RID to S]
+            [delay, msg writeResponse(TID,false) from RID to S]
      fi .
 
 
@@ -263,7 +263,7 @@ load sampler
      if CL == | (response(RID,FLAG),RSET) |
        then < S : Server | reqConsLv: RCL,
                            respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
-            [delay + GT, done(TID,resultForWrite((response(RID,FLAG),RSET)))]
+            [delay, done(TID,resultForWrite((response(RID,FLAG),RSET)))]
        else < S : Server | reqConsLv: (RCL ; [TID,CL]),
                            respFromRepl: (TID |-> (response(RID,FLAG),RSET),RESPONSES), AS >
      fi .
@@ -294,6 +294,6 @@ load sampler
                     committed: (TXNS' < TID : Txn | readSet: RS,
                                                     writeSet: WS,
                                                     version: VERSION, AS' >), AS >
-     [delay + GT, start to A] .
+     [delay, start to A] .
 
 endm)
