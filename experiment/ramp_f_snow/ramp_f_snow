@@ -15,7 +15,7 @@ mod RAMP-F-SNOW is
 
   --- lognormal distribution
   eq ld = sampleLogNormal(0.0,1.0) . --- miu, sigma 
-  eq rd = sampleLogNormal(3.0,2.0) .
+  eq rd = sampleLogNormal(0.0,1.0) .
 
   --- weibull distribution
 ---   eq ld = sampleWeibull(5.0,1.0) . 
@@ -73,16 +73,16 @@ mod RAMP-F-SNOW is
   op value : Version -> Value .
   eq value(version(K,V,TS,MD)) = V .
 
-  op genGets : Float OperationList Address Address ReplicaTable -> Config .
-  eq genGets(T,((X :=read K) OPS),RID,TID,REPLICA-TABLE) = 
-       genGets(T,OPS,RID,TID,REPLICA-TABLE)
+  op genGets : OperationList Address Address ReplicaTable -> Config .
+  eq genGets(((X :=read K) OPS),RID,TID,REPLICA-TABLE) = 
+       genGets(OPS,RID,TID,REPLICA-TABLE)
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld + T, RID <- get(TID,K,RID)]  --- get does not have ts
-         else [rd + T, preferredSite(K,REPLICA-TABLE) <- get(TID,K,RID)]
+         then [ld, RID <- get(TID,K,RID)]  --- get does not have ts
+         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,RID)]
        fi .
-  eq genGets(T,(write(K,EXPR) OPS),RID,TID,REPLICA-TABLE) =
-       genGets(T,OPS,RID,TID,REPLICA-TABLE) .
-  eq genGets(T,nil,RID,TID,REPLICA-TABLE) = null .
+  eq genGets((write(K,EXPR) OPS),RID,TID,REPLICA-TABLE) =
+       genGets(OPS,RID,TID,REPLICA-TABLE) .
+  eq genGets(nil,RID,TID,REPLICA-TABLE) = null .
 
   op 1stSites : OperationList Address ReplicaTable -> AddressSet .
   eq 1stSites(((X :=read K) OPS),RID,REPLICA-TABLE) =
@@ -104,18 +104,18 @@ mod RAMP-F-SNOW is
        prepareSites(OPS,RID,REPLICA-TABLE) .
   eq prepareSites(nil,RID,REPLICA-TABLE) = empty .
 
-  op genPuts : Float OperationList Address Address Nat LocalVars ReplicaTable -> Config .
-  op $genPuts : Float OperationList Address Address Nat LocalVars ReplicaTable OperationList -> Config .
-  eq genPuts(T,OPS,RID,TID,SQN,VARS,REPLICA-TABLE) = $genPuts(T,OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS) .
-  eq $genPuts(T,(write(K,EXPR) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS'')) =
-       $genPuts(T,OPS,RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS''))
+  op genPuts : OperationList Address Address Nat LocalVars ReplicaTable -> Config .
+  op $genPuts : OperationList Address Address Nat LocalVars ReplicaTable OperationList -> Config .
+  eq genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE) = $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS) .
+  eq $genPuts((write(K,EXPR) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS'')) =
+       $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS''))
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld + T, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md((OPS' OPS''),VARS)),RID)]
-         else [rd + T, preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md((OPS' OPS''),VARS)),RID)]
+         then [ld, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md((OPS' OPS''),VARS)),RID)]
+         else [rd, preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md((OPS' OPS''),VARS)),RID)]
        fi .
-  eq $genPuts(T,((X :=read K) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = 
-       $genPuts(T,OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') .  --- deal with rw-txns
-  eq $genPuts(T,nil,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = null .  
+  eq $genPuts(((X :=read K) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = 
+       $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') .  --- deal with rw-txns
+  eq $genPuts(nil,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = null .  
   --- Note that when initializing write-only txns EXPR should be Value, e.g., [0]
   --- That is, VARS is useless to genPuts in write-only txns
 
@@ -204,11 +204,11 @@ mod RAMP-F-SNOW is
               fi
        fi .
 
-  op genCommits : Float Address Nat AddressSet Address -> Config .
-  eq genCommits(T,TID,SQN,(RID' ; RIDS),RID) =
-       genCommits(T,TID,SQN,RIDS,RID)
-       [if RID == RID' then ld + T else rd + T fi, RID' <- commit(TID,ts(RID,SQN),RID)] .
-  eq genCommits(T,TID,SQN,empty,RID) = null .
+  op genCommits : Address Nat AddressSet Address -> Config .
+  eq genCommits(TID,SQN,(RID' ; RIDS),RID) =
+       genCommits(TID,SQN,RIDS,RID)
+       [if RID == RID' then ld else rd fi, RID' <- commit(TID,ts(RID,SQN),RID)] .
+  eq genCommits(TID,SQN,empty,RID) = null .
 
   op vmatch : Key Versions KeyTimestamps -> Version .
   eq vmatch(K,(version(K,V,TS,MD),VS),(K |-> TS,LC)) = version(K,V,TS,MD) .
@@ -267,7 +267,7 @@ mod RAMP-F-SNOW is
                        executing: < TID : Txn | operations: OPS,
                                                 latest: vl(OPS), AS >,  --- initialize "v_latest"
                        1stGetSites: (1STGETS ; 1st(TID,RIDS)), AS' >
-     genGets(T,OPS,RID,TID,REPLICA-TABLE) 
+     genGets(OPS,RID,TID,REPLICA-TABLE) 
      if (not write-only(OPS)) /\
         RIDS := 1stSites(OPS,RID,REPLICA-TABLE) .
 
@@ -289,7 +289,7 @@ mod RAMP-F-SNOW is
                                                 localVars: VARS, AS >,
                        sqn: SQN',
                        voteSites: (VSTS ; voteSites(TID,RIDS)), AS' >
-     genPuts(T,OPS,RID,TID,SQN',VARS,REPLICA-TABLE)
+     genPuts(OPS,RID,TID,SQN',VARS,REPLICA-TABLE)
      if SQN' := SQN + 1 /\
         write-only(OPS) /\
         RIDS := prepareSites(OPS,RID,REPLICA-TABLE) /\
@@ -300,7 +300,7 @@ mod RAMP-F-SNOW is
      {T, RID <- prepare(TID,VERSION,RID')}
    =>
      < RID : Replica | datastore: (VS,VERSION), AS' >
-     [if RID == RID' then ld + T else rd + T fi, RID' <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
+     [if RID == RID' then ld else rd fi, RID' <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
 
  crl [receive-prepare-reply] :
      < TABLE : Table | table: REPLICA-TABLE >
@@ -316,7 +316,7 @@ mod RAMP-F-SNOW is
                               voteSites: VSTS',
                               sqn: SQN,
                               commitSites: (CMTS ; voteSites(TID,RIDS)), AS' >
-            genCommits(T,TID,SQN,RIDS,RID)
+            genCommits(TID,SQN,RIDS,RID)
        else < RID : Replica | executing: < TID : Txn | operations: OPS, AS >,
                               voteSites: VSTS',
                               sqn: SQN,
@@ -333,7 +333,7 @@ mod RAMP-F-SNOW is
    =>
      < RID : Replica | datastore: VS,
                        latestCommit: cmt(LC,VS,ts(RID',SQN)), AS' >
-     [if RID == RID' then ld + T else rd + T fi, RID' <- committed(TID,RID)] .
+     [if RID == RID' then ld else rd fi, RID' <- committed(TID,RID)] .
 
  crl [receive-committed] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
@@ -363,7 +363,7 @@ mod RAMP-F-SNOW is
    =>
      < RID : Replica | datastore: VS,
                        latestCommit: LC, AS' >
-     [if RID == RID' then ld + T else rd + T fi, 
+     [if RID == RID' then ld else rd fi, 
       RID' <- response(TID,vmatch(K,VS,LC),RID)] .
 
 
@@ -424,7 +424,7 @@ mod RAMP-F-SNOW is
                               1stGetSites: delete(TID,1STGETS),
                               sqn: SQN',
                               voteSites: (VSTS ; voteSites(TID,RIDS)), AS' >
-            genPuts(T,OPS,RID,TID,SQN',VARS',REPLICA-TABLE)
+            genPuts(OPS,RID,TID,SQN',VARS',REPLICA-TABLE)
      fi 
      if RS' := raConsistent(VL,RS) /\
         VARS' := updateVars(OPS,RS',VARS) /\

@@ -14,8 +14,8 @@ mod RAMP-F is
   eq nd = 0.0 .
 
   --- lognormal distribution
-  eq ld = sampleLogNormal(3.0,2.0) . --- miu, sigma 
-  eq rd = sampleLogNormal(3.0,2.0) .
+  eq ld = sampleLogNormal(0.0,1.0) . --- miu, sigma 
+  eq rd = sampleLogNormal(0.0,1.0) .
 
   --- weibull distribution
 ---   eq ld = sampleWeibull(5.0,1.0) . 
