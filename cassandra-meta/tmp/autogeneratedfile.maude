@@ -1,0 +1,273 @@
+Warning: <automatic>: variable GT:Float is used before it is bound in rule:
+rl
+< A:Address : Client | AS:AttributeSet,coord: S:Address,executing: (TXNS:Config
+< TID:Address : Txn | AS':AttributeSet,consLv: CL:ConsistLevel,operations: read(K:Key) >) > =>
+    [delay,[delay + GT:Float,msg request(TID:Address, read(K:Key), CL:ConsistLevel) from
+    A:Address to S:Address]]
+< A:Address : Client | executing: (TXNS:Config
+< TID:Address : Txn | operations: nil,AS':AttributeSet,consLv: CL:ConsistLevel >),
+    AS:AttributeSet,coord: S:Address > [label read-from-client-to-coord] .
+Warning: <automatic>: variable GT:Float is used before it is bound in rule:
+crl
+< S:Address : Server | AS:AttributeSet,reqConsLv: RCL:ReqConsLv,respFromRepl: (
+    RESPONSES:Responses, TID:Address |-> (RSET:ResponseSet, response(RID:Address,
+    KVV:KeyValueVersion))) > =>
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,AS:AttributeSet,respFromRepl:
+    RESPONSES:Responses > genReadRepairs(GT:Float, (RSET:ResponseSet, response(RID:Address,
+    KVV:KeyValueVersion)), S:Address) if | RSET:ResponseSet, response(RID:Address,
+    KVV:KeyValueVersion) | == replicaFactor = true /\ not TID:Address in RCL:ReqConsLv = true
+    [label from-coord-to-client-cl-less-than-rf-later-readrepair] .
+Warning: <automatic>: variable GT:Float is used before it is bound in rule:
+crl
+< S:Address : Server | AS:AttributeSet,reqConsLv: (RCL:ReqConsLv ; [TID:Address,
+    CL:ConsistLevel]),respFromRepl: (RESPONSES:Responses, TID:Address |-> (RSET:ResponseSet,
+    response(RID:Address, KVV:KeyValueVersion))) > => ([delay,done(TID:Address, resultForRead(
+    (RSET:ResponseSet, response(RID:Address, KVV:KeyValueVersion))))] genReadRepairs(GT:Float,
+    (RSET:ResponseSet, response(RID:Address, KVV:KeyValueVersion)), S:Address))
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,AS:AttributeSet,respFromRepl:
+    RESPONSES:Responses > if | RSET:ResponseSet, response(RID:Address, KVV:KeyValueVersion) |
+    == replicaFactor = true /\ | RSET:ResponseSet, response(RID:Address, KVV:KeyValueVersion)
+    | == CL:ConsistLevel = true [label from-coord-to-client-cl-equals-to-rf] .
+mod CASSANDRA is
+  including BOOL .
+  including CASSANDRA-AUX .
+  including SCHEDULER .
+  op $genReadRepairs : Float KeyValueVersion AddressSet Address -> Config .
+  op genReadRepairs : Float ResponseSet Address -> Config .
+  op genReadRequests : Float Address Key AddressSet Address -> Config .
+  op genWriteRequests : Float Address Key Value Version AddressSet Address -> Config .
+  eq $genReadRepairs(GT:Float,KVV:KeyValueVersion,emptyAddrSet,S:Address)
+    = null .
+  eq $genReadRepairs(GT:Float,KVV:KeyValueVersion,RID:Address ; RIDS:AddressSet,S:Address)
+    = [delay,[delay + GT:Float,msg readRepair(KVV:KeyValueVersion)from S:Address to
+    RID:Address]]$genReadRepairs(GT:Float,KVV:KeyValueVersion,RIDS:AddressSet,S:Address) .
+  eq genReadRepairs(GT:Float,RSET:ResponseSet,S:Address)
+    = $genReadRepairs(GT:Float,resultForRead(RSET:ResponseSet),repairReplicas(resultForRead(
+    RSET:ResponseSet),RSET:ResponseSet),S:Address) .
+  eq genReadRequests(GT:Float,TID:Address,K:Key,emptyAddrSet,S:Address)
+    = null .
+  eq genReadRequests(GT:Float,TID:Address,K:Key,RID:Address ; RIDS:AddressSet,S:Address)
+    = [delay,[delay + GT:Float,msg readRequest(TID:Address,K:Key)from S:Address to
+    RID:Address]]genReadRequests(GT:Float,TID:Address,K:Key,RIDS:AddressSet,S:Address) .
+  eq genWriteRequests(GT:Float,TID:Address,K:Key,V:Value,VERSION:Version,emptyAddrSet,
+    S:Address)
+    = null .
+  eq genWriteRequests(GT:Float,TID:Address,K:Key,V:Value,VERSION:Version,RID:Address ;
+    RIDS:AddressSet,S:Address)
+    = [delay,[delay + GT:Float,msg writeRequest(TID:Address,[K:Key,V:Value,
+    VERSION:Version])from S:Address to RID:Address]]genWriteRequests(GT:Float,TID:Address,
+    K:Key,V:Value,VERSION:Version,RIDS:AddressSet,S:Address) .
+  ceq eagerEnabled(
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->(response(
+    RID:Address,KVV:KeyValueVersion), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet
+    > CONFIG:Config)
+    = true
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == replicaFactor = true
+    /\ not TID:Address in RCL:ReqConsLv = true .
+  ceq eagerEnabled(
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |->(response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet),
+    RESPONSES:Responses),AS:AttributeSet > CONFIG:Config)
+    = true
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | =/= replicaFactor =
+    true /\ | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == CL:ConsistLevel
+    = true .
+  ceq eagerEnabled(
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |->(response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet),
+    RESPONSES:Responses),AS:AttributeSet > CONFIG:Config)
+    = true
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == replicaFactor = true
+    /\ | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == CL:ConsistLevel =
+    true .
+  ceq eagerEnabled((
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->
+    RSET:ResponseSet, RESPONSES:Responses),AS:AttributeSet >{GT:Float,msg writeResponse(
+    TID:Address,FLAG:Bool)from RID:Address to S:Address})CONFIG:Config)
+    = true
+    if not TID:Address in RCL:ReqConsLv = true .
+  rl
+< A:Address : Client | executing:(
+< TID:Address : Txn | operations: read(K:Key),consLv: CL:ConsistLevel,AS':AttributeSet >
+    TXNS:Config),coord: S:Address,AS:AttributeSet >
+    =>
+< A:Address : Client | executing:(
+< TID:Address : Txn | operations: nil,consLv: CL:ConsistLevel,AS':AttributeSet > TXNS:Config),
+    coord: S:Address,AS:AttributeSet >[delay,[delay + GT:Float,msg request(TID:Address,read(
+    K:Key),CL:ConsistLevel)from A:Address to S:Address]] [label read-from-client-to-coord] .
+  rl
+< A:Address : Client | requestQueue: emptyTxnList,AS:AttributeSet >{GT:Float,start to
+    A:Address}
+    =>
+< A:Address : Client | requestQueue: emptyTxnList,AS:AttributeSet > [label
+    rcv-start-when-no-txn] .
+  rl
+< O@M:Address : Monitor | log: LOG@M:Log >
+< A:Address : Client | requestQueue:(
+< TID:Address : Txn | operations: OP:Operation,AS':AttributeSet > ;; TRANSES:ConfigList),
+    executing: TXNS:Config,AS:AttributeSet >{GT:Float,start to A:Address}
+    =>
+< O@M:Address : Monitor | log: insert(TID:Address,< A:Address |-> GT:Float ; empty ; false ;
+    empty ; empty >,LOG@M:Log)>
+< A:Address : Client | requestQueue: TRANSES:ConfigList,executing:(
+< TID:Address : Txn | operations: OP:Operation,AS':AttributeSet > TXNS:Config),AS:AttributeSet
+    > [label dequeue] .
+  rl
+< O@M:Address : Monitor | log:(TID:Address |-> < VTS1@M:VectorTime ; VTS2@M:VectorTime ;
+    FLAG@M:Bool ; READS@M:Set{KeyVersion}; WRITES@M:Set{KeyVersion}>, LOG@M:Log)>
+< A:Address : Client | executing:(
+< TID:Address : Txn | readSet: RS:Set{KeyVersion},writeSet: WS:Set{KeyValue},version:
+    VERSION:Version,AS':AttributeSet > TXNS:Config),committed: TXNS':Config,AS:AttributeSet >{
+    GT:Float,done(TID:Address,FLAG:Bool)}
+    =>
+< O@M:Address : Monitor | log:(TID:Address |-> < VTS1@M:VectorTime ; insert(A:Address,
+    GT:Float,VTS2@M:VectorTime); true ; RS:Set{KeyVersion}; kver(WS:Set{KeyValue},
+    VERSION:Version)>, LOG@M:Log)>
+< A:Address : Client | executing: TXNS:Config,committed:(TXNS':Config
+< TID:Address : Txn | readSet: RS:Set{KeyVersion},writeSet: WS:Set{KeyValue},version:
+    VERSION:Version,AS':AttributeSet >),AS:AttributeSet >[delay,[delay + GT:Float,start to
+    A:Address]] [label rcv-done-write] .
+  rl
+< O@M:Address : Monitor | log:(TID:Address |-> < VTS1@M:VectorTime ; VTS2@M:VectorTime ;
+    FLAG@M:Bool ; READS@M:Set{KeyVersion}; WRITES@M:Set{KeyVersion}>, LOG@M:Log)>
+< A:Address : Client | executing:(
+< TID:Address : Txn | readSet: RS:Set{KeyVersion},writeSet: WS:Set{KeyValue},version:
+    VERSION:Version,AS':AttributeSet > TXNS:Config),committed: TXNS':Config,AS:AttributeSet >{
+    GT:Float,done(TID:Address,[K:Key,V:Value,VERSION':Version])}
+    =>
+< O@M:Address : Monitor | log:(TID:Address |-> < VTS1@M:VectorTime ; insert(A:Address,
+    GT:Float,VTS2@M:VectorTime); true ; RS:Set{KeyVersion}; kver(WS:Set{KeyValue},
+    VERSION:Version)>, LOG@M:Log)>
+< A:Address : Client | executing: TXNS:Config,committed:(TXNS':Config
+< TID:Address : Txn | readSet:(RS:Set{KeyVersion}, < K:Key,VERSION':Version >),writeSet:
+    WS:Set{KeyValue},version: VERSION:Version,AS':AttributeSet >),AS:AttributeSet >[delay,[
+    delay + GT:Float,start to A:Address]] [label rcv-done-read] .
+  rl
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet >{GT:Float,msg readRepair([K:Key,V':Value,VERSION':Version])from S:Address
+    to RID:Address}
+    => if VERSION':Version >= VERSION:Version then
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V':Value,
+    VERSION':Version]),AS:AttributeSet > else
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet > fi [label readrepair] .
+  rl
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet >{GT:Float,msg readRequest(TID:Address,K:Key)from S:Address to
+    RID:Address}
+    =>
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet >[delay,[delay + GT:Float,msg readResponse(TID:Address,[K:Key,V:Value,
+    VERSION:Version])from RID:Address to S:Address]] [label read-from-repl-to-coord] .
+  rl
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet >{GT:Float,msg writeRequest(TID:Address,[K:Key,V':Value,
+    VERSION':Version])from S:Address to RID:Address}
+    => if VERSION':Version >= VERSION:Version then
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V':Value,
+    VERSION':Version]),AS:AttributeSet >[delay,[delay + GT:Float,msg writeResponse(
+    TID:Address,true)from RID:Address to S:Address]]else
+< RID:Address : Server | datastore:(DS:Set{KeyValueVersion}, [K:Key,V:Value,VERSION:Version]),
+    AS:AttributeSet >[delay,[delay + GT:Float,msg writeResponse(TID:Address,false)from
+    RID:Address to S:Address]]fi [label write-from-repl-to-coord] .
+  rl
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |-> RSET:ResponseSet, RESPONSES:Responses),AS:AttributeSet >{GT:Float,msg
+    writeResponse(TID:Address,FLAG:Bool)from RID:Address to S:Address}
+    => if CL:ConsistLevel == | response(RID:Address,FLAG:Bool), RSET:ResponseSet | then
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->(response(
+    RID:Address,FLAG:Bool), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet >[delay,
+    done(TID:Address,resultForWrite((response(RID:Address,FLAG:Bool), RSET:ResponseSet)))]else
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |->(response(RID:Address,FLAG:Bool), RSET:ResponseSet), RESPONSES:Responses),
+    AS:AttributeSet > fi [label write-at-coord] .
+  rl
+< S:Address : Server | respFromRepl:(TID:Address |-> RSET:ResponseSet, RESPONSES:Responses),
+    AS:AttributeSet >{GT:Float,msg readResponse(TID:Address,KVV:KeyValueVersion)from
+    RID:Address to S:Address}
+    =>
+< S:Address : Server | respFromRepl:(TID:Address |->(response(RID:Address,
+    KVV:KeyValueVersion), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet > [label
+    read-at-coord] .
+  rl
+< TABLE:Address : Table | table: REPLICA-TABLE:ReplicaTable >
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl: RESPONSES:Responses,
+    AS:AttributeSet >{GT:Float,msg request(TID:Address,read(K:Key),CL:ConsistLevel)from
+    A:Address to S:Address}
+    =>
+< TABLE:Address : Table | table: REPLICA-TABLE:ReplicaTable >
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:
+    insert(TID:Address,empty,RESPONSES:Responses),AS:AttributeSet > genReadRequests(GT:Float,
+    TID:Address,K:Key,replicas(K:Key,REPLICA-TABLE:ReplicaTable),S:Address) [label
+    read-from-coord-to-replicas] .
+  rl
+< TABLE:Address : Table | table: REPLICA-TABLE:ReplicaTable >
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl: RESPONSES:Responses,
+    AS:AttributeSet >{GT:Float,msg request(TID:Address,write(K:Key,V:Value),GT':Float,
+    CL:ConsistLevel)from A:Address to S:Address}
+    =>
+< TABLE:Address : Table | table: REPLICA-TABLE:ReplicaTable >
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:
+    insert(TID:Address,empty,RESPONSES:Responses),AS:AttributeSet > genWriteRequests(GT:Float,
+    TID:Address,K:Key,V:Value,GT':Float,replicas(K:Key,REPLICA-TABLE:ReplicaTable),S:Address)
+    [label write-from-coord-to-replicas] .
+  rl
+{GT:Float |
+SL:ScheduleList}
+< A:Address : Client | executing:(
+< TID:Address : Txn | operations: write(K:Key,V:Value),consLv: CL:ConsistLevel,writeSet:
+    WS:Set{KeyValue},version: VERSION:Version,AS':AttributeSet > TXNS:Config),coord:
+    S:Address,AS:AttributeSet >
+    =>
+{GT:Float |
+SL:ScheduleList}
+< A:Address : Client | executing:(
+< TID:Address : Txn | operations: nil,consLv: CL:ConsistLevel,writeSet:(WS:Set{KeyValue}, <
+    K:Key,V:Value >),version: GT:Float,AS':AttributeSet > TXNS:Config),coord: S:Address,
+    AS:AttributeSet >[delay,[delay + GT:Float,msg request(TID:Address,write(K:Key,V:Value),
+    GT:Float,CL:ConsistLevel)from A:Address to S:Address]] [label write-from-client-to-coord]
+    .
+  crl
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->(response(
+    RID:Address,KVV:KeyValueVersion), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet
+    >
+    =>
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl: RESPONSES:Responses,
+    AS:AttributeSet > genReadRepairs(GT:Float,(response(RID:Address,KVV:KeyValueVersion),
+    RSET:ResponseSet),S:Address)
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == replicaFactor = true
+    /\ not TID:Address in RCL:ReqConsLv = true [label
+    from-coord-to-client-cl-less-than-rf-later-readrepair] .
+  crl
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |->(response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet),
+    RESPONSES:Responses),AS:AttributeSet >
+    =>
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl: RESPONSES:Responses,
+    AS:AttributeSet > genReadRepairs(GT:Float,(response(RID:Address,KVV:KeyValueVersion),
+    RSET:ResponseSet),S:Address)[delay,done(TID:Address,resultForRead((response(RID:Address,
+    KVV:KeyValueVersion), RSET:ResponseSet)))]
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == replicaFactor = true
+    /\ | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == CL:ConsistLevel =
+    true [label from-coord-to-client-cl-equals-to-rf] .
+  crl
+< S:Address : Server | reqConsLv:(RCL:ReqConsLv ;[TID:Address,CL:ConsistLevel]),respFromRepl:(
+    TID:Address |->(response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet),
+    RESPONSES:Responses),AS:AttributeSet >
+    =>
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->(response(
+    RID:Address,KVV:KeyValueVersion), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet
+    >[delay,done(TID:Address,resultForRead((response(RID:Address,KVV:KeyValueVersion),
+    RSET:ResponseSet)))]
+    if | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | =/= replicaFactor =
+    true /\ | response(RID:Address,KVV:KeyValueVersion), RSET:ResponseSet | == CL:ConsistLevel
+    = true [label from-coord-to-client-cl-less-than-rf] .
+  crl
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->
+    RSET:ResponseSet, RESPONSES:Responses),AS:AttributeSet >{GT:Float,msg writeResponse(
+    TID:Address,FLAG:Bool)from RID:Address to S:Address}
+    =>
+< S:Address : Server | reqConsLv: RCL:ReqConsLv,respFromRepl:(TID:Address |->(response(
+    RID:Address,FLAG:Bool), RSET:ResponseSet), RESPONSES:Responses),AS:AttributeSet >
+    if not TID:Address in RCL:ReqConsLv = true [label write-at-coord-later-coming] .
+endm
