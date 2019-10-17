@@ -1,6 +1,6 @@
 load replica-table
 
-mod RAMP-F is
+mod RAMP-S is
   including CLIENT-REPLICA .
   including MESSAGE .
   including REPLICA-TABLE .
@@ -34,7 +34,7 @@ mod RAMP-F is
   var RIDS : AddressSet .
   vars AS AS' : AttributeSet .
   vars TXNS TXNS' : ConfigList .
-  var K : Key .
+  vars K K' : Key .
   var X : LocalVar .
   var REPLICA-TABLE : ReplicaTable .
   vars OPS OPS' OPS'' : OperationList .
@@ -56,6 +56,7 @@ mod RAMP-F is
   vars T T1 : Float .
   var FLAG : Bool .
   vars RECORD RECORD' : Record .
+  vars TSS TSS' : Timestamps .
 
   op read-only : OperationList -> Bool .
   eq read-only((OPS write(K,EXPR) OPS')) = false .
@@ -72,12 +73,14 @@ mod RAMP-F is
   op value : Version -> Value .
   eq value(version(K,V,TS,MD)) = V .
 
+  *** NEW for RAMP-S
+  *** empty for Timestamps
   op genGets : OperationList Address Address ReplicaTable -> Config .
   eq genGets(((X :=read K) OPS),RID,TID,REPLICA-TABLE) = 
        genGets(OPS,RID,TID,REPLICA-TABLE)
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld, RID <- get(TID,K,eptTS,RID)]  --- eptTS denotes "empty" in line 25
-         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,eptTS,RID)]
+         then [ld, RID <- get(TID,K,empty,RID)]  --- eptTS denotes "empty" in line 25
+         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,empty,RID)]
        fi .
   eq genGets((write(K,EXPR) OPS),RID,TID,REPLICA-TABLE) =
        genGets(OPS,RID,TID,REPLICA-TABLE) .
@@ -103,14 +106,16 @@ mod RAMP-F is
        prepareSites(OPS,RID,REPLICA-TABLE) .
   eq prepareSites(nil,RID,REPLICA-TABLE) = empty .
 
+  *** NEW for RAMP-S
+  *** empty for metadata
   op genPuts : OperationList Address Address Nat LocalVars ReplicaTable -> Config .
   op $genPuts : OperationList Address Address Nat LocalVars ReplicaTable OperationList -> Config .
   eq genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE) = $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS) .
   eq $genPuts((write(K,EXPR) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS'')) =
        $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS''))
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md(OPS' OPS'')),RID)]
-         else [rd, preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),md(OPS' OPS'')),RID)]
+         then [ld, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
+         else [rd, preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
        fi .
   eq $genPuts(((X :=read K) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = 
        $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') .  --- deal with rw-txns
@@ -225,6 +230,7 @@ mod RAMP-F is
   eq vl(((X :=read K) OPS)) = K |-> ts(-1,-1), vl(OPS) .
   eq vl(nil) = empty .
 
+  ---(
   op gen2ndGets : Address KeyTimestamps Versions Address ReplicaTable -> Config .
   eq gen2ndGets(TID,(K |-> TS',VL),(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) = 
        gen2ndGets(TID,(K |-> TS',VL),RS,RID,REPLICA-TABLE)
@@ -237,7 +243,29 @@ mod RAMP-F is
        fi .
   eq gen2ndGets(TID,VL,RS,RID,REPLICA-TABLE) = null [owise] .  --- if K is not in VL
   eq gen2ndGets(TID,VL,empty,RID,REPLICA-TABLE) = null .
+  )
 
+  *** NEW for RAMP-S
+  op gen2ndGets : Address KeyTimestamps Versions Address ReplicaTable -> Config .
+  op $gen2ndGets : Address Timestamps Versions Address ReplicaTable -> Config .
+  eq gen2ndGets(TID,VL,RS,RID,REPLICA-TABLE) = 
+       $gen2ndGets(TID,tsset(VL),RS,RID,REPLICA-TABLE) .
+  eq $gen2ndGets(TID,TSS,(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) =
+       $gen2ndGets(TID,TSS,RS,RID,REPLICA-TABLE) 
+       if localReplica(K,RID,REPLICA-TABLE)
+         then [ld, RID <- get(TID,K,TSS,RID)]
+         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,TSS,RID)]
+       fi .
+  eq $gen2ndGets(TID,TSS,empty,RID,REPLICA-TABLE) = null .
+
+
+  op tsset : KeyTimestamps -> Timestamps .
+  op $tsset : KeyTimestamps Timestamps -> Timestamps .
+  eq tsset(VL) = $tsset(VL,empty) .
+  eq $tsset((K |-> TS,VL),TSS) = $tsset(VL,(TS,TSS)) .
+  eq $tsset(empty,TSS) = TSS .
+
+  ---(
   op 2ndSites : KeyTimestamps Versions Address ReplicaTable -> AddressSet .
   eq 2ndSites((K |-> TS',VL),(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) =
        2ndSites((K |-> TS',VL),RS,RID,REPLICA-TABLE) ;
@@ -249,6 +277,17 @@ mod RAMP-F is
           else empty
         fi) .
   eq 2ndSites(VL,RS,RID,REPLICA-TABLE) = empty [owise] .  --- if K is not in VL
+  eq 2ndSites(VL,empty,RID,REPLICA-TABLE) = empty .  
+  )
+
+  *** NEW for RAMP-S
+  op 2ndSites : KeyTimestamps Versions Address ReplicaTable -> AddressSet .
+  eq 2ndSites(VL,(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) =
+       2ndSites(VL,RS,RID,REPLICA-TABLE) ;
+       (if localReplica(K,RID,REPLICA-TABLE)
+          then RID
+          else preferredSite(K,REPLICA-TABLE)
+        fi) .
   eq 2ndSites(VL,empty,RID,REPLICA-TABLE) = empty .  
 
 
@@ -366,13 +405,38 @@ mod RAMP-F is
   rl [receive-get] :
      < RID : Replica | datastore: VS,
                        latestCommit: LC, AS' >
-     {T, RID <- get(TID,K,TS,RID')}
+     {T, RID <- get(TID,K,TSS,RID')}
    =>
      < RID : Replica | datastore: VS,
                        latestCommit: LC, AS' >
      [if RID == RID' then ld else rd fi, RID' <- 
-       (if TS == eptTS then response1(TID,vmatch(K,VS,LC),RID) 
-         else response2(TID,vmatch(K,VS,TS),RID) fi)] .
+       (if TSS == empty then response1(TID,vmatch(K,VS,LC),RID) 
+         else response2(TID,vmatch(K,VS,maxts(tsmatch(K,VS,TSS))),RID) fi)] .
+
+  *** NEW for RAMP-S
+  op vmatch : Key Versions Timestamp -> Version .
+  eq vmatch(K,(version(K,V,TS,MD),VS),TS) = version(K,V,TS,MD) .
+  eq vmatch(K,VS,TS) = version(K,[0],ts(-2,-2),empty) [owise] . 
+
+
+  op tsmatch : Key Versions Timestamps -> Timestamps .
+  op $tsmatch : Key Versions Timestamps Timestamps -> Timestamps .
+  eq tsmatch(K,VS,TSS) = $tsmatch(K,VS,TSS,empty) .
+  eq $tsmatch(K,(version(K,V,TS,MD),VS),(TS,TSS),TSS') = $tsmatch(K,VS,(TS,TSS),(TS,TSS')) .
+  eq $tsmatch(K,empty,TSS,TSS') = TSS' .
+  eq $tsmatch(K,(version(K',V,TS,MD),VS),TSS,TSS') = TSS' [owise] . 
+  
+  
+  op maxts : Timestamps -> Timestamp .
+  op $maxts : Timestamps Timestamp -> Timestamp .
+  eq maxts(TSS) = $maxts(TSS,ts(-2,-2)) .
+  eq $maxts((TS,TSS),TS') = 
+     if TS' less-than TS
+       then $maxts(TSS,TS)
+       else $maxts(TSS,TS')
+     fi .
+  eq $maxts(empty,TS') = TS' .
+
 
  crl [receive-response1] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
@@ -395,7 +459,8 @@ mod RAMP-F is
                               1stGetSites: 1STGETS',
                               2ndGetSites: (2NDGETS ; 2nd(TID,RIDS)), AS' >
             gen2ndGets(TID,VL',RS',RID,REPLICA-TABLE)
-            [nd, RID <- commit-reads]
+            *** NEW for RAMP-S: always 2nd round
+            *** [nd, RID <- commit-reads]
        else < RID : Replica | executing: < TID : Txn | operations: (OPS (X :=read K) OPS'),
                                                        readSet: RS',
                                                        localVars: insert(X,V,VARS),  --- useless for read-only txns
