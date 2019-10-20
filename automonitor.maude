@@ -139,11 +139,29 @@ endm .
     
     *** addConditions(R)
     op addConditions : RuleSet  -> EquationSet .
+    op msgTrigged : Term -> Bool .
+
+    eq msgTrigged(C:Constant) = false .
+    eq msgTrigged(V:Variable) = false .
+    ceq msgTrigged('`{_`,_`}[V:Variable,TL]) = true if getType(V:Variable) == 'Float .
+    ceq msgTrigged(Q[TL]) = msgTrigged(TL) if Q =/= '`{_`,_`} .
+    eq msgTrigged(none) = false .
+    ceq msgTrigged((T, TL)) = msgTrigged(T) or msgTrigged(TL) if TL =/= empty .
+
+
     eq addConditions((crl T => T' if CD [ATR] .) R) = 
-        (ceq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool if CD [none] .) addConditions(R) .
+       if  not msgTrigged(T) then 
+        (ceq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool if CD [none] .) addConditions(R) 
+       else 
+        addConditions(R) 
+       fi .
    
     eq addConditions((rl T => T' [ATR] .) R) = 
-        addConditions(R) .
+       if  not msgTrigged(T) then 
+           (eq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool [none] .) addConditions(R)
+       else 
+           addConditions(R)
+       fi .  
     eq addConditions(none) = none . 
 
 

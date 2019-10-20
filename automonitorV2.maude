@@ -57,7 +57,7 @@ IL
     SS
     CDS
     SCDS 
-    monitorOperators(O)
+    O
     MS
     M
     E
@@ -106,7 +106,7 @@ endm .
 
     eq monitorEquations((eq Q[TL] = T [AtS] .) EqS, OPDS) = 
         if isConfOp(Q,OPDS) then  
-        (eq Q[TL] =  monitorEquationRHS(T,OPDS) [AtS] .) 
+        (eq Q['GT:Float, TL] =  monitorEquationRHS(T,OPDS) [AtS] .) 
         else eq Q[TL] = T [AtS] . 
         fi 
         monitorEquations(EqS, OPDS) .
@@ -120,7 +120,7 @@ endm .
     eq monitorEquationRHSAux(empty, OPDS) = empty .
         
     eq monitorEquationRHS(Q[TL],OPDS) = 
-       if isConfOp(Q, OPDS) then Q[TL] else 
+       if isConfOp(Q, OPDS) then Q['GT:Float, TL] else 
         (if Q == 'msg_from_to_  or Q == '_to_ or Q == '_<-_ then 
             transferMsgRight(Q[TL]) 
         else Q[monitorEquationRHSAux(TL, OPDS)] fi) 
@@ -136,19 +136,35 @@ endm .
 
     op monitorRules : RuleSet OpDeclSet -> RuleSet .
     op monitorRulesAux : Rule OpDeclSet  -> RuleSet .
-
+    
     *** addConditions(R)
     op addConditions : RuleSet  -> EquationSet .
+    op msgTrigged : Term -> Bool .
+
+    eq msgTrigged(C:Constant) = false .
+    eq msgTrigged(V:Variable) = false .
+    ceq msgTrigged('`{_`,_`}[V:Variable,TL]) = true if getType(V:Variable) == 'Float .
+    ceq msgTrigged(Q[TL]) = msgTrigged(TL) if Q =/= '`{_`,_`} .
+    eq msgTrigged(none) = false .
+    ceq msgTrigged((T, TL)) = msgTrigged(T) or msgTrigged(TL) if TL =/= empty .
+
+
     eq addConditions((crl T => T' if CD [ATR] .) R) = 
-        (ceq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool if CD [none] .) addConditions(R) .
+       if  not msgTrigged(T) then 
+        (ceq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool if CD [none] .) addConditions(R) 
+       else 
+        addConditions(R) 
+       fi .
    
     eq addConditions((rl T => T' [ATR] .) R) = 
-        addConditions(R) .
+       if  not msgTrigged(T) then 
+           (eq 'eagerEnabled['__[T,'CONFIG:Config]] = 'true.Bool [none] .) addConditions(R)
+       else 
+           addConditions(R)
+       fi .  
     eq addConditions(none) = none . 
 
-    
 
-    
     ops newMonitorObj   : -> Term .
     ops newMonitorObjRecord : Term -> Term .
     ops newMonitorObjRecord2 : Term -> Term .    
@@ -197,12 +213,12 @@ endm .
 
 
     ceq monitorRulesAux(rl T => T' [ATR] . , OPDS) = 
-	(rl T1 => monitorEquationRHS(T2,OPDS) [ATR] .)
+	(rl transferMsgLeft(T1) => monitorEquationRHS(T2,OPDS) [ATR] .)
       if '__[T1,T2] := tagLeftRightHand(T,T',false) .
     
     
     ceq monitorRulesAux(crl T => T' if CD [ATR] ., OPDS) =
-	  (crl T1 => monitorEquationRHS(T2,OPDS) if CD [ATR] .)
+	  (crl transferMsgLeft(T1) => monitorEquationRHS(T2,OPDS) if CD [ATR] .)
 	  if '__[T1,T2] := tagLeftRightHand(T,T',false) .
 
     op getReplicaID : Term -> Variable .
@@ -558,11 +574,11 @@ ceq tagLeftRightHand(T,T',B) =
     eq transferMsgLeft(T) = T [owise] .   
 
     eq transferMsgRight('msg_from_to_[T1,T2,T3]) =
-       '`[_`,_`]['delay.Delay,'msg_from_to_[T1,T2,T3]] .
+       '`[_`,_`]['_+_['delay.Delay,'GT:Float],'msg_from_to_[T1,T2,T3]] .
     eq transferMsgRight('_to_[T1,T2]) =
-       '`[_`,_`]['delay.Delay,'_to_[T1,T2]] .
+       '`[_`,_`]['_+_['delay.Delay,'GT:Float],'_to_[T1,T2]] .
     eq transferMsgRight('_<-_[T1,T2]) =
-       '`[_`,_`]['delay.Delay,'_<-_[T1,T2]] .
+       '`[_`,_`]['_+_['delay.Delay,'GT:Float],'_<-_[T1,T2]] .
     ceq transferMsgRight(Q[TL]) = Q[transferMsgRightAux(TL)] 
      if Q =/= 'msg_from_to_ /\ 
         Q =/= '_to_ /\ 
