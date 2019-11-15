@@ -1,0 +1,55 @@
+load initial-states
+
+fmod DELTA-SORTS is
+  pr FLOAT .
+  inc CASSANDRA-SORTS .
+
+  sorts Zone Zones Tag Cluster .
+  subsort Zone < Zones .
+
+  ops f b : -> Tag .
+ 
+  op [_;_] : Float Float -> Zone .
+  op [_;_;_] : Float Float Tag -> Zone .
+  op ept : -> Zones [ctor] .
+  op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
+
+  op c : Version -> Cluster .
+
+endfm
+
+mod DELTA is
+  inc INITIAL-STATES + DELTA-SORTS .
+
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  var ZS : Zones .
+  var Z : Zone .
+  var CLUS : Cluster .
+  vars GT1 GT2 T T' : Float .
+  var K : Key .
+  var VER : Version .
+
+  op delta : Log -> Float .
+
+
+  op gen : Log -> Zones .
+  op $gen : Log Log -> Zones .
+  op $$gen : LogEntry Log Zone -> Zones .
+  eq gen(LOG) = $gen(LOG,LOG) .
+  eq $gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
+   = $gen(LOG,LOG') ; $$gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
+       LOG',[GT1 ; GT2]) .
+  eq $gen((ENTRY,LOG),LOG') = $gen(LOG,LOG') [owise] .
+  eq $gen(empty,LOG') = ept .
+  eq $$gen((TID |-> < VT ; VT' ; true ; empty ; WS >),
+           (TID' |-> < RID |-> GT1 ; (RID |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
+           [T ; T'])
+   = $$gen((TID |-> < VT ; VT' ; true ; empty ; WS >),LOG',[max(T,GT1) ; min(T',GT2)]) . 
+  eq $$gen(ENTRY,(ENTRY',LOG'),Z) = $$gen(ENTRY,LOG',Z) [owise] .
+  eq $$gen(ENTRY,empty,Z) = Z .
+
+endm
