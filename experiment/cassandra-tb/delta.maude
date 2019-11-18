@@ -4,18 +4,25 @@ fmod DELTA-SORTS is
   pr FLOAT .
   inc CASSANDRA-SORTS .
 
-  sorts Zone Zones Tag Cluster .
+  sorts nZone Zone Zones Tag .
   subsort Zone < Zones .
 
   ops f b : -> Tag .
- 
-  op [_;_] : Float Float -> Zone .
-  op [_;_;_] : Float Float Tag -> Zone .
+  
+  
+  ---? [_;_;_;_;_] first element is KEY
+  op [_;_;_;_] : Key Float Float Float -> nZone .  --- 3rd: when the dictating write begins
+  op [_;_;_;_;_] : Key Float Float Float Tag -> Zone .
+  
+  vars T T' T'' : Float .
+  var K : Key .
+  
+  op dir : nZone -> Zone .
+  eq dir([K ; T ; T' ; T''])
+   = if T' <= T then [K ; T' ; T ; T'' ; f] else [ K ; T ; T' ; T'' ; b] fi .
+  
   op ept : -> Zones [ctor] .
   op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
-
-  op c : Version -> Cluster .
-
 endfm
 
 mod DELTA is
@@ -26,30 +33,101 @@ mod DELTA is
   vars TID TID' RID RID' : Address .
   vars RS WS : Set{KeyVersion} .
   vars ENTRY ENTRY' : LogEntry .
-  var ZS : Zones .
-  var Z : Zone .
-  var CLUS : Cluster .
-  vars GT1 GT2 T T' : Float .
-  var K : Key .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T1 T2 T3 MAX : Float .
   var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  
+  op undefined : -> Float .
+  
+  ---(
+  *** verifying atomicity
+  *** not tested yet!
+  op atomic : Log -> Bool .
+  eq atomic(LOG) = true [owise] .
+ ceq atomic(LOG) = false if conflict(gen(LOG)) .
+ ceq atomic((TID |-> < VT ; VT' ; true ; RS ; empty >,LOG)) = false if not exist(RS,LOG) .
+ ceq atomic((TID |-> < RID |-> T ; (RID |-> T',VT') ; true ; RS ; empty >,
+             TID' |-> < RID' |-> T1 ; (RID' |-> T2,VT'') ; true ; empty ; RS >,LOG)) = false
+	 if T' < T1 .
+	 
+  op conflict : Zones -> Bool .
+  eq conflict(ZS) = false [owise] .
+ ceq conflict([K ; T ; T' ; T'' ; f] ; [K ; T1 ; T2 ; T3 ; b] ; ZS) = true 
+     if T1 >= T /\ T2 <= T' .
+ ceq conflict([K ; T ; T' ; T'' ; f] ; [K ; T1 ; T2 ; T3 ; f] ; ZS) = true
+     if T >= T1 /\ T <= T2 .
+  )
 
-  op delta : Log -> Float .
-
-
-  op gen : Log -> Zones .
+  op gen : Log -> Zones [memo] .
   op $gen : Log Log -> Zones .
-  op $$gen : LogEntry Log Zone -> Zones .
+  op $$gen : LogEntry Log nZone -> nZone .
   eq gen(LOG) = $gen(LOG,LOG) .
   eq $gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
-   = $gen(LOG,LOG') ; $$gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
-       LOG',[GT1 ; GT2]) .
+   = $gen(LOG,LOG') ; dir($$gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
+       LOG',[K ; GT1 ; GT2 ; undefined])) .
   eq $gen((ENTRY,LOG),LOG') = $gen(LOG,LOG') [owise] .
   eq $gen(empty,LOG') = ept .
-  eq $$gen((TID |-> < VT ; VT' ; true ; empty ; WS >),
-           (TID' |-> < RID |-> GT1 ; (RID |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
-           [T ; T'])
-   = $$gen((TID |-> < VT ; VT' ; true ; empty ; WS >),LOG',[max(T,GT1) ; min(T',GT2)]) . 
-  eq $$gen(ENTRY,(ENTRY',LOG'),Z) = $$gen(ENTRY,LOG',Z) [owise] .
-  eq $$gen(ENTRY,empty,Z) = Z .
+  eq $$gen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),
+           (TID' |-> < RID' |-> GT1 ; (RID' |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
+           [K ; T ; T' ; T''])
+   = $$gen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),LOG',[K ; max(T,GT1) ; min(T',GT2) ; T1]) . 
+  eq $$gen(ENTRY,(ENTRY',LOG'),NZ) = $$gen(ENTRY,LOG',NZ) [owise] .
+  eq $$gen(ENTRY,empty,NZ) = NZ .
+  
+  
+  op conflict : Zone Zone -> Bool .
+  eq conflict(Z,Z') = false [owise] .
+ ceq conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) = true 
+     if T1 >= T and T2 <= T' .
+  eq conflict([K ; T1 ; T2 ; T3 ; b],[K ; T ; T' ; T'' ; f])
+   = conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .	
+ ceq conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) = true
+     if ([K ; T ; T' ; T'' ; f] =/= [K ; T1 ; T2 ; T3 ; f]) and  
+     	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
+	 
+  op exist : Set{KeyVersion} Log -> Bool .
+  eq exist(RS,(TID |-> < VT ; VT' ; true ; empty ; RS >,LOG)) = true .
+  eq exist(< K,0.0 >,LOG) = true .  --- default version 
+  eq exist(RS,LOG) = false [owise] .
+  
+  op delta : Log -> Float .
+  eq delta(LOG) = optimal(gen(LOG)) .
 
+  op chi : Zone Zone -> Float .
+ ceq chi(Z,Z') = 0.0 if not conflict(Z,Z') .
+ ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) = if T >= T1 and T <= T2 then T2 - T else T' - T1 fi
+     if conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) .
+ ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) 
+   = if T3 =/= undefined and T3 < T
+       then min(T' - T2, T1 - T) 
+	   else T' - T2
+	 fi
+     if conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .
+ eq chi([K ; T1 ; T2 ; T3 ; b],[K ; T ; T' ; T'' ; f]) 
+  = chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .
+ 
+  --- max chi over all pairs of zones 
+  op optimal : Zones -> Float .
+  op $optimal : Zones Zones KeySet -> Float .
+
+  eq optimal(ZS) = $optimal(ZS,ZS,empty) .
+  eq $optimal(([K ; T ; T' ; T'' ; TAG] ; ZS),ZS',(K,KS)) 
+   = $optimal(ZS,ZS',(K,KS)) .
+  eq $optimal(([K ; T ; T' ; T'' ; TAG] ; ZS),ZS',KS) 
+   = max(max([K ; T ; T' ; T'' ; TAG],ZS'),$optimal(ZS,ZS',(K,KS))) [owise] .
+  eq $optimal(ept,ZS',KS) = 0.0 .
+
+  op max : Zone Zones -> Float .
+  op $max : Zone Zones Float -> Float .
+
+  eq max(Z,ZS') = $max(Z,ZS',0.0) .
+  eq $max([K ; T ; T' ; T'' ; TAG],([K ; T1 ; T2 ; T3 ; TAG'] ; ZS'),MAX) 
+   = $max([K ; T ; T' ; T'' ; TAG],ZS',max(MAX,chi([K ; T ; T' ; T'' ; TAG],[K ; T1 ; T2 ; T3 ; TAG']))) .
+  eq $max(Z,(Z' ; ZS'),MAX) = $max(Z,ZS',MAX) [owise] .
+  eq $max(Z,ept,MAX) = MAX .
 endm
