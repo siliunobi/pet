@@ -7,19 +7,30 @@ fmod DELTA-SORTS is
   sorts nZone Zone Zones Tag .
   subsort Zone < Zones .
 
+  op udf : -> Float .
+  
   ops f b : -> Tag .
   
-  
+  --- for Delta
   ---? [_;_;_;_;_] first element is KEY
   op [_;_;_;_] : Key Float Float Float -> nZone .  --- 3rd: when the dictating write begins
   op [_;_;_;_;_] : Key Float Float Float Tag -> Zone .
   
-  vars T T' T'' : Float .
+  --- for Gamma
+  op [_;_;_;_;_] : Key Float Float Float Float -> nZone .  
+  op [_;_;_;_;_;_] : Key Float Float Float Float Tag -> Zone .  
+  
+  vars T T' T'' T''' : Float .
   var K : Key .
   
   op dir : nZone -> Zone .
+  --- for Delta
   eq dir([K ; T ; T' ; T''])
    = if T' <= T then [K ; T' ; T ; T'' ; f] else [ K ; T ; T' ; T'' ; b] fi .
+   
+  --- for Gamma
+  eq dir([K ; T ; T' ; T'' ; T'''])
+   = if T' <= T then [K ; T' ; T ; T'' ; T''' ; f] else [ K ; T ; T' ; T'' ; T''' ; b] fi .
   
   op ept : -> Zones [ctor] .
   op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
@@ -41,8 +52,6 @@ mod DELTA is
   vars K K' : Key .
   vars TAG TAG' : Tag .
   var KS : KeySet .
-  
-  op undefined : -> Float .
   
   ---(
   *** verifying atomicity
@@ -69,7 +78,7 @@ mod DELTA is
   eq gen(LOG) = $gen(LOG,LOG) .
   eq $gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
    = $gen(LOG,LOG') ; dir($$gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
-       LOG',[K ; GT1 ; GT2 ; undefined])) .
+       LOG',[K ; GT1 ; GT2 ; udf])) .
   eq $gen((ENTRY,LOG),LOG') = $gen(LOG,LOG') [owise] .
   eq $gen(empty,LOG') = ept .
   eq $$gen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),
@@ -103,7 +112,7 @@ mod DELTA is
  ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) = if T >= T1 and T <= T2 then T2 - T else T' - T1 fi
      if conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) .
  ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) 
-   = if T3 =/= undefined and T3 < T
+   = if T3 =/= udf and T3 < T
        then min(T' - T2, T1 - T) 
 	   else T' - T2
 	 fi
@@ -130,4 +139,81 @@ mod DELTA is
    = $max([K ; T ; T' ; T'' ; TAG],ZS',max(MAX,chi([K ; T ; T' ; T'' ; TAG],[K ; T1 ; T2 ; T3 ; TAG']))) .
   eq $max(Z,(Z' ; ZS'),MAX) = $max(Z,ZS',MAX) [owise] .
   eq $max(Z,ept,MAX) = MAX .
+endm
+
+mod GAMMA is
+  inc INITIAL-STATES + DELTA .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX : Float .
+  var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  
+  op gmgen : Log -> Zones [memo] .
+  op $gmgen : Log Log -> Zones .
+  op $$gmgen : LogEntry Log nZone -> nZone .
+  eq gmgen(LOG) = $gmgen(LOG,LOG) .
+  eq $gmgen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
+   = $gmgen(LOG,LOG') ; dir($$gmgen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
+       LOG',[K ; GT1 ; GT2 ; udf ; udf])) .
+  eq $gmgen((ENTRY,LOG),LOG') = $gmgen(LOG,LOG') [owise] .
+  eq $gmgen(empty,LOG') = ept .
+  eq $$gmgen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),
+           (TID' |-> < RID' |-> GT1 ; (RID' |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
+           [K ; T ; T' ; T'' ; T'''])
+   = $$gmgen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),LOG',
+       [K ; max(T,GT1) ; min(T',GT2) ; T1 ; (if GT2 < T1 then min(GT2,T''') else T''' fi)]) . 
+  eq $$gmgen(ENTRY,(ENTRY',LOG'),NZ) = $$gmgen(ENTRY,LOG',NZ) [owise] .
+  eq $$gmgen(ENTRY,empty,NZ) = NZ .
+  
+   op gmconflict : Zone Zone -> Bool .
+   eq gmconflict(Z,Z') = false [owise] .
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) = true 
+      if T1 >= T and T2 <= T' .
+   eq gmconflict([K ; T1 ; T2 ; T3 ; T4 ; b],[K ; T ; T' ; T'' ; T''' ; f])
+    = gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) .	
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; f]) = true
+      if ([K ; T ; T' ; T'' ; T''' ; f] =/= [K ; T1 ; T2 ; T3 ; T4 ; f]) and  
+      	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
+	 
+  op gamma : Log -> Float .
+  eq gamma(LOG) = gmoptimal(gmgen(LOG)) . 
+   
+  op gmChi : Zone Zone -> Float .
+  eq gmChi([K ; T1 ; T2 ; T3 ; T4 ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG]) = 
+       if T4 == udf then 0.0 else T3 - T4 fi .
+ ceq gmChi(Z,Z') = 0.0 
+	 if Z =/= Z' and not gmconflict(Z,Z') .
+ ceq gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) = min(T' - T1,T2 - T)
+     if gmconflict([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) .
+  
+  --- max gmchi over all pairs of zones 
+  op gmoptimal : Zones -> Float .
+  op $gmoptimal : Zones Zones KeySet -> Float .
+  
+  eq gmoptimal(ZS) = $gmoptimal(ZS,ZS,empty) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',(K,KS)) 
+   = $gmoptimal(ZS,ZS',(K,KS)) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',KS) 
+   = max(gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS'),$gmoptimal(ZS,ZS',(K,KS))) [owise] .
+  eq $gmoptimal(ept,ZS',KS) = 0.0 .
+
+  op gmmax : Zone Zones -> Float .
+  op $gmmax : Zone Zones Float -> Float .
+
+  eq gmmax(Z,ZS') = $gmmax(Z,ZS',0.0) .
+  eq $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],([K ; T1 ; T2 ; T3 ; T4 ; TAG'] ; ZS'),MAX) 
+   = $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS',max(MAX,gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']))) .
+  eq $gmmax(Z,(Z' ; ZS'),MAX) = $gmmax(Z,ZS',MAX) [owise] .
+  eq $gmmax(Z,ept,MAX) = MAX .
+  
 endm
