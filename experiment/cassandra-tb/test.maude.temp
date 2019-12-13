@@ -1,11 +1,14 @@
 load initial-states
+load delta
 
   *** parameters:
   *** consistency level
 
 mod CASSANDRA-ANALYSIS is
   inc INITIAL-STATES .
-
+  inc COMMONALITY .
+  inc RYW .
+  
   eq LIMIT = 1.0e+1000000 .
 
   eq replicaFactor = 3 .
@@ -159,7 +162,10 @@ mod CASSANDRA-ANALYSIS is
   eq val(1,< M : Monitor | log: LOG > C) = avgLatency(LOG) .
   eq val(2,< M : Monitor | log: LOG > C) = cmtRatio(LOG) .
   eq val(3,< M : Monitor | log: LOG > C) = readAvgLatency(LOG) .  
-
+  eq val(4,< M : Monitor | log: LOG > C) = delta(LOG) .  
+  eq val(5,< M : Monitor | log: LOG > C) = gamma(LOG) .  
+  eq val(6,< M : Monitor | log: LOG > C) = common(LOG) .  
+  eq val(7,< M : Monitor | log: LOG > C) = ryw(LOG) .  
 
 ---(
   eq initState = 
