@@ -12,8 +12,7 @@ fmod DELTA-SORTS is
   ops f b : -> Tag .
   
   --- for Delta
-  ---? [_;_;_;_;_] first element is KEY
-  op [_;_;_;_] : Key Float Float Float -> nZone .  --- 3rd: when the dictating write begins
+  op [_;_;_;_] : Key Float Float Float -> nZone .  --- 4th: when the dictating write begins
   op [_;_;_;_;_] : Key Float Float Float Tag -> Zone .
   
   --- for Gamma
@@ -34,6 +33,9 @@ fmod DELTA-SORTS is
   
   op ept : -> Zones [ctor] .
   op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
+  
+  ---var Z : Zone .
+  ---eq Z ; Z = Z .
 endfm
 
 mod DELTA is
@@ -71,7 +73,8 @@ mod DELTA is
  ceq conflict([K ; T ; T' ; T'' ; f] ; [K ; T1 ; T2 ; T3 ; f] ; ZS) = true
      if T >= T1 /\ T <= T2 .
   )
-
+  
+  --- the way of generating zones excludes all initial-value reads!
   op gen : Log -> Zones [memo] .
   op $gen : Log Log -> Zones .
   op $$gen : LogEntry Log nZone -> nZone .
@@ -91,12 +94,12 @@ mod DELTA is
   
   op conflict : Zone Zone -> Bool .
   eq conflict(Z,Z') = false [owise] .
- ceq conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) = true 
+ ceq conflict([K ; T ; T' ; T'' ; f],[K' ; T1 ; T2 ; T3 ; b]) = true 
      if T1 >= T and T2 <= T' .
-  eq conflict([K ; T1 ; T2 ; T3 ; b],[K ; T ; T' ; T'' ; f])
-   = conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .	
- ceq conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) = true
-     if ([K ; T ; T' ; T'' ; f] =/= [K ; T1 ; T2 ; T3 ; f]) and  
+  eq conflict([K ; T1 ; T2 ; T3 ; b],[K' ; T ; T' ; T'' ; f])
+   = conflict([K' ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .	
+ ceq conflict([K ; T ; T' ; T'' ; f],[K' ; T1 ; T2 ; T3 ; f]) = true
+     if ([K ; T ; T' ; T'' ; f] =/= [K' ; T1 ; T2 ; T3 ; f]) and  
      	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
 	 
   op exist : Set{KeyVersion} Log -> Bool .
@@ -177,12 +180,12 @@ mod GAMMA is
   
    op gmconflict : Zone Zone -> Bool .
    eq gmconflict(Z,Z') = false [owise] .
-  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) = true 
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; b]) = true 
       if T1 >= T and T2 <= T' .
-   eq gmconflict([K ; T1 ; T2 ; T3 ; T4 ; b],[K ; T ; T' ; T'' ; T''' ; f])
-    = gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) .	
-  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; f]) = true
-      if ([K ; T ; T' ; T'' ; T''' ; f] =/= [K ; T1 ; T2 ; T3 ; T4 ; f]) and  
+   eq gmconflict([K ; T1 ; T2 ; T3 ; T4 ; b],[K' ; T ; T' ; T'' ; T''' ; f])
+    = gmconflict([K' ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) .	
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; f]) = true
+      if ([K ; T ; T' ; T'' ; T''' ; f] =/= [K' ; T1 ; T2 ; T3 ; T4 ; f]) and  
       	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
 	 
   op gamma : Log -> Float .
@@ -216,4 +219,126 @@ mod GAMMA is
   eq $gmmax(Z,(Z' ; ZS'),MAX) = $gmmax(Z,ZS',MAX) [owise] .
   eq $gmmax(Z,ept,MAX) = MAX .
   
+endm
+
+mod COMMONALITY is
+  inc GAMMA .
+  
+  sort ZoneList .
+  subsort Zone < ZoneList .
+  
+  op nil : -> ZoneList [ctor] .
+  op _;;_ : ZoneList ZoneList -> ZoneList [ctor assoc id: nil] .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX : Float .
+  var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  vars ZL ZL' ZL'' : ZoneList .
+  
+  op size : Zones -> Float .
+  eq size(Z ; ZS) = 1.0 + size(ZS) .
+  eq size(ept) = 0.0 .
+  
+  --- input: a set of zones
+  --- output: only backward zones
+  op bz : Zones -> Zones .
+  eq bz([K ; T1 ; T2 ; T3 ; T4 ; b] ; ZS) = [K ; T1 ; T2 ; T3 ; T4 ; b] ; bz(ZS) .
+  eq bz([K ; T1 ; T2 ; T3 ; T4 ; TAG] ; ZS) = bz(ZS) [owise] .
+  eq bz(ept) = ept .
+  
+  --- input : a set of zones, and its backward zones
+  --- output: a list of forward zones, in increasing order of their right end points
+  ---         excluding any forward zones 
+  ---         that conflict with any of the backward zones
+  op fz : Zones Zones -> ZoneList .
+  op $fz : Zones Zones ZoneList -> ZoneList .
+  eq fz(ZS,ZS') = $fz(ZS,ZS',nil) .
+  eq $fz(([K ; T1 ; T2 ; T3 ; T4 ; b] ; ZS),ZS',ZL) = $fz(ZS,ZS',ZL) .
+ ceq $fz(([K ; T1 ; T2 ; T3 ; T4 ; f] ; ZS),([K' ; T ; T' ; T'' ; T''' ; b] ; ZS'),ZL)
+   = $fz(ZS,([K' ; T ; T' ; T'' ; T''' ; b] ; ZS'),ZL)
+     if conflict([K ; T1 ; T2 ; T3 ; T4 ; f],[K' ; T ; T' ; T'' ; T''' ; b]) .
+  eq $fz((Z ; ZS),ZS',ZL) = $fz(ZS,ZS',insert(Z,ZL)) [owise] .
+  eq $fz(ept,ZS',ZL) = ZL .
+  
+  op insert : Zone ZoneList -> ZoneList .
+  eq insert([K ; T1 ; T2 ; T3 ; T4 ; f],([K' ; T ; T' ; T'' ; T''' ; f] ;; ZL))
+   = if T2 <= T'
+       then [K ; T1 ; T2 ; T3 ; T4 ; f] ;; [K' ; T ; T' ; T'' ; T''' ; f] ;; ZL
+	   else [K' ; T ; T' ; T'' ; T''' ; f] ;; insert([K ; T1 ; T2 ; T3 ; T4 ; f],ZL) 
+	 fi .
+  eq insert(Z,nil) = Z .
+  
+
+  --- pick the first unpicked forward zone,
+  --- remove any forward zones that conflict with the forward zone picked
+  --- repeat until there are no more unpicked forward zones
+  op maxfz : ZoneList -> Zones .
+  op $maxfz : Zone ZoneList ZoneList -> Zones .
+  eq maxfz(nil) = ept .
+  eq maxfz(Z ;; ZL) = $maxfz(Z,ZL,nil) .
+ ceq $maxfz(Z,(Z' ;; ZL'),ZL'') = $maxfz(Z,ZL',ZL'') 
+     if conflict(Z,Z') .
+  eq $maxfz(Z,(Z' ;; ZL'),ZL'') = $maxfz(Z,ZL',(ZL'' ;; Z')) [owise] .
+  eq $maxfz(Z,nil,ZL'') = Z ; maxfz(ZL'') .
+
+  
+  op common : Log -> Float .
+  eq common(LOG) = (size(gmgen(LOG)) - size(bz(gmgen(LOG))) - size(maxfz(fz(gmgen(LOG),bz(gmgen(LOG)))))) / size(gmgen(LOG)) .
+  
+endm
+
+mod RYW is
+  inc INITIAL-STATES .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' TID1 TID2 RID RID' O O' : Address .
+  vars RS WS RS' WS' : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars GT GT' GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX N : Float .
+  var VER : Version .
+  vars K K' : Key .
+  var KS : KeySet .
+
+  op ryw : Log -> Float .
+  eq ryw(LOG) = rywTxns(LOG) / totalReadTxns(LOG) . 
+  
+  op totalReadTxns : Log -> Float .
+  eq totalReadTxns((TID |-> < RID |-> GT ; (RID |-> GT',VT) ; true ; RS ; empty >,LOG))
+   = totalReadTxns(LOG) + 1.0 .
+  eq totalReadTxns((ENTRY,LOG)) = totalReadTxns(LOG) [owise] .
+  eq totalReadTxns(empty) = 0.0 .
+  
+  op rywTxns : Log -> Float .
+  op $rywTxns : Log Log Float -> Float .
+  eq rywTxns(LOG) = $rywTxns(LOG,LOG,0.0) .
+ ceq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; RS ; WS >,LOG),
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG'),N) 
+   = $rywTxns(LOG,
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG'),N + 1.0)
+  if T'' < T and RS =/= empty and noWriteInBetween(T'',T,RID,
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG')) .
+ceq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; RS ; WS >,LOG),
+             (TID2 |-> < RID' |-> T' ; VT' ; true ; RS' ; RS >,LOG'),N) 
+  = $rywTxns(LOG,
+             (TID2 |-> < RID' |-> T' ; VT' ; true ; RS' ; RS >,LOG'),N + 1.0)
+    if RID =/= RID' and RS =/= empty .
+ eq $rywTxns((ENTRY,LOG),LOG',N) = $rywTxns(LOG,LOG',N) [owise] .
+ eq $rywTxns(empty,LOG',N) = N .
+
+  op noWriteInBetween : Float Float Address Log -> Bool .
+ ceq noWriteInBetween(T,T',RID,(TID1 |-> < RID |-> T1 ; (RID |-> T2,VT) ; true ; RS ; WS >,LOG))
+   = false if WS =/= empty /\ T2 > T /\ T2 < T' .
+  eq noWriteInBetween(T,T',RID,LOG) = true [owise] .
+ 
 endm
