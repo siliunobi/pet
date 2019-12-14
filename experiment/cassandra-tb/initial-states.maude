@@ -138,6 +138,10 @@ mod INIT-PARAMETERS is
   op uniform : -> KeyAccessDistr .
   op zipf : -> KeyAccessDistr .
   op kad : -> KeyAccessDistr .
+  op hotspot : -> KeyAccessDistr .
+  op latest : -> KeyAccessDistr .
+  op sequ : -> KeyAccessDistr .
+  op expo : -> KeyAccessDistr .
 endm
 
 
@@ -147,26 +151,27 @@ mod INITIAL-STATES is
   inc KEY-VARS + INIT-PARAMETERS .
   inc SAMPLER .
 
-
   op init : NzNat NzNat NzNat 
             NzNat NzNat NzNat NzNat
             NzNat NzNat NzNat KeyAccessDistr 
             ConsistLevel ConsistLevel -> Config .
+  --- the last element Nat is for "latest" and "sequential"
   op $init : NzNat NzNat NzNat NzNat
              NzNat NzNat  
              AddressList KeyVars KeyVars 
              NzNat NzNat NzNat NzNat 
              KeyAccessDistr 
-             ConsistLevel ConsistLevel Config -> Config .
+             ConsistLevel ConsistLevel Config 
+			 Nat -> Config .
   op $$init : NzNat NzNat NzNat NzNat
               NzNat NzNat  
               AddressList KeyVars KeyVars 
               NzNat NzNat NzNat NzNat 
               KeyAccessDistr Nat 
-              ConsistLevel ConsistLevel Config -> Config .
+              ConsistLevel ConsistLevel Config 
+			  Nat -> Config .
 
-
-  vars RTX WTX RWTX REPLS KEYS REPLS2 ROPS WOPS RWOPS R-OR-W-OR-RW N RF CLS CLS2 : Nat .
+  vars RTX WTX RWTX REPLS KEYS REPLS2 ROPS WOPS RWOPS R-OR-W-OR-RW N N' RF CLS CLS2 : Nat .
   vars RID RID' RID'' : Address .
   var KAD : KeyAccessDistr . 
   var C : Config .
@@ -182,45 +187,50 @@ mod INITIAL-STATES is
   vars KVARS KVARS' : KeyVars .
   var DS : Set{KeyValueVersion} .
   vars RLVL WLVL : ConsistLevel .
-
-
+  
   --- "keys" take the first KEYS of "keyList"
   eq init(RTX,WTX,RWTX,CLS,REPLS,KEYS,RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL) =       
        $init(RTX,WTX,RWTX,CLS,REPLS,CLS,genAddrList(REPLS),kvars(KEYS,keyVars),kvars(KEYS,keyVars),RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,
-         < 0 . 1 : Table | table: initTable(kvars(KEYS,keyVars)) >) { 0.0 | nil } < 0 . 2 : Monitor | log: empty > .
+         < 0 . 1 : Table | table: initTable(kvars(KEYS,keyVars)) >,
+		 (if KAD == latest 
+		    then sampleUniWithInt(size(kvars(KEYS,keyVars))) + 1  --- randomly pick the first value
+			else if KAD == sequ
+			       then 1
+				   else 0
+				 fi
+		  fi)) 
+		 { 0.0 | nil } < 0 . 2 : Monitor | log: empty > .
 
   op genAddrList : Nat -> AddressList .
   eq genAddrList(s REPLS) = genAddrList(REPLS) ;; s REPLS .
   eq genAddrList(0) = emptyAddrList .  
-
-
+  
   --- initialize table with generated keys
   op initTable : KeyVars -> ReplicaTable .
   op $initTable : KeyVars ReplicaTable -> ReplicaTable .
   eq initTable(KVARS) = $initTable(KVARS,[emptyTable]) .
   eq $initTable((< K,VAR > ; KVARS),[KEYREPLICAS]) = $initTable(KVARS,[replicatingSites(K,emptyAddrList) ;; KEYREPLICAS]) .
   eq $initTable(noKeyVar,[KEYREPLICAS]) = [KEYREPLICAS] . 
-
-
+  
   --- generate clients
-  eq $init(RTX,WTX,RWTX,s CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C)
+  eq $init(RTX,WTX,RWTX,s CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N)
    = $init(RTX,WTX,RWTX,CLS,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C
      < 1 . (s CLS) : Client | coord: (sampleUniWithInt(REPLS) + 1),
                               requestQueue: emptyTxnList,
-                              executing: null, committed: null >)
+                              executing: null, committed: null >,N)
      {0.0, start to 1 . (s CLS)} .
 
 
   --- generate replicas
-  eq $init(RTX,WTX,RWTX,0,s REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+  eq $init(RTX,WTX,RWTX,0,s REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
        $init(RTX,WTX,RWTX,0,REPLS,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C      
          < s REPLS : Server | respFromRepl: empty, reqConsLv: emptyReqConsLv,
-                              datastore: empty >) . 
+                              datastore: empty >,N) . 
 
   --- uniformly assign each key to a replica
   --- "assign" also updates Table with the key and its replica
-  eq $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,(< K,VAR > ; KVARS),KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) = 
-       $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,assignKey(K,RF,RIDS,C)) . 
+  eq $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,(< K,VAR > ; KVARS),KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) = 
+       $init(RTX,WTX,RWTX,0,0,CLS2,RIDS,KVARS,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,assignKey(K,RF,RIDS,C),N) . 
 
   --- update Table with the key and its replica
   op assignKey : Key NzNat AddressList Config -> Config .
@@ -255,70 +265,154 @@ mod INITIAL-STATES is
   eq $lvars((write(K,EXPR) OPS),VARS) = $lvars(OPS,VARS) .
   eq $lvars(nil,VARS) = VARS .
   )
-
+  
 
   --- generate txns
   --- all 3 remaining
-  eq $init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
-       $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,sampleUniWithInt(s RTX + s WTX + s RWTX),RLVL,WLVL,C) .
+  eq $init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
+       $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,sampleUniWithInt(s RTX + s WTX + s RWTX),RLVL,WLVL,C,N) .
 
 
-  eq $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,R-OR-W-OR-RW,RLVL,WLVL,C) =
+  eq $$init(s RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,R-OR-W-OR-RW,RLVL,WLVL,C,N) =
        if R-OR-W-OR-RW < s RTX
-         then $init(RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
+         then $init(RTX,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
          else if s RTX <= R-OR-W-OR-RW and R-OR-W-OR-RW < s RTX + s WTX
-                then $init(s RTX,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
-                else $init(s RTX,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+                then $init(s RTX,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
+                else $init(s RTX,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
               fi
        fi . 
 
-  op addRTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config -> Config .
+  op addRTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config Nat -> Config .
   op $addRTxn : Actor -> Actor .
 
-  op addWTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config -> Config .
+  op addWTxn : Nat Nat KeyVars KeyAccessDistr ConsistLevel Config Nat -> Config .
   op $addWTxn : Actor -> Actor .
 
   op addRWTxn : Nat Nat KeyVars KeyAccessDistr Config -> Config .
   op $addRWTxn : Actor -> Actor .
-
   
 
   --- ro and wo remaining
-  eq $init(s RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+  eq $init(s RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
        if sampleUniWithInt(s RTX + s WTX) < s RTX
-         then $init(RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
-         else $init(s RTX,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
+         then $init(RTX,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
+         else $init(s RTX,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
        fi .
   
   --- ro and rw remaining
-  eq $init(s RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+  eq $init(s RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
        if sampleUniWithInt(s RTX + s RWTX) < s RTX
-         then $init(RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) 
-         else $init(s RTX,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+         then $init(RTX,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
+         else $init(s RTX,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
        fi .
 
   --- wo and rw remaining
-  eq $init(0,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
+  eq $init(0,s WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
        if sampleUniWithInt(s WTX + s RWTX) < s WTX
-         then $init(0,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) 
-         else $init(0,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) 
+         then $init(0,WTX,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C,N),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
+         else $init(0,s WTX,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',ROPS,RF,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C),
+		 (if KAD == latest 
+		    then rat(sampleLatest(float(N)))
+			else if KAD == sequ
+			       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+				   else N
+				 fi
+		  fi)) 
        fi .
 
   --- only ro remaining
-  eq $init(s RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
-       $init(RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C)) . 
+  eq $init(s RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
+       $init(RTX,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRTxn(sampleUniWithInt(CLS2) + 1,ROPS,KVARS',KAD,RLVL,C,N),
+	 (if KAD == latest 
+	    then rat(sampleLatest(float(N)))
+		else if KAD == sequ
+		       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+			   else N
+			 fi
+	  fi)) . 
 
   --- only wo remaining
-  eq $init(0,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
-       $init(0,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C)) . 
+  eq $init(0,s WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
+       $init(0,WTX,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addWTxn(sampleUniWithInt(CLS2) + 1,WOPS,KVARS',KAD,WLVL,C,N),
+	 (if KAD == latest 
+	    then rat(sampleLatest(float(N)))
+		else if KAD == sequ
+		       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+			   else N
+			 fi
+	  fi)) . 
 
   --- only rw remaining
-  eq $init(0,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) =
-       $init(0,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C)) . 
+  eq $init(0,0,s RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N) =
+       $init(0,0,RWTX,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,addRWTxn(sampleUniWithInt(CLS2) + 1,RWOPS,KVARS',KAD,C),
+	 (if KAD == latest 
+	    then rat(sampleLatest(float(N)))
+		else if KAD == sequ
+		       then if ((s N) rem size(KVARS')) == 0 then size(KVARS') else ((s N) rem size(KVARS')) fi
+			   else N
+			 fi
+	  fi)) . 
 
 
 
-
+  ---(
+  --- original
   --- no repeated reads on the same key in a ro-txn
   op addReads : Nat KeyVars KeyAccessDistr -> OperationList .
   op $addReads : Nat KeyVars KeyAccessDistr OperationList -> OperationList .
@@ -333,8 +427,44 @@ mod INITIAL-STATES is
        fi .
   eq $$addReads(ROPS,KVARS,KAD,OPS,< K,VAR >) = $addReads(ROPS,delete(< K,VAR >,KVARS),KAD,OPS (read(K))) .
   eq $addReads(0,KVARS,KAD,OPS) = OPS .
+  )
+
+  --- NEW
+  op addReads : Nat KeyVars KeyAccessDistr Nat -> OperationList .
+  op $addReads : Nat KeyVars KeyAccessDistr OperationList Nat -> OperationList .
+  --- "KeyVar"  records the generated key-var pair
+  op $$addReads : Nat KeyVars KeyAccessDistr OperationList KeyVar Nat -> OperationList .
 
 
+  --- the last element N only works with Cassandra;
+  --- TODO: for ROPS > 1, N needs to be updated!
+  --- add hotspot
+  eq addReads(ROPS,KVARS,KAD,N') = $addReads(ROPS,KVARS,KAD,nil,N') .
+  eq $addReads(s ROPS,KVARS,KAD,OPS,N') = 
+       if KAD == uniform 
+         then $$addReads(ROPS,KVARS,KAD,OPS,nth(sampleUniWithInt(size(KVARS)) + 1,KVARS),N') 
+         else if KAD == zipf
+		        then $$addReads(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS),N')  ---??? Zipf parameter
+				else if KAD == hotspot
+				       then $$addReads(ROPS,KVARS,KAD,OPS,(if sampleBerWithP(0.8) 
+					          then nth(rat(floor(genRandom(1.0,(if size(KVARS) >= 5 then float(size(KVARS) / 5) else float(size(KVARS)) fi)))),KVARS) 
+							  else nth(rat(floor(genRandom(float(size(KVARS) / 5) + 1.0,float(size(KVARS))))),KVARS) fi),N')
+					   else if KAD == latest
+					          then $$addReads(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
+							  else if KAD == sequ
+							         then $$addReads(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
+									 else $$addReads(ROPS,KVARS,KAD,OPS,nth(rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1,KVARS),N') --- exponential parametric pencentile
+								   fi
+							fi
+					 fi
+			  fi
+       fi .
+  eq $$addReads(ROPS,KVARS,KAD,OPS,< K,VAR >,N') = $addReads(ROPS,delete(< K,VAR >,KVARS),KAD,OPS (read(K)),N') .
+  eq $addReads(0,KVARS,KAD,OPS,N') = OPS .
+
+
+  ---(
+  --- original
   --- no repeated writes on the same key in a wo-txn
   op addWrites : Nat KeyVars KeyAccessDistr -> OperationList .
   op $addWrites : Nat KeyVars KeyAccessDistr OperationList -> OperationList .
@@ -350,7 +480,39 @@ mod INITIAL-STATES is
   --- we probabilistically generate a written value: in this case, uniformly sampled on [1,1000]
   eq $$addWrites(ROPS,KVARS,KAD,OPS,< K,VAR >) = $addWrites(ROPS,delete(< K,VAR >,KVARS),KAD,(OPS write(K,(floor(rrand * 1000) + 1)))) .
   eq $addWrites(0,KVARS,KAD,OPS) = OPS .
+  )
 
+  --- NEW
+  op addWrites : Nat KeyVars KeyAccessDistr Nat -> OperationList .
+  op $addWrites : Nat KeyVars KeyAccessDistr OperationList Nat -> OperationList .
+  --- "KeyVar"  records the generated key-var pair
+  op $$addWrites : Nat KeyVars KeyAccessDistr OperationList KeyVar Nat -> OperationList .
+
+
+  eq addWrites(ROPS,KVARS,KAD,N') = $addWrites(ROPS,KVARS,KAD,nil,N') .
+  eq $addWrites(s ROPS,KVARS,KAD,OPS,N') = 
+       if KAD == uniform 
+         then $$addWrites(ROPS,KVARS,KAD,OPS,nth(sampleUniWithInt(size(KVARS)) + 1,KVARS),N') 
+         else if KAD == zipf
+		        then $$addWrites(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS),N')  ---??? Zipf parameter
+				else if KAD == hotspot
+				       then $$addWrites(ROPS,KVARS,KAD,OPS,(if sampleBerWithP(0.8) 
+					          then nth(rat(floor(genRandom(1.0,(if size(KVARS) >= 5 then float(size(KVARS) / 5) else float(size(KVARS)) fi)))),KVARS) 
+							  else nth(rat(floor(genRandom(float(size(KVARS) / 5) + 1.0,float(size(KVARS))))),KVARS) fi),N')
+					   else if KAD == latest
+					          then $$addWrites(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
+							  else if KAD == sequ
+							         then $$addWrites(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
+									 else $$addWrites(ROPS,KVARS,KAD,OPS,nth(rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1,KVARS),N') --- exponential parametric pencentile
+								   fi
+							fi
+					 fi
+			  fi
+       fi .
+  --- we probabilistically generate a written value: in this case, uniformly sampled on [1,1000]
+  eq $$addWrites(ROPS,KVARS,KAD,OPS,< K,VAR >,N') = $addWrites(ROPS,delete(< K,VAR >,KVARS),KAD,(OPS write(K,(floor(rrand * 1000) + 1))),N') .
+  eq $addWrites(0,KVARS,KAD,OPS,N') = OPS .
+  
 
   --- no repeated reads/writes on the same key in a rw-txn
   op addRWrites : Nat KeyVars KeyAccessDistr -> OperationList .
@@ -374,36 +536,36 @@ mod INITIAL-STATES is
 
 
 
-
+  --- original
   --- if this is the first ro-txn to generate
- eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
-      < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addReads(ROPS,KVARS,KAD), 
+ eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C,N') =
+      < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addReads(ROPS,KVARS,KAD,N'), 
                                                             readSet: empty, writeSet: empty, 
                                                             version: 0.0, consLv: RLVL >, AS > C .
 
   --- if there is already some txn(s) generated
- eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
+ eq addRTxn(RID,ROPS,KVARS,KAD,RLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C,N') =
        < 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' > ;; 
-                                  < RID . (N + 1) : Txn | operations: addReads(ROPS,KVARS,KAD), 
+                                  < RID . (N + 1) : Txn | operations: addReads(ROPS,KVARS,KAD,N'), 
                                                           readSet: empty, writeSet: empty, 
                                                           version: 0.0, consLv: RLVL >), AS > C .
 
 
   --- if this is the first wo-txn to generate
-  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C) =
-       < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addWrites(WOPS,KVARS,KAD), 
+  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: emptyTxnList, AS > C,N') =
+       < 1 . RID : Client | requestQueue: < RID . 1 : Txn | operations: addWrites(WOPS,KVARS,KAD,N'), 
                                                              readSet: empty, writeSet: empty,
                                                           version: 0.0, consLv: WLVL >, AS > C .
 
   --- if there is already some txn(s) generated
-  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C) =
+  eq addWTxn(RID,WOPS,KVARS,KAD,WLVL,< 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' >), AS > C,N') =
        < 1 . RID : Client | requestQueue: (TXNS ;; < RID . N : Txn | AS' > ;; 
-                                  < RID . (N + 1) : Txn | operations: addWrites(WOPS,KVARS,KAD),  
+                                  < RID . (N + 1) : Txn | operations: addWrites(WOPS,KVARS,KAD,N'),  
                                                           readSet: empty, writeSet: empty, version: 0.0, consLv: WLVL >), AS > C .  
-
+  
 
   --- when all txns have been generated, we pop up all objects, "C"
-  eq $init(0,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C) = C . 
+  eq $init(0,0,0,0,0,CLS2,RIDS,noKeyVar,KVARS',RF,ROPS,WOPS,RWOPS,KAD,RLVL,WLVL,C,N') = C . 
 
 ---(
   --- no client in model
