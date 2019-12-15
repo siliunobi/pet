@@ -453,7 +453,8 @@ mod INITIAL-STATES is
 					          then $$addReads(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
 							  else if KAD == sequ
 							         then $$addReads(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
-									 else $$addReads(ROPS,KVARS,KAD,OPS,nth(rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1,KVARS),N') --- exponential parametric pencentile
+									 else $$addReads(ROPS,KVARS,KAD,OPS,nth((if size(KVARS) == 1 then 1 else
+									        rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1 fi),KVARS),N') --- exponential parametric pencentile
 								   fi
 							fi
 					 fi
@@ -503,7 +504,8 @@ mod INITIAL-STATES is
 					          then $$addWrites(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
 							  else if KAD == sequ
 							         then $$addWrites(ROPS,KVARS,KAD,OPS,nth(N',KVARS),N')
-									 else $$addWrites(ROPS,KVARS,KAD,OPS,nth(rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1,KVARS),N') --- exponential parametric pencentile
+									 else $$addWrites(ROPS,KVARS,KAD,OPS,nth((if size(KVARS) == 1 then 1 else
+									        rat(floor(sampleExp(90.0,float(size(KVARS)) - 1.0))) + 1 fi),KVARS),N') --- exponential parametric pencentile
 								   fi
 							fi
 					 fi
