@@ -4,18 +4,19 @@ test_file=test.maude
 
 #metric="latency"
 #metric="throughput"
-metric="readlatency"
+#metric="readlatency"
+metric="gamma"
 #for loads in 180 100 ;
-for loads in 180 ;
+for loads in 180 140 100 60 20 ;
 do
-	for cls in 20 40 60 80 100 ;
+	for cls in 8 ;
 	do
-		for rlevel in "one" "quorum" "all" ;
+		for rlevel in "one" ;
 		do
 			conf="$metric-$loads-$cls-$rlevel"
 			
 			#metric_file="throughput.quatex"
-            metric_file="readlatency.quatex"
+            metric_file="gamma.quatex"
 			if [ $metric = 'latency' ];
 			then
 				metric_file="avglatency.quatex"
