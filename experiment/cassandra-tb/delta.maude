@@ -154,7 +154,7 @@ mod GAMMA is
   vars ENTRY ENTRY' : LogEntry .
   vars ZS ZS' : Zones .
   vars Z Z' : Zone .
-  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX : Float .
+  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX N : Float .
   var VER : Version .
   var NZ : nZone .
   vars K K' : Key .
@@ -218,6 +218,25 @@ mod GAMMA is
    = $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS',max(MAX,gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']))) .
   eq $gmmax(Z,(Z' ; ZS'),MAX) = $gmmax(Z,ZS',MAX) [owise] .
   eq $gmmax(Z,ept,MAX) = MAX .
+  
+  --- gamma severity
+  op gammaSev : Log -> Float .
+  ---eq gammaSev(LOG) = ... / totalNumber(LOG) .   
+  
+  ---(
+  
+  op sucOps : Log -> Float .
+  op $sucOps : Log Float -> Float .
+
+  eq sucOps(LOG) = $sucOps(LOG,0.0) .
+  eq $sucOps((TID |-> 
+      < VT ; VT' ; true ; RS ; WS >,LOG),N) 
+      = $sucOps(LOG,N + 1.0) .
+  eq $sucOps((TID |-> 
+      < VT ; VT' ; false ; RS ; WS >,LOG),N) 
+      = $sucOps(LOG,N) .
+  eq $sucOps(empty,N) = N .
+  )
   
 endm
 
