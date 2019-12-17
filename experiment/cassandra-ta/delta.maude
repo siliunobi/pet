@@ -1,0 +1,363 @@
+load initial-states
+
+fmod DELTA-SORTS is
+  pr FLOAT .
+  inc CASSANDRA-SORTS .
+
+  sorts nZone Zone Zones Tag .
+  subsort Zone < Zones .
+
+  op udf : -> Float .
+  
+  ops f b : -> Tag .
+  
+  --- for Delta
+  op [_;_;_;_] : Key Float Float Float -> nZone .  --- 4th: when the dictating write begins
+  op [_;_;_;_;_] : Key Float Float Float Tag -> Zone .
+  
+  --- for Gamma
+  op [_;_;_;_;_] : Key Float Float Float Float -> nZone .  
+  op [_;_;_;_;_;_] : Key Float Float Float Float Tag -> Zone .  
+  
+  vars T T' T'' T''' : Float .
+  var K : Key .
+  
+  op dir : nZone -> Zone .
+  --- for Delta
+  eq dir([K ; T ; T' ; T''])
+   = if T' <= T then [K ; T' ; T ; T'' ; f] else [ K ; T ; T' ; T'' ; b] fi .
+   
+  --- for Gamma
+  eq dir([K ; T ; T' ; T'' ; T'''])
+   = if T' <= T then [K ; T' ; T ; T'' ; T''' ; f] else [ K ; T ; T' ; T'' ; T''' ; b] fi .
+  
+  op ept : -> Zones [ctor] .
+  op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
+  
+  ---var Z : Zone .
+  ---eq Z ; Z = Z .
+endfm
+
+mod DELTA is
+  inc INITIAL-STATES + DELTA-SORTS .
+
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T1 T2 T3 MAX : Float .
+  var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  
+  ---(
+  *** verifying atomicity
+  *** not tested yet!
+  op atomic : Log -> Bool .
+  eq atomic(LOG) = true [owise] .
+ ceq atomic(LOG) = false if conflict(gen(LOG)) .
+ ceq atomic((TID |-> < VT ; VT' ; true ; RS ; empty >,LOG)) = false if not exist(RS,LOG) .
+ ceq atomic((TID |-> < RID |-> T ; (RID |-> T',VT') ; true ; RS ; empty >,
+             TID' |-> < RID' |-> T1 ; (RID' |-> T2,VT'') ; true ; empty ; RS >,LOG)) = false
+	 if T' < T1 .
+	 
+  op conflict : Zones -> Bool .
+  eq conflict(ZS) = false [owise] .
+ ceq conflict([K ; T ; T' ; T'' ; f] ; [K ; T1 ; T2 ; T3 ; b] ; ZS) = true 
+     if T1 >= T /\ T2 <= T' .
+ ceq conflict([K ; T ; T' ; T'' ; f] ; [K ; T1 ; T2 ; T3 ; f] ; ZS) = true
+     if T >= T1 /\ T <= T2 .
+  )
+  
+  --- the way of generating zones excludes all initial-value reads!
+  op gen : Log -> Zones [memo] .
+  op $gen : Log Log -> Zones .
+  op $$gen : LogEntry Log nZone -> nZone .
+  eq gen(LOG) = $gen(LOG,LOG) .
+  eq $gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
+   = $gen(LOG,LOG') ; dir($$gen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
+       LOG',[K ; GT1 ; GT2 ; udf])) .
+  eq $gen((ENTRY,LOG),LOG') = $gen(LOG,LOG') [owise] .
+  eq $gen(empty,LOG') = ept .
+  eq $$gen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),
+           (TID' |-> < RID' |-> GT1 ; (RID' |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
+           [K ; T ; T' ; T''])
+   = $$gen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),LOG',[K ; max(T,GT1) ; min(T',GT2) ; T1]) . 
+  eq $$gen(ENTRY,(ENTRY',LOG'),NZ) = $$gen(ENTRY,LOG',NZ) [owise] .
+  eq $$gen(ENTRY,empty,NZ) = NZ .
+  
+  
+  op conflict : Zone Zone -> Bool .
+  eq conflict(Z,Z') = false [owise] .
+ ceq conflict([K ; T ; T' ; T'' ; f],[K' ; T1 ; T2 ; T3 ; b]) = true 
+     if T1 >= T and T2 <= T' .
+  eq conflict([K ; T1 ; T2 ; T3 ; b],[K' ; T ; T' ; T'' ; f])
+   = conflict([K' ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .	
+ ceq conflict([K ; T ; T' ; T'' ; f],[K' ; T1 ; T2 ; T3 ; f]) = true
+     if ([K ; T ; T' ; T'' ; f] =/= [K' ; T1 ; T2 ; T3 ; f]) and  
+     	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
+	 
+  op exist : Set{KeyVersion} Log -> Bool .
+  eq exist(RS,(TID |-> < VT ; VT' ; true ; empty ; RS >,LOG)) = true .
+  eq exist(< K,0.0 >,LOG) = true .  --- default version 
+  eq exist(RS,LOG) = false [owise] .
+  
+  op delta : Log -> Float .
+  eq delta(LOG) = optimal(gen(LOG)) .
+
+  op chi : Zone Zone -> Float .
+ ceq chi(Z,Z') = 0.0 if not conflict(Z,Z') .
+ ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) = if T >= T1 and T <= T2 then T2 - T else T' - T1 fi
+     if conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; f]) .
+ ceq chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) 
+   = if T3 =/= udf and T3 < T
+       then min(T' - T2, T1 - T) 
+	   else T' - T2
+	 fi
+     if conflict([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .
+ eq chi([K ; T1 ; T2 ; T3 ; b],[K ; T ; T' ; T'' ; f]) 
+  = chi([K ; T ; T' ; T'' ; f],[K ; T1 ; T2 ; T3 ; b]) .
+ 
+  --- max chi over all pairs of zones 
+  op optimal : Zones -> Float .
+  op $optimal : Zones Zones KeySet -> Float .
+
+  eq optimal(ZS) = $optimal(ZS,ZS,empty) .
+  eq $optimal(([K ; T ; T' ; T'' ; TAG] ; ZS),ZS',(K,KS)) 
+   = $optimal(ZS,ZS',(K,KS)) .
+  eq $optimal(([K ; T ; T' ; T'' ; TAG] ; ZS),ZS',KS) 
+   = max(max([K ; T ; T' ; T'' ; TAG],ZS'),$optimal(ZS,ZS',(K,KS))) [owise] .
+  eq $optimal(ept,ZS',KS) = 0.0 .
+
+  op max : Zone Zones -> Float .
+  op $max : Zone Zones Float -> Float .
+
+  eq max(Z,ZS') = $max(Z,ZS',0.0) .
+  eq $max([K ; T ; T' ; T'' ; TAG],([K ; T1 ; T2 ; T3 ; TAG'] ; ZS'),MAX) 
+   = $max([K ; T ; T' ; T'' ; TAG],ZS',max(MAX,chi([K ; T ; T' ; T'' ; TAG],[K ; T1 ; T2 ; T3 ; TAG']))) .
+  eq $max(Z,(Z' ; ZS'),MAX) = $max(Z,ZS',MAX) [owise] .
+  eq $max(Z,ept,MAX) = MAX .
+endm
+
+mod GAMMA is
+  inc INITIAL-STATES + DELTA .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX N : Float .
+  var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  
+  op gmgen : Log -> Zones [memo] .
+  op $gmgen : Log Log -> Zones .
+  op $$gmgen : LogEntry Log nZone -> nZone .
+  eq gmgen(LOG) = $gmgen(LOG,LOG) .
+  eq $gmgen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >,LOG),LOG') 
+   = $gmgen(LOG,LOG') ; dir($$gmgen((TID |-> < RID |-> GT1 ; (RID |-> GT2,VT') ; true ; empty ; < K,VER > >),
+       LOG',[K ; GT1 ; GT2 ; udf ; udf])) .
+  eq $gmgen((ENTRY,LOG),LOG') = $gmgen(LOG,LOG') [owise] .
+  eq $gmgen(empty,LOG') = ept .
+  eq $$gmgen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),
+           (TID' |-> < RID' |-> GT1 ; (RID' |-> GT2,VT'') ; true ; WS ; empty >,LOG'),
+           [K ; T ; T' ; T'' ; T'''])
+   = $$gmgen((TID |-> < RID |-> T1 ; (RID |-> T2,VT') ; true ; empty ; WS >),LOG',
+       [K ; max(T,GT1) ; min(T',GT2) ; T1 ; (if GT2 < T1 then min(GT2,T''') else T''' fi)]) . 
+  eq $$gmgen(ENTRY,(ENTRY',LOG'),NZ) = $$gmgen(ENTRY,LOG',NZ) [owise] .
+  eq $$gmgen(ENTRY,empty,NZ) = NZ .
+  
+   op gmconflict : Zone Zone -> Bool .
+   eq gmconflict(Z,Z') = false [owise] .
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; b]) = true 
+      if T1 >= T and T2 <= T' .
+   eq gmconflict([K ; T1 ; T2 ; T3 ; T4 ; b],[K' ; T ; T' ; T'' ; T''' ; f])
+    = gmconflict([K' ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) .	
+  ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; f]) = true
+      if ([K ; T ; T' ; T'' ; T''' ; f] =/= [K' ; T1 ; T2 ; T3 ; T4 ; f]) and  
+      	((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
+	 
+  op gamma : Log -> Float .
+  eq gamma(LOG) = gmoptimal(gmgen(LOG)) . 
+   
+  op gmChi : Zone Zone -> Float .
+  eq gmChi([K ; T1 ; T2 ; T3 ; T4 ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG]) = 
+       if T4 == udf then 0.0 else T3 - T4 fi .
+ ceq gmChi(Z,Z') = 0.0 
+	 if Z =/= Z' and not gmconflict(Z,Z') .
+ ceq gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) = min(T' - T1,T2 - T)
+     if gmconflict([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) .
+  
+  --- max gmchi over all pairs of zones 
+  op gmoptimal : Zones -> Float .
+  op $gmoptimal : Zones Zones KeySet -> Float .
+  
+  eq gmoptimal(ZS) = $gmoptimal(ZS,ZS,empty) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',(K,KS)) 
+   = $gmoptimal(ZS,ZS',(K,KS)) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',KS) 
+   = max(gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS'),$gmoptimal(ZS,ZS',(K,KS))) [owise] .
+  eq $gmoptimal(ept,ZS',KS) = 0.0 .
+
+  op gmmax : Zone Zones -> Float .
+  op $gmmax : Zone Zones Float -> Float .
+
+  eq gmmax(Z,ZS') = $gmmax(Z,ZS',0.0) .
+  eq $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],([K ; T1 ; T2 ; T3 ; T4 ; TAG'] ; ZS'),MAX) 
+   = $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS',max(MAX,gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']))) .
+  eq $gmmax(Z,(Z' ; ZS'),MAX) = $gmmax(Z,ZS',MAX) [owise] .
+  eq $gmmax(Z,ept,MAX) = MAX .
+  
+  --- gamma severity
+  op gammaSev : Log -> Float .
+  ---eq gammaSev(LOG) = ... / totalNumber(LOG) .   
+  
+  ---(
+  
+  op sucOps : Log -> Float .
+  op $sucOps : Log Float -> Float .
+
+  eq sucOps(LOG) = $sucOps(LOG,0.0) .
+  eq $sucOps((TID |-> 
+      < VT ; VT' ; true ; RS ; WS >,LOG),N) 
+      = $sucOps(LOG,N + 1.0) .
+  eq $sucOps((TID |-> 
+      < VT ; VT' ; false ; RS ; WS >,LOG),N) 
+      = $sucOps(LOG,N) .
+  eq $sucOps(empty,N) = N .
+  )
+  
+endm
+
+mod COMMONALITY is
+  inc GAMMA .
+  
+  sort ZoneList .
+  subsort Zone < ZoneList .
+  
+  op nil : -> ZoneList [ctor] .
+  op _;;_ : ZoneList ZoneList -> ZoneList [ctor assoc id: nil] .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' RID RID' : Address .
+  vars RS WS : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX : Float .
+  var VER : Version .
+  var NZ : nZone .
+  vars K K' : Key .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .
+  vars ZL ZL' ZL'' : ZoneList .
+  
+  op size : Zones -> Float .
+  eq size(Z ; ZS) = 1.0 + size(ZS) .
+  eq size(ept) = 0.0 .
+  
+  --- input: a set of zones
+  --- output: only backward zones
+  op bz : Zones -> Zones .
+  eq bz([K ; T1 ; T2 ; T3 ; T4 ; b] ; ZS) = [K ; T1 ; T2 ; T3 ; T4 ; b] ; bz(ZS) .
+  eq bz([K ; T1 ; T2 ; T3 ; T4 ; TAG] ; ZS) = bz(ZS) [owise] .
+  eq bz(ept) = ept .
+  
+  --- input : a set of zones, and its backward zones
+  --- output: a list of forward zones, in increasing order of their right end points
+  ---         excluding any forward zones 
+  ---         that conflict with any of the backward zones
+  op fz : Zones Zones -> ZoneList .
+  op $fz : Zones Zones ZoneList -> ZoneList .
+  eq fz(ZS,ZS') = $fz(ZS,ZS',nil) .
+  eq $fz(([K ; T1 ; T2 ; T3 ; T4 ; b] ; ZS),ZS',ZL) = $fz(ZS,ZS',ZL) .
+ ceq $fz(([K ; T1 ; T2 ; T3 ; T4 ; f] ; ZS),([K' ; T ; T' ; T'' ; T''' ; b] ; ZS'),ZL)
+   = $fz(ZS,([K' ; T ; T' ; T'' ; T''' ; b] ; ZS'),ZL)
+     if conflict([K ; T1 ; T2 ; T3 ; T4 ; f],[K' ; T ; T' ; T'' ; T''' ; b]) .
+  eq $fz((Z ; ZS),ZS',ZL) = $fz(ZS,ZS',insert(Z,ZL)) [owise] .
+  eq $fz(ept,ZS',ZL) = ZL .
+  
+  op insert : Zone ZoneList -> ZoneList .
+  eq insert([K ; T1 ; T2 ; T3 ; T4 ; f],([K' ; T ; T' ; T'' ; T''' ; f] ;; ZL))
+   = if T2 <= T'
+       then [K ; T1 ; T2 ; T3 ; T4 ; f] ;; [K' ; T ; T' ; T'' ; T''' ; f] ;; ZL
+	   else [K' ; T ; T' ; T'' ; T''' ; f] ;; insert([K ; T1 ; T2 ; T3 ; T4 ; f],ZL) 
+	 fi .
+  eq insert(Z,nil) = Z .
+  
+
+  --- pick the first unpicked forward zone,
+  --- remove any forward zones that conflict with the forward zone picked
+  --- repeat until there are no more unpicked forward zones
+  op maxfz : ZoneList -> Zones .
+  op $maxfz : Zone ZoneList ZoneList -> Zones .
+  eq maxfz(nil) = ept .
+  eq maxfz(Z ;; ZL) = $maxfz(Z,ZL,nil) .
+ ceq $maxfz(Z,(Z' ;; ZL'),ZL'') = $maxfz(Z,ZL',ZL'') 
+     if conflict(Z,Z') .
+  eq $maxfz(Z,(Z' ;; ZL'),ZL'') = $maxfz(Z,ZL',(ZL'' ;; Z')) [owise] .
+  eq $maxfz(Z,nil,ZL'') = Z ; maxfz(ZL'') .
+
+  
+  op common : Log -> Float .
+  eq common(LOG) = (size(gmgen(LOG)) - size(bz(gmgen(LOG))) - size(maxfz(fz(gmgen(LOG),bz(gmgen(LOG)))))) / size(gmgen(LOG)) .
+  
+endm
+
+mod RYW is
+  inc INITIAL-STATES .
+  
+  vars LOG LOG' : Log .
+  vars VT VT' VT'' : VectorTime .
+  vars TID TID' TID1 TID2 RID RID' O O' : Address .
+  vars RS WS RS' WS' : Set{KeyVersion} .
+  vars ENTRY ENTRY' : LogEntry .
+  vars GT GT' GT1 GT2 T T' T'' T''' T1 T2 T3 T4 MAX N : Float .
+  var VER : Version .
+  vars K K' : Key .
+  var KS : KeySet .
+
+  op ryw : Log -> Float .
+  eq ryw(LOG) = rywTxns(LOG) / totalReadTxns(LOG) . 
+  
+  op totalReadTxns : Log -> Float .
+  eq totalReadTxns((TID |-> < RID |-> GT ; (RID |-> GT',VT) ; true ; RS ; empty >,LOG))
+   = totalReadTxns(LOG) + 1.0 .
+  eq totalReadTxns((ENTRY,LOG)) = totalReadTxns(LOG) [owise] .
+  eq totalReadTxns(empty) = 0.0 .
+  
+  op rywTxns : Log -> Float .
+  op $rywTxns : Log Log Float -> Float .
+  eq rywTxns(LOG) = $rywTxns(LOG,LOG,0.0) .
+ ceq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; RS ; WS >,LOG),
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG'),N) 
+   = $rywTxns(LOG,
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG'),N + 1.0)
+  if T'' < T and RS =/= empty and noWriteInBetween(T'',T,RID,
+              (TID2 |-> < RID |-> T' ; (RID |-> T'',VT') ; true ; RS' ; RS >,LOG')) .
+ceq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; RS ; WS >,LOG),
+             (TID2 |-> < RID' |-> T' ; VT' ; true ; RS' ; RS >,LOG'),N) 
+  = $rywTxns(LOG,
+             (TID2 |-> < RID' |-> T' ; VT' ; true ; RS' ; RS >,LOG'),N + 1.0)
+    if RID =/= RID' and RS =/= empty .
+ eq $rywTxns((ENTRY,LOG),LOG',N) = $rywTxns(LOG,LOG',N) [owise] .
+ eq $rywTxns(empty,LOG',N) = N .
+
+  op noWriteInBetween : Float Float Address Log -> Bool .
+ ceq noWriteInBetween(T,T',RID,(TID1 |-> < RID |-> T1 ; (RID |-> T2,VT) ; true ; RS ; WS >,LOG))
+   = false if WS =/= empty /\ T2 > T /\ T2 < T' .
+  eq noWriteInBetween(T,T',RID,LOG) = true [owise] .
+ 
+endm

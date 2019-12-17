@@ -6,8 +6,9 @@ mod SAMPLER is
   op sampleBerWithP : Float -> [Bool] .
   op sampleUniWithInt : Nat -> [Nat] .
   op genRandom : Float Float -> [Float] .
+  op genRRandom : Nat Nat -> [Nat] .
   op sampleExp : Float -> [Float] .
-  vars n s : Nat .
+  vars n s n1 n2 : Nat .
 
   op rand : -> [Float] .
   rl [rnd] : rand => float(random(counter) / 4294967296) .
@@ -18,9 +19,12 @@ mod SAMPLER is
   var R R1 Min Max RAND : Float .
 
   eq sampleBerWithP(R) = if rand < R then true else false fi .
-  eq sampleUniWithInt(n) = floor(rrand * n) .
+  ---eq sampleUniWithInt(n) = floor(rrand * n) .
+  eq sampleUniWithInt(n) = random(counter) rem n .
   eq genRandom(Min, Max) = rand * (Max - Min) + Min .
+  eq genRRandom(n1, n2) = floor(rrand * (n2 - n1)) + n1 .
   eq sampleExp(R) = (- log(rand)) / R . 
+  
 
   op sampleNormal : -> [Float] .
   op $sampleNormal : Float -> [Float] .
@@ -80,6 +84,26 @@ mod SAMPLER is
         A' := 12.0 * (MXXX' - 1.0) / (1.0 - SKEW) + 6.0 * (1.0 - MXX') + (SKEW - (MX' * SKEW)) - D /\
         B' := 12.0 * MXX' + 6.0 * (SKEW * MX') + (M' * SKEW * (SKEW + 1.0)) /\
         NEWX' := max(1.0, NEWX - A' / B') .
+		
+  var LAST : Float .
+  		
+  --- LAST can't be 0 
+  --- LAST - sampleZipf(2.0,LAST) can't be 0
+  op sampleLatest : Float -> Float .
+  eq sampleLatest(LAST) = LAST - (sampleZipf(2.0,LAST + 1.0) - 1.0) .
+  
+  
+  vars PERCENTILE RANGE FL : Float .
+  
+  --- PERCENTILE of picked values fall into RANGE
+  --- if outranged value picked, continue the loop
+  op sampleExp : Float Float -> [Float] .
+  op $sampleExp : Float Float Float -> [Float] .
+  eq sampleExp(PERCENTILE,RANGE) 
+   = $sampleExp(PERCENTILE,RANGE,(- log(rand)) / ((- log(1.0 - PERCENTILE / 100.0)) / RANGE)) .
+  eq $sampleExp(PERCENTILE,RANGE,FL)
+   = if FL > RANGE then sampleExp(PERCENTILE,RANGE) else FL fi .
+
 endm
 
 ---set clear rules off .

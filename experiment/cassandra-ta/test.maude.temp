@@ -1,11 +1,14 @@
 load initial-states
+load delta
 
   *** parameters:
   *** consistency level
 
 mod CASSANDRA-ANALYSIS is
   inc INITIAL-STATES .
-
+  inc COMMONALITY .
+  inc RYW .
+  
   eq LIMIT = 1.0e+1000000 .
 
   eq replicaFactor = 3 .
@@ -15,7 +18,7 @@ mod CASSANDRA-ANALYSIS is
   eq initConfig = run(initState,LIMIT) .
 
 ---
-  eq initState = init($1,$2,0,$3,50,100,3,1,1,0,zipf,$4,one) . 
+  eq initState = init($1,$2,0,$3,5,5,3,1,1,0,hotspot,$4,one) . 
 
 
   --- Init parameters 
@@ -34,7 +37,7 @@ mod CASSANDRA-ANALYSIS is
   eq writeLevel = one .
 
   eq delay = sampleLogNormal(0.0,1.0) .
-  --- eq delay = genRandom(0.0, 1.0) .
+  ---eq delay = genRandom(0.0, 1.0) .
 
 
   --- Metrics
@@ -64,27 +67,26 @@ mod CASSANDRA-ANALYSIS is
   eq trt(empty,T) = T .
   )
   *** NEW: false reads count
-  ---
-  eq trt((TID |-> 
-      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) = 
+  eq trt((TID |->
+      < RID |-> GT ; (RID |-> GT',VT) ; FLAG ; RS ; WS >,LOG),T) =
        if GT' > T
          then trt(LOG,GT')
          else trt(LOG,T)
        fi .
   eq trt(empty,T) = T .
-  
+
 
   --- Throughput
   op throughput : Log -> Float .
-  ---(
+  ---
   eq throughput(LOG) = committedNumber(LOG) 
                      / totalRunTime(LOG) .
-  )
+  
+  ---(
   *** NEW
-  ---
   eq throughput(LOG) = totalNumber(LOG) 
                      / totalRunTime(LOG) .
-  
+  )
   op committedNumber : Log -> Float .
   op $committedNumber : Log Float -> Float .
 
@@ -115,7 +117,6 @@ mod CASSANDRA-ANALYSIS is
       = $totalLatency(LOG,T) .
   eq $totalLatency(empty,T) = T .
 
-
   --- readAvgLatency : Log -> Float .
   op readAvgLatency : Log -> Float .
   --- includes "error" reads
@@ -143,7 +144,6 @@ mod CASSANDRA-ANALYSIS is
      = $readNumber(LOG,N) [owise] .
   eq $readNumber(empty,N) = N .  
 
-
   --- Commit ratio
   op cmtRatio : Log -> Float .
   eq cmtRatio(LOG) = committedNumber(LOG) 
@@ -162,6 +162,10 @@ mod CASSANDRA-ANALYSIS is
   eq val(1,< M : Monitor | log: LOG > C) = avgLatency(LOG) .
   eq val(2,< M : Monitor | log: LOG > C) = cmtRatio(LOG) .
   eq val(3,< M : Monitor | log: LOG > C) = readAvgLatency(LOG) .  
+  eq val(4,< M : Monitor | log: LOG > C) = delta(LOG) .  
+  eq val(5,< M : Monitor | log: LOG > C) = gamma(LOG) .  
+  eq val(6,< M : Monitor | log: LOG > C) = common(LOG) .  
+  eq val(7,< M : Monitor | log: LOG > C) = ryw(LOG) .  
 
 ---(
   eq initState = 

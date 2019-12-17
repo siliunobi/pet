@@ -104,7 +104,8 @@ view ResponseSet from TRIV to CASSANDRA-IFACE is sort Elt to ResponseSet .      
 fmod CASSANDRA-SERVER-CLIENT is
   pr CASSANDRA-SORTS .
   pr LIST{Operation} * (sort List{Operation} to OperationList) .
-  pr MAP{Address,Record} * (sort Map{Address,Record} to Log) .
+  pr MAP{Address,Record} * (sort Map{Address,Record} to Log,
+                            sort Entry{Address,Record} to LogEntry) .
   pr VECTOR-TIME .
   pr MAP{Address,ResponseSet} * (sort Map{Address,ResponseSet} to Responses) .
   pr SET{KeyValueVersion} .
