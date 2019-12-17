@@ -220,23 +220,29 @@ mod GAMMA is
   eq $gmmax(Z,ept,MAX) = MAX .
   
   --- gamma severity
-  op gammaSev : Log -> Float .
-  ---eq gammaSev(LOG) = ... / totalNumber(LOG) .   
-  
-  ---(
-  
-  op sucOps : Log -> Float .
-  op $sucOps : Log Float -> Float .
+  op gammaFreq : Log -> Float .
+  eq gammaFreq(LOG) = freqGamma(LOG) / totalDiffVals(LOG) .   
 
-  eq sucOps(LOG) = $sucOps(LOG,0.0) .
-  eq $sucOps((TID |-> 
-      < VT ; VT' ; true ; RS ; WS >,LOG),N) 
-      = $sucOps(LOG,N + 1.0) .
-  eq $sucOps((TID |-> 
-      < VT ; VT' ; false ; RS ; WS >,LOG),N) 
-      = $sucOps(LOG,N) .
-  eq $sucOps(empty,N) = N .
-  )
+  op freqGamma : Log -> Float .
+  eq freqGamma(LOG) = positiveGamma(gmgen(LOG)) .
+  
+  op positiveGamma : Zones -> Float .
+  op $positiveGamma : Zones Zones Float -> Float .
+  
+  eq positiveGamma(ZS) = $positiveGamma(ZS,ZS,0.0) .
+  eq $positiveGamma((Z ; ZS),ZS',N) 
+   = $positiveGamma(ZS,ZS',(if positiveChi(Z,ZS') then N + 1.0 else N fi)) .
+  eq $positiveGamma(ept,ZS',N) = N .  
+  
+  op positiveChi : Zone Zones -> Bool .
+ ceq positiveChi(Z,(Z' ; ZS')) = true if gmChi(Z,Z') > 0.0 .
+  eq positiveChi(Z,ZS') = false [owise] .
+  
+  op totalDiffVals : Log -> Float .
+  eq totalDiffVals((TID |-> < VT ; VT' ; true ; empty ; WS >,LOG)) 
+   = totalDiffVals(LOG) + 1.0 .
+  eq totalDiffVals((ENTRY,LOG)) = totalDiffVals(LOG) .
+  eq totalDiffVals(empty) = 0.0 .
   
 endm
 
