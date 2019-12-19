@@ -220,8 +220,8 @@ mod GAMMA is
   eq $gmmax(Z,ept,MAX) = MAX .
   
   --- gamma severity
-  op gammaSev : Log -> Float .
-  eq gammaSev(LOG) = freqGamma(LOG) / totalDiffVals(LOG) .   
+  op gammaFreq : Log -> Float .
+  eq gammaFreq(LOG) = freqGamma(LOG) / totalDiffVals(LOG) .   
 
   op freqGamma : Log -> Float .
   eq freqGamma(LOG) = positiveGamma(gmgen(LOG)) .
