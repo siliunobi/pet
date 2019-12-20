@@ -343,7 +343,7 @@ mod RYW is
    = totalReadTxns(LOG) + 1.0 .
   eq totalReadTxns((ENTRY,LOG)) = totalReadTxns(LOG) [owise] .
   eq totalReadTxns(empty) = 0.0 .
-  
+  v
   op rywTxns : Log -> Float .
   op $rywTxns : Log Log Float -> Float .
   eq rywTxns(LOG) = $rywTxns(LOG,LOG,0.0) .
@@ -360,6 +360,10 @@ ceq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; RS ; WS >,LOG),
     if RID =/= RID' and RS =/= empty .
  eq $rywTxns((ENTRY,LOG),LOG',N) = $rywTxns(LOG,LOG',N) [owise] .
  eq $rywTxns(empty,LOG',N) = N .
+ ---newly added for initial value
+ eq $rywTxns((TID1 |-> < RID |-> T ; VT ; true ; < K,0.0 > ; WS >,LOG),LOG',N)
+  = $rywTxns(LOG,LOG',N + 1.0) .
+ 
 
   op noWriteInBetween : Float Float Address Log -> Bool .
  ceq noWriteInBetween(T,T',RID,(TID1 |-> < RID |-> T1 ; (RID |-> T2,VT) ; true ; RS ; WS >,LOG))
