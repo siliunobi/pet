@@ -343,7 +343,7 @@ mod RYW is
    = totalReadTxns(LOG) + 1.0 .
   eq totalReadTxns((ENTRY,LOG)) = totalReadTxns(LOG) [owise] .
   eq totalReadTxns(empty) = 0.0 .
-  v
+  
   op rywTxns : Log -> Float .
   op $rywTxns : Log Log Float -> Float .
   eq rywTxns(LOG) = $rywTxns(LOG,LOG,0.0) .
