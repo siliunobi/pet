@@ -1,3 +1,4 @@
+#! /bin/bash
 host=`hostname -s`
 test_file=test.maude
 
@@ -11,6 +12,7 @@ do
 	    conf="$load-$key-$dist-2-2"
             echo $conf
 	    python gen.py test.maude.temp test.maude $load 40 $key  $dist 2 2
+		echo `date`
 	    java -jar ~/pvesta/pvesta-client.jar -l ~/pvesta/serverlist1 -m ${test_file} -f throughput.quatex -a 0.05 > ${host}-$conf.out 2>&1
 	    result=`python result.py ${host}-$conf.out`
 	    echo $conf $result
