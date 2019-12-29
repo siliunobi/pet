@@ -80,8 +80,8 @@ mod RAMP-S is
   eq genGets(((X :=read K) OPS),RID,TID,REPLICA-TABLE) = 
        genGets(OPS,RID,TID,REPLICA-TABLE)
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld, RID <- get(TID,K,empty,RID)]  --- eptTS denotes "empty" in line 25
-         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,empty,RID)]
+         then [ld * float(length(msg2string(get(TID,K,empty,RID)))), RID <- get(TID,K,empty,RID)]  --- eptTS denotes "empty" in line 25
+         else [rd * float(length(msg2string(get(TID,K,empty,RID)))), preferredSite(K,REPLICA-TABLE) <- get(TID,K,empty,RID)]
        fi .
   eq genGets((write(K,EXPR) OPS),RID,TID,REPLICA-TABLE) =
        genGets(OPS,RID,TID,REPLICA-TABLE) .
@@ -115,8 +115,8 @@ mod RAMP-S is
   eq $genPuts((write(K,EXPR) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS'')) =
        $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,(OPS' write(K,EXPR) OPS''))
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
-         else [rd, preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
+         then [ld * float(length(msg2string(prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)))), RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
+         else [rd * float(length(msg2string(prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)))), preferredSite(K,REPLICA-TABLE) <- prepare(TID,version(K,eval(EXPR,VARS),ts(RID,SQN),empty),RID)]
        fi .
   eq $genPuts(((X :=read K) OPS),RID,TID,SQN,VARS,REPLICA-TABLE,OPS') = 
        $genPuts(OPS,RID,TID,SQN,VARS,REPLICA-TABLE,OPS') .  --- deal with rw-txns
@@ -210,7 +210,7 @@ mod RAMP-S is
   op genCommits : Address Nat AddressSet Address -> Config .
   eq genCommits(TID,SQN,(RID' ; RIDS),RID) =
        genCommits(TID,SQN,RIDS,RID)
-       [if RID == RID' then ld else rd fi, RID' <- commit(TID,ts(RID,SQN),RID)] .
+       [if RID == RID' then ld * float(length(msg2string(commit(TID,ts(RID,SQN),RID)))) else rd * float(length(msg2string(commit(TID,ts(RID,SQN),RID)))) fi, RID' <- commit(TID,ts(RID,SQN),RID)] .
   eq genCommits(TID,SQN,empty,RID) = null .
 
   op vmatch : Key Versions KeyTimestamps -> Version .
@@ -231,20 +231,6 @@ mod RAMP-S is
   eq vl(((X :=read K) OPS)) = K |-> ts(-1,-1), vl(OPS) .
   eq vl(nil) = empty .
 
-  ---(
-  op gen2ndGets : Address KeyTimestamps Versions Address ReplicaTable -> Config .
-  eq gen2ndGets(TID,(K |-> TS',VL),(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) = 
-       gen2ndGets(TID,(K |-> TS',VL),RS,RID,REPLICA-TABLE)
-       if TS less-than TS'
-         then if localReplica(K,RID,REPLICA-TABLE)
-                then [ld, RID <- get(TID,K,TS',RID)]
-                else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,TS',RID)]
-              fi
-         else null
-       fi .
-  eq gen2ndGets(TID,VL,RS,RID,REPLICA-TABLE) = null [owise] .  --- if K is not in VL
-  eq gen2ndGets(TID,VL,empty,RID,REPLICA-TABLE) = null .
-  )
 
   *** NEW for RAMP-S
   op gen2ndGets : Address KeyTimestamps Versions Address ReplicaTable -> Config .
@@ -254,8 +240,8 @@ mod RAMP-S is
   eq $gen2ndGets(TID,TSS,(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) =
        $gen2ndGets(TID,TSS,RS,RID,REPLICA-TABLE) 
        if localReplica(K,RID,REPLICA-TABLE)
-         then [ld, RID <- get(TID,K,TSS,RID)]
-         else [rd, preferredSite(K,REPLICA-TABLE) <- get(TID,K,TSS,RID)]
+         then [ld * float(length(msg2string(get(TID,K,TSS,RID)))), RID <- get(TID,K,TSS,RID)]
+         else [rd * float(length(msg2string(get(TID,K,TSS,RID)))), preferredSite(K,REPLICA-TABLE) <- get(TID,K,TSS,RID)]
        fi .
   eq $gen2ndGets(TID,TSS,empty,RID,REPLICA-TABLE) = null .
 
@@ -266,20 +252,6 @@ mod RAMP-S is
   eq $tsset((K |-> TS,VL),TSS) = $tsset(VL,(TS,TSS)) .
   eq $tsset(empty,TSS) = TSS .
 
-  ---(
-  op 2ndSites : KeyTimestamps Versions Address ReplicaTable -> AddressSet .
-  eq 2ndSites((K |-> TS',VL),(version(K,V,TS,MD),RS),RID,REPLICA-TABLE) =
-       2ndSites((K |-> TS',VL),RS,RID,REPLICA-TABLE) ;
-       (if TS less-than TS'
-          then if localReplica(K,RID,REPLICA-TABLE)
-                 then RID
-                 else preferredSite(K,REPLICA-TABLE)
-               fi
-          else empty
-        fi) .
-  eq 2ndSites(VL,RS,RID,REPLICA-TABLE) = empty [owise] .  --- if K is not in VL
-  eq 2ndSites(VL,empty,RID,REPLICA-TABLE) = empty .  
-  )
 
   *** NEW for RAMP-S
   op 2ndSites : KeyTimestamps Versions Address ReplicaTable -> AddressSet .
@@ -348,8 +320,8 @@ mod RAMP-S is
      {T, RID <- prepare(TID,VERSION,RID')}
    =>
      < RID : Replica | datastore: (VS,VERSION), AS' >
-     [if RID == RID' then ld else rd fi, RID' <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
-  ---* float(length(msg2string(prepare-reply(TID,true,RID))))
+     [if RID == RID' then ld * float(length(msg2string(prepare-reply(TID,true,RID)))) else rd * float(length(msg2string(prepare-reply(TID,true,RID)))) fi, RID' <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
+
 
  crl [receive-prepare-reply] :
      < TABLE : Table | table: REPLICA-TABLE >
@@ -382,7 +354,7 @@ mod RAMP-S is
    =>
      < RID : Replica | datastore: VS,
                        latestCommit: cmt(LC,VS,ts(RID',SQN)), AS' >
-     [if RID == RID' then ld else rd fi, RID' <- committed(TID,RID)] .
+     [if RID == RID' then ld * float(length(msg2string(committed(TID,RID)))) else rd * float(length(msg2string(committed(TID,RID)))) fi, RID' <- committed(TID,RID)] .
 
  crl [receive-committed] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
@@ -411,9 +383,11 @@ mod RAMP-S is
    =>
      < RID : Replica | datastore: VS,
                        latestCommit: LC, AS' >
-     [if RID == RID' then ld else rd fi, RID' <- 
-       (if TSS == empty then response1(TID,vmatch(K,VS,LC),RID) 
-         else response2(TID,vmatch(K,VS,maxts(tsmatch(K,VS,TSS))),RID) fi)] .
+     if TSS == empty
+       then [if RID == RID' then ld * float(length(msg2string(response1(TID,vmatch(K,VS,LC),RID)))) else rd * float(length(msg2string(response1(TID,vmatch(K,VS,LC),RID)))) fi, RID' <- response1(TID,vmatch(K,VS,LC),RID)]
+       else [if RID == RID' then ld * float(length(msg2string(response2(TID,vmatch(K,VS,maxts(tsmatch(K,VS,TSS))),RID)))) else rd * float(length(msg2string(response2(TID,vmatch(K,VS,maxts(tsmatch(K,VS,TSS))),RID)))) fi, RID' <- response2(TID,vmatch(K,VS,maxts(tsmatch(K,VS,TSS))),RID)]
+     fi .
+
 
   *** NEW for RAMP-S
   op vmatch : Key Versions Timestamp -> Version .
