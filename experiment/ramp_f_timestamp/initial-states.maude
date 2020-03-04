@@ -533,6 +533,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   sort KeyAccessDistr .
   op uniform : -> KeyAccessDistr [ctor] .
   op zipf : -> KeyAccessDistr [ctor] .
+  op hotspot : -> KeyAccessDistr .
 
   --- # of ro-txns, # of wo-txns, # of rw-txns, # of replicas, # of keys, # of ops per txn, key access distr
   --- # of operations per transaction: we set it to 2 or 4 in our experiments
@@ -647,7 +648,12 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   eq $addReads(s ROPS,KVARS,KAD,OPS) = 
        if KAD == uniform 
          then $$addReads(ROPS,KVARS,KAD,OPS,nth(sampleUniWithInt(size(KVARS)) + 1,KVARS)) 
-         else $$addReads(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS))  ---??? Zipf parameter
+         else if KAD == zipf
+		        then $$addReads(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS))  ---??? Zipf parameter
+				else $$addReads(ROPS,KVARS,KAD,OPS,(if sampleBerWithP(0.8) 
+					          then nth(rat(floor(genRandom(1.0,(if size(KVARS) >= 5 then float(size(KVARS) / 5) else float(size(KVARS)) fi)))),KVARS) 
+							  else nth(rat(floor(genRandom(float(size(KVARS) / 5) + 1.0,float(size(KVARS))))),KVARS) fi))
+			  fi
        fi .
   eq $$addReads(ROPS,KVARS,KAD,OPS,< K,VAR >) = $addReads(ROPS,delete(< K,VAR >,KVARS),KAD,OPS (VAR :=read K)) .
   eq $addReads(0,KVARS,KAD,OPS) = OPS .
@@ -693,7 +699,12 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   eq $addWrites(s ROPS,KVARS,KAD,OPS) = 
        if KAD == uniform 
          then $$addWrites(ROPS,KVARS,KAD,OPS,nth(sampleUniWithInt(size(KVARS)) + 1,KVARS)) 
-         else $$addWrites(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS)) 
+         else if KAD == zipf 
+		        then $$addWrites(ROPS,KVARS,KAD,OPS,nth(rat(sampleZipf(2.0,float(size(KVARS) + 1))),KVARS)) 
+				else $$addWrites(ROPS,KVARS,KAD,OPS,(if sampleBerWithP(0.8) 
+					          then nth(rat(floor(genRandom(1.0,(if size(KVARS) >= 5 then float(size(KVARS) / 5) else float(size(KVARS)) fi)))),KVARS) 
+							  else nth(rat(floor(genRandom(float(size(KVARS) / 5) + 1.0,float(size(KVARS))))),KVARS) fi))
+			  fi 
        fi .
   --- we probabilistically generate a written value: in this case, uniformly sampled on [1,1000]
   eq $$addWrites(ROPS,KVARS,KAD,OPS,< K,VAR >) = $addWrites(ROPS,delete(< K,VAR >,KVARS),KAD,(OPS write(K,(floor(rrand * 1000) + 1)))) .
