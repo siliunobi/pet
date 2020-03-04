@@ -119,10 +119,12 @@ mod RAMP-SNOW-ANALYSIS is
                  (record(TID',T1',T2',READS',READS,true) ; RECORD'), NUMBER) 
    = $freshReads(RECORD,(record(TID',T1',T2',READS',READS,true) ; RECORD'), 
                  NUMBER + 1.0) 
-  if T1' < T1 and noWriteBetween(T1',T1,READS,RECORD') .
+  if T1' < T1 and noWriteBetween(T1',T1,READS,RECORD') and READS =/= empty .
+  
  ceq $freshReads((record(TID,T1,T2,(version(K,[0],ts(0,0.0),empty),READS),WRITES,true) ; RECORD),RECORD', NUMBER) 
    = $freshReads(RECORD,RECORD', NUMBER + 1.0)
   if noWriteBetween(0.0,T1,(version(K,[0],ts(0,0.0),empty),READS),RECORD') .
+  
   eq $freshReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD), RECORD', NUMBER) 
    = $freshReads(RECORD, RECORD', NUMBER) [owise] . 
   eq $freshReads(noRecord, RECORD', NUMBER) = NUMBER .
@@ -138,7 +140,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
   eq val(3,C) = pf(C) .
-          
+     
 endm
 
 ---set clear rules off .
