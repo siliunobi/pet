@@ -552,7 +552,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   --- generate replicas
   eq $init(RTX,WTX,RWTX,s REPLS,REPLS2,KVARS,KVARS',ROPS,WOPS,RWOPS,KAD,C) =
        $init(RTX,WTX,RWTX,REPLS,REPLS2,KVARS,KVARS',ROPS,WOPS,RWOPS,KAD,C      
-         < s REPLS : Replica | gotTxns: emptyTxnList, datastore: empty, sqn: 1, 
+         < s REPLS : Replica | gotTxns: emptyTxnList, datastore: empty, sqn: 0.0, 
                                latestCommit: empty, executing: noActor, 
                                committed: emptyTxnList, 
                                voteSites: noVS, 

@@ -1,3 +1,5 @@
+set show advisories off .
+
 load sampler
 load term-order
 load apmaude
@@ -21,7 +23,8 @@ fmod TXN-SORTS is
 
   --- RID, SQN
   --- ??? initial value: ts(0,0) or eptTS???
-  op ts : Address Int -> Timestamp [ctor] .  --- v_latest default value is -1  
+***
+  op ts : Address Float -> Timestamp [ctor] .  --- v_latest default value is -1  
   op eptTS : -> Timestamp [ctor] .
 
   op noVote : -> Vote [ctor] .
@@ -161,7 +164,7 @@ fmod CLIENT-REPLICA is
 
   op Replica : -> ActorType .
   op datastore:_ : Versions -> Attribute .  --- initialized on some distributions; version(K,[0],ts(0,0),empty)
-  op sqn:_ : Nat -> Attribute .  --- initialized as 0
+  op sqn:_ : Float -> Attribute .  --- initialized as 0
   op executing:_ : Actor -> Attribute .  --- initialized as noActor
 ---  op submitted:_ : ConfigList -> Attribute .  ---??? no need for RAMP
   op committed:_ : ConfigList -> Attribute .  --- init: emptyTxnList

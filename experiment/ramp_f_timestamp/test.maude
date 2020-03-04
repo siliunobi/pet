@@ -17,7 +17,7 @@ mod RAMP-SNOW-ANALYSIS is
   ops xl yl zl : -> LocalVar .
 
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init(200,200,0,40,50,2,2,0,uniform) .
+   eq initState = init(4,4,0,5,10,2,2,0,uniform) .
 
 
   ---(
@@ -43,12 +43,16 @@ mod RAMP-SNOW-ANALYSIS is
   )
 
   --- Metrics
-  vars T T' T1 T2 NUMBER : Float .
+  vars T T' T1 T2 T1' T2' NUMBER : Float .
   var C : Config .
-  vars M TID : Address .
+  vars M TID TID' : Address .
   vars RECORD RECORD' : Record . 
-  vars READS WRITES : Versions .
+  vars READS READS' WRITES WRITES' VS VS' : Versions .
   var FLAG : Bool .
+  vars TS TS' : Timestamp .
+  vars MD MD' : KeySet .
+  vars V V' : Value .
+  var K : Key .
 
   --- Throughput
   op totalRunTime : Record -> Float .
@@ -96,11 +100,44 @@ mod RAMP-SNOW-ANALYSIS is
   eq $totalLatency((record(TID,T1,T2,READS,WRITES,false) ; RECORD),NUMBER) = 
        $totalLatency(RECORD,NUMBER) .
   eq $totalLatency(noRecord,NUMBER) = NUMBER .
+  
+  *** 
+  op pf : Config -> Float .
+  eq pf(< M : Monitor | log: RECORD > C) = freshReads(RECORD) / totalReads(RECORD) .
+  
+  op totalReads : Record -> Float .
+ ceq totalReads((record(TID,T1,T2,READS,WRITES,true) ; RECORD))
+   = totalReads(RECORD) + 1.0
+  if READS =/= empty .
+  eq totalReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD)) = totalReads(RECORD) [owise] .
+  eq totalReads(noRecord) = 0.0 .
+  
+  op freshReads : Record -> Float .
+  op $freshReads : Record Record Float -> Float .
+  eq freshReads(RECORD) = $freshReads(RECORD,RECORD,0.0) .
+ ceq $freshReads((record(TID,T1,T2,READS,WRITES,true) ; RECORD),
+                 (record(TID',T1',T2',READS',READS,true) ; RECORD'), NUMBER) 
+   = $freshReads(RECORD,(record(TID',T1',T2',READS',READS,true) ; RECORD'), 
+                 NUMBER + 1.0) 
+  if T1' < T1 and noWriteBetween(T1',T1,READS,RECORD') .
+ ceq $freshReads((record(TID,T1,T2,(version(K,[0],ts(0,0.0),empty),READS),WRITES,true) ; RECORD),RECORD', NUMBER) 
+   = $freshReads(RECORD,RECORD', NUMBER + 1.0)
+  if noWriteBetween(0.0,T1,(version(K,[0],ts(0,0.0),empty),READS),RECORD') .
+  eq $freshReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD), RECORD', NUMBER) 
+   = $freshReads(RECORD, RECORD', NUMBER) [owise] . 
+  eq $freshReads(noRecord, RECORD', NUMBER) = NUMBER .
+  
+  op noWriteBetween : Float Float Versions Record -> Bool .
+ ceq noWriteBetween(T,T',(version(K,V,TS,MD),VS),(record(TID,T1,T2,READS,(version(K,V',TS',MD'),VS'),true) ; RECORD))
+   = false if T < T1 and T1 < T' .
+  eq noWriteBetween(T,T',VS,RECORD) = true [owise] .
+
 
   --- PVESTA interfaces
   eq val(0,C) = throughput(C) .
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
+  eq val(3,C) = pf(C) .
         
 endm
 
