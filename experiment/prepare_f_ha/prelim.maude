@@ -1,3 +1,5 @@
+set show advisories off .
+
 load sampler
 load term-order
 load apmaude
@@ -12,7 +14,7 @@ fmod TXN-SORTS is
   including SOME-PARAMETERS .
 
   sorts Key Value Operation LocalVar Expression ConfigList AddressList AddressSet
-        KeyVersion KeyValueVersion ValueVersion Vote Timestamp ReplicaTable Record .
+        KeyVersion KeyValueVersion ValueVersion Vote Timestamp ReplicaTable Record DcReplicas .
   subsort Config < ConfigList .
   subsort LocalVar < Expression .
   subsort Nat < Expression .
@@ -21,13 +23,18 @@ fmod TXN-SORTS is
 
   --- RID, SQN
   --- ??? initial value: ts(0,0) or eptTS???
-  op ts : Address Int -> Timestamp [ctor] .  --- v_latest default value is -1  
+***
+  op ts : Address Float -> Timestamp [ctor] .  --- v_latest default value is -1  
   op eptTS : -> Timestamp [ctor] .
 
   op noVote : -> Vote [ctor] .
   op vote : Address Address Bool -> Vote [ctor] .  --- TID,RID,yes/no
   op _;_ : Vote Vote -> Vote [ctor assoc comm id: noVote] .  
-
+  
+***
+  op empty : -> DcReplicas [ctor] .
+  op dc : Address AddressSet -> DcReplicas [ctor] .
+  op _;_ : DcReplicas DcReplicas -> DcReplicas [ctor assoc comm id: empty] .
 endfm
 view Operation from TRIV to TXN-SORTS is sort Elt to Operation . endv
 view Version from TRIV to TXN-SORTS is sort Elt to Version . endv
@@ -51,9 +58,10 @@ fmod TXN-AUX1 is
   pr MAP{Key,Timestamp} * (sort Map{Key,Timestamp} to KeyTimestamps) .
   pr LIST{Key} * (sort List{Key} to KeyList) .
 
-  op write : Key Expression -> Operation [ctor] .
-  op _:=read_ : LocalVar Key -> Operation [ctor] .
-  op waitRemote : Key LocalVar -> Operation [ctor] .  --- "internal" state, no need for RAMP
+*** NEW
+  op write : Address Key Expression -> Operation [ctor] .
+  op __:=read_ : Address LocalVar Key -> Operation [ctor] .
+---  op waitRemote : Key LocalVar -> Operation [ctor] .  --- "internal" state, no need for RAMP
 
   op _plus_ : Expression Expression -> Expression [ctor] .
   op eval : Expression LocalVars -> Value .
@@ -95,6 +103,8 @@ fmod TXN-AUX2 is
   sort VoteSites .  
   op noVS : -> VoteSites [ctor] .
   op voteSites : Address AddressSet -> VoteSites [ctor] .  --- TID, Set{RID}
+***
+  op voteSites : Address Address AddressSet -> VoteSites [ctor] .
   op _;_ : VoteSites VoteSites -> VoteSites [ctor assoc comm id: noVS] .
 
   sort 1stGets .
@@ -138,11 +148,11 @@ endfm
 fmod MESSAGE is
   including TXN-AUX1 .
   
+  op get : Address Key Timestamp Address Address -> Content .  --- 1st get
+  op prepare : Address Version Address Address -> Content .
   op prepare-reply : Address Bool Address -> Content . --- TID, yes/no, RID
-  op get : Address Key Timestamp Address -> Content .
-  op prepare : Address Version Address -> Content .
-  op commit : Address Timestamp Address -> Content .
-  op committed : Address Address -> Content .
+  op commit : Address Timestamp Address Address -> Content .
+  op committed : Address Address -> Content .  
   op response1 : Address Version Address -> Content .
   op response2 : Address Version Address -> Content .
   op start : -> Content .
@@ -155,25 +165,25 @@ fmod CLIENT-REPLICA is
   including READSET-RAMP .
   including DATASTORE-RAMP .
 
----  op Client : -> ActorType .
----  op txns:_ : ConfigList -> Attribute .
----  op pendingTxn:_ : AddressSet -> Attribute .
+  *** Client
+  op Client : -> ActorType .
+  op dc:_ : Address -> Attribute .
+---    op sqn:_ : Float -> Attribute .  --- initialized as 0
+    op executing:_ : Actor -> Attribute .  --- initialized as noActor
+  ---  op submitted:_ : ConfigList -> Attribute .  ---??? no need for RAMP
+    op committed:_ : ConfigList -> Attribute .  --- init: emptyTxnList
+  ---  op aborted:_ : ConfigList -> Attribute .  --- no need for RAMP
+    op gotTxns:_ : ConfigList -> Attribute .  --- ??? for abstracting client away
+  ---  op votes:_ : Vote -> Attribute .  --- no need for RAMP
+    op voteSites:_ : VoteSites -> Attribute .  --- init: noVS
+    op latestCommit:_ : KeyTimestamps -> Attribute .  ---??? init: empty; different from original RAMP spec
+    op 1stGetSites:_ : 1stGets -> Attribute .  --- init: no1st
+    op 2ndGetSites:_ : 2ndGets -> Attribute .  --- init: no2nd
+    op commitSites:_ : VoteSites -> Attribute .  --- init: noVS
+
 
   op Replica : -> ActorType .
   op datastore:_ : Versions -> Attribute .  --- initialized on some distributions; version(K,[0],ts(0,0),empty)
-  op sqn:_ : Nat -> Attribute .  --- initialized as 0
-  op executing:_ : Actor -> Attribute .  --- initialized as noActor
----  op submitted:_ : ConfigList -> Attribute .  ---??? no need for RAMP
-  op committed:_ : ConfigList -> Attribute .  --- init: emptyTxnList
----  op aborted:_ : ConfigList -> Attribute .  --- no need for RAMP
-
-  op gotTxns:_ : ConfigList -> Attribute .  --- ??? for abstracting client away
----  op votes:_ : Vote -> Attribute .  --- no need for RAMP
-  op voteSites:_ : VoteSites -> Attribute .  --- init: noVS
-  op latestCommit:_ : KeyTimestamps -> Attribute .  ---??? init: empty; different from original RAMP spec
-  op 1stGetSites:_ : 1stGets -> Attribute .  --- init: no1st
-  op 2ndGetSites:_ : 2ndGets -> Attribute .  --- init: no2nd
-  op commitSites:_ : VoteSites -> Attribute .  --- init: noVS
 
   op Txn : -> ActorType .
   op operations:_ : OperationList -> Attribute .  --- initialized on some distributions
@@ -181,11 +191,12 @@ fmod CLIENT-REPLICA is
   op readSet:_ : Versions -> Attribute .  --- init: empty
 ---  op writeSet:_ : WriteSet -> Attribute .  --- no need for RAMP
   op localVars:_ : LocalVars -> Attribute .  --- init depending on keys the initialized ops concern
----  op txnSQN:_ : Nat -> Attribute .  --- no need for RAMP
+  op txnSqn:_ : Float -> Attribute . 
   op latest:_ : KeyTimestamps -> Attribute .  --- initialized as empty
 
   op Table : -> ActorType .
   op table:_ : ReplicaTable -> Attribute .
+  op datacenter:_ : DcReplicas -> Attribute .
 
   op Monitor : -> ActorType .
   op log:_ : Record -> Attribute .
