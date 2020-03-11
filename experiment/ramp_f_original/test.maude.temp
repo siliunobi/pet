@@ -19,7 +19,6 @@ mod RAMP-SNOW-ANALYSIS is
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
    eq initState = init($1,$2,0,$3,$4,$6,$7,0,$5) .
 
-
   ---(
   eq initState = { 0.0 | nil} < tb : Table | table: [replicatingSites(x, 2) ;; replicatingSites(y, 2)] > 
                  { 0.0, 1 <- start } { 0.0, 2 <- start }
@@ -101,7 +100,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(0,C) = throughput(C) .
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
-        
+    
 endm
 
 ---set clear rules off .

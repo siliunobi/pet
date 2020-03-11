@@ -16,30 +16,38 @@ mod RAMP-SNOW-ANALYSIS is
   ops tb r1 r2 r3 t1 t2 t3 t4 : -> Address .
   ops xl yl zl : -> LocalVar .
 
-  --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init($1,$2,0,$3,$4,$6,$7,0,$5) .
+  
+  --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
+  eq initState = init($1,$2,0,$3,2,20,$4,$6,$7,0,$5) .
 
 
   ---(
-  eq initState = { 0.0 | nil} < tb : Table | table: [replicatingSites(x, 2) ;; replicatingSites(y, 2)] > 
-                 { 0.0, 1 <- start } { 0.0, 2 <- start }
-     < 1 : Replica | gotTxns: ( < 1 . 1 : Txn | operations: ((xl :=read x) (yl :=read y)), readSet: empty, 
-                                             latest: empty, localVars: (xl |-> [0], yl |-> [0]) >  ), 
-                      datastore: empty, sqn: 1, latestCommit: empty, 
-                      executing: noActor, 
-                      committed: emptyTxnList,
-                      voteSites: noVS, 
-                       1stGetSites: no1st,
-                       2ndGetSites: no2nd, commitSites: noVS > 
-
-     < 2 : Replica | gotTxns: ( < 2 . 1 : Txn | operations: ((xl :=read x) write(x,1) (yl :=read y) write(y,1)), readSet: empty, 
-                                             latest: empty, localVars: (xl |-> [0], yl |-> [0]) >), 
-                      datastore: (version(x,[0],eptTS,empty), version(y,[0],eptTS,empty)), sqn: 1, latestCommit: empty, 
-                      executing: noActor, 
-                      committed: emptyTxnList,
-                      voteSites: noVS, 
-                       1stGetSites: no1st,
-                       2ndGetSites: no2nd, commitSites: noVS > .
+  eq initState = { 0.0 | nil} < m : Monitor | log: noRecord > 
+                 < tb : Table | table: ([replicatingSites(x, 1 ;; 3) ;; replicatingSites(y, 2 ;; 4)]),
+                                datacenter: (dc(d1,1 ; 2) ; dc(d2,3 ; 4)) > 
+                 [ 1.0, 11 <- start ] [ 2.0, 12 <- start ]
+	 < 11 : Client | gotTxns: < 11 . 1 : Txn | operations: ((11 . 1 . 1 xl :=read x) (11 . 1 . 2 yl :=read y)), readSet: empty, 
+                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
+  					                           voteSites: noVS, 1stGetSites: no1st,
+  					                           2ndGetSites: no2nd, commitSites: noVS,
+											   txnSqn: -1.0 >, 
+                        
+                     executing: noActor, 
+                     committed: emptyTxnList,
+					 dc: d1 >
+	 < 12 : Client | gotTxns: < 12 . 1 : Txn | operations: (write(12 . 1 . 1,x,1) write(12 . 1 . 2,y,1)), readSet: empty, 
+                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
+					                           voteSites: noVS, 1stGetSites: no1st,
+					                           2ndGetSites: no2nd, commitSites: noVS,
+											   txnSqn: -1.0 >, 
+                     executing: noActor, 
+                     committed: emptyTxnList,
+					 dc: d2 >
+					   
+     < 1 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty > 
+     < 2 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty >
+     < 3 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty >
+     < 4 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty > .
   )
 
   --- Metrics
@@ -140,7 +148,6 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
   eq val(3,C) = pf(C) .
-     
 endm
 
 ---set clear rules off .
