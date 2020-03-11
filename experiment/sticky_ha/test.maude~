@@ -6,8 +6,8 @@ mod RAMP-SNOW-ANALYSIS is
   including MODEL-CHECKER .
 
   subsort Config < State .
-  
-  eq LIMIT = 1.0e+100 .
+
+  eq LIMIT = 100000.0 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
@@ -17,7 +17,8 @@ mod RAMP-SNOW-ANALYSIS is
   ops xl yl zl : -> LocalVar .
 
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init($1,$2,0,$3,$4,$6,$7,0,$5) .
+   eq initState = init(2,2,0,2,10,8,8,0,uniform) .
+
 
   ---(
   eq initState = { 0.0 | nil} < tb : Table | table: [replicatingSites(x, 2) ;; replicatingSites(y, 2)] > 
@@ -100,8 +101,8 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(0,C) = throughput(C) .
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
-    
+        
 endm
 
----set clear rules off .
----rewrite initConfig .
+set clear rules off .
+rewrite initConfig .
