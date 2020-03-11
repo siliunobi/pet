@@ -122,7 +122,7 @@ mod RAMP-F is
   eq vl(nil) = empty .
 
  crl [start-wo-txn] :
-     {T, RID <- start}  
+     {T, A <- start}  
      < M : Monitor | log: RECORD >
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
      < A : Client | gotTxns: (< TID : Txn | operations: OPS,
