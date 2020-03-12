@@ -30,17 +30,17 @@ mod RAMP-SNOW-ANALYSIS is
                                                latest: empty, localVars: (xl |-> [0], yl |-> [0]),
   					                           voteSites: noVS, 1stGetSites: no1st,
   					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
+											   txnSqn: -1.0, keyAddrs: noKeyAddr >, 
                         
-                     executing: noActor, 
+                     executing: emptyTxnList, 
                      committed: emptyTxnList,
 					 dc: d1 >
 	 < 12 : Client | gotTxns: < 12 . 1 : Txn | operations: (write(12 . 1 . 1,x,1) write(12 . 1 . 2,y,1)), readSet: empty, 
                                                latest: empty, localVars: (xl |-> [0], yl |-> [0]),
 					                           voteSites: noVS, 1stGetSites: no1st,
 					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
-                     executing: noActor, 
+											   txnSqn: -1.0, keyAddrs: noKeyAddr  >, 
+                     executing: emptyTxnList, 
                      committed: emptyTxnList,
 					 dc: d2 >
 					   
@@ -151,5 +151,5 @@ mod RAMP-SNOW-ANALYSIS is
         
 endm
 
-set clear rules off .
-rewrite initConfig .
+---set clear rules off .
+---rewrite initConfig .

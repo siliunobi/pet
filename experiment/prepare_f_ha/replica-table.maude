@@ -21,19 +21,19 @@ fmod REPLICA-TABLE is
   var V : Value .
 
   op replicas : WriteSet KeyReplicas -> AddressSet .
-  eq replicas(empty,RT) = empty .
+  eq replicas(empty,RT) = emptyAddrSet .
   eq replicas((K |-> V,WS), replicatingSites(K,RIDSS) ;; RT) =
        makeSet(RIDSS) ; replicas(WS,RT) .
-  eq replicas(WS,RT) = empty [owise] .
+  eq replicas(WS,RT) = emptyAddrSet [owise] .
 
   op allServers : KeyReplicas -> AddressSet .
   eq allServers(replicatingSites(K,RIDSS) ;; RT) = 
        makeSet(RIDSS) ; allServers(RT) .
-  eq allServers(emptyTable) = empty . 
+  eq allServers(emptyTable) = emptyAddrSet . 
   
   op makeSet : AddressList -> AddressSet .
   eq makeSet((RID ;; RIDSS)) = RID ; makeSet(RIDSS) .
-  eq makeSet(emptyAddrList) = empty .
+  eq makeSet(emptyAddrList) = emptyAddrSet .
 
   op preferredSite : Key KeyReplicas -> Address .
   eq preferredSite(K,(replicatingSites(K,(RID ;; RIDSS)) ;; RT)) = RID .
@@ -41,8 +41,8 @@ fmod REPLICA-TABLE is
   op allPreferredSites : WriteSet KeyReplicas -> AddressSet .
   eq allPreferredSites((K |-> V,WS), replicatingSites(K,(RID ;; RIDSS)) ;; RT) =
        RID ; allPreferredSites(WS,RT) .
-  eq allPreferredSites(empty,RT) = empty .
-  eq allPreferredSites(WS,RT) = empty [owise] .
+  eq allPreferredSites(empty,RT) = emptyAddrSet .
+  eq allPreferredSites(WS,RT) = emptyAddrSet [owise] .
 
   op `[_`] : KeyReplicas -> ReplicaTable [ctor] .
 

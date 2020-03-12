@@ -518,7 +518,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
 
   op makeList : AddressSet -> AddressList .
   eq makeList(ADDR ; ADDRSET) = ADDR ;; makeList(ADDRSET) .
-  eq makeList(empty) = emptyAddrList .
+  eq makeList(emptyAddrSet) = emptyAddrList .
   
   op size : AddressList -> Nat .
   eq size(ADDR ;; ADDRLIST) = s size(ADDRLIST) .
@@ -557,11 +557,12 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   eq $initTable((< K,VAR > ; KVARS),[KEYREPLICAS]) = $initTable(KVARS,[replicatingSites(K,emptyAddrList) ;; KEYREPLICAS]) .
   eq $initTable(noKeyVar,[KEYREPLICAS]) = [KEYREPLICAS] .
   
+*** NEW: emptyAddrSet
   *** generate datacenters
   eq $init(RTX,WTX,RWTX,CLS,s DCS,DCS',REPLS,CLS',KVARS,KVARS',ROPS,WOPS,RWOPS,KAD,C
        < TB : Table | datacenter: DR, AS >) 
    = $init(RTX,WTX,RWTX,CLS,DCS,DCS',REPLS,CLS',KVARS,KVARS',ROPS,WOPS,RWOPS,KAD,C
-       < TB : Table | datacenter: (DR ; dc(0 . 3 . (s DCS),empty)), AS >) .
+       < TB : Table | datacenter: (DR ; dc(0 . 3 . (s DCS),emptyAddrSet)), AS >) .
 	   
   *** generate replicas 
   *** assign them to datacenters in round-robin way
@@ -592,11 +593,12 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
   eq assignKey(K,nil,C) = C .
 
 
+*** NEW: specific to Prepare-F HA
   --- generate clients
   eq $init(RTX,WTX,RWTX,s CLS,0,DCS',0,CLS',noKeyVar,KVARS',ROPS,WOPS,RWOPS,KAD,C) 
    = $init(RTX,WTX,RWTX,CLS,0,DCS',0,CLS',noKeyVar,KVARS',ROPS,WOPS,RWOPS,KAD,C
        < 1 . (s CLS) : Client | gotTxns: emptyTxnList, 
-                                executing: noActor, 
+                                executing: emptyTxnList,  
                                 committed: emptyTxnList,
 					            dc: 0 . 3 . (sampleUniWithInt(DCS') + 1) >)
 	   [sampleExp(10.0), 1 . (s CLS) <- start] .
@@ -666,7 +668,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
                                                         readSet: empty, latest: empty, 
                                                         localVars: empty, voteSites: noVS, 
 														1stGetSites: no1st, 2ndGetSites: no2nd, 
-														commitSites: noVS, txnSqn: -1.0	 >, AS >) C .
+														commitSites: noVS, txnSqn: -1.0, keyAddrs: noKeyAddr >, AS >) C .
 
    --- if there is already some txn(s) generated
   eq addRTxn(A,ROPS,KVARS,KAD,< A : Client | gotTxns: (TXNS ;; < A . N : Txn | AS' >), AS > C) =
@@ -675,7 +677,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
                                                          readSet: empty, latest: empty, 
                                                          localVars: empty, voteSites: noVS, 
 													 	 1stGetSites: no1st, 2ndGetSites: no2nd, 
-													     commitSites: noVS, txnSqn: -1.0 >), AS >) C .
+													     commitSites: noVS, txnSqn: -1.0, keyAddrs: noKeyAddr >), AS >) C .
 														 
    --- update "localVars"
    eq $addRTxn(< A : Client | gotTxns: (TXNS ;; < A . N : Txn | operations: OPS, 
@@ -718,7 +720,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
                                                         readSet: empty, latest: empty, 
                                                         localVars: empty, voteSites: noVS, 
 														1stGetSites: no1st, 2ndGetSites: no2nd, 
-														commitSites: noVS, txnSqn: -1.0	 >, AS >) C .
+														commitSites: noVS, txnSqn: -1.0, keyAddrs: noKeyAddr >, AS >) C .
 
 
   --- if there is already some txn(s) generated
@@ -728,7 +730,7 @@ k991 k992 k993 k994 k995 k996 k997 k998 k999 k1000 : -> Key .
                                                          readSet: empty, latest: empty, 
                                                          localVars: empty, voteSites: noVS, 
 													 	 1stGetSites: no1st, 2ndGetSites: no2nd, 
-													     commitSites: noVS, txnSqn: -1.0 >), AS >) C .
+													     commitSites: noVS, txnSqn: -1.0, keyAddrs: noKeyAddr >), AS >) C .
 
   --- update "localVars"
   ---!!! "lvars" does nothing with wo-txns

@@ -7,7 +7,7 @@ mod RAMP-F is
   including SAMPLER .
   including VERSION-RAMP .
   including VALUES-NAT .
-
+  inc SCHEDULER .
 
   op ld : -> Delay .  --- local delay 
   op rd : -> Delay .  --- remote delay
@@ -34,7 +34,7 @@ mod RAMP-F is
   vars RID TID RID' TABLE M OID OID' A : Address .
   vars RIDS RIDS' : AddressSet .
   vars AS AS' AS'' : AttributeSet .
-  vars TXNS TXNS' : ConfigList .
+  vars TXNS TXNS' TXNS1 TXNS2 : ConfigList .
   var K : Key .
   var X : LocalVar .
   var REPLICA-TABLE : ReplicaTable .
@@ -63,63 +63,94 @@ mod RAMP-F is
   var KR : KeyReplicas .
   vars RIDSS RIDSS' : AddressList .
   var CONT : Content .
+  var N : Nat .
+  vars SL SL' : ScheduleList .
+  var KADDRS : KeyAddrs .
+  var AC : ActorConfig .
 
-  *****************
-  *** Sticky HA ***
-  *****************
+  ********************
+  *** Prepare-F HA ***
+  ********************
 
-  ---??? simply consume "start" if no txn needs to start
   rl [receiving-start-when-no-txn-to-start] :
      < A : Client | gotTxns: emptyTxnList, AS >
      {T, A <- start}
    =>
      < A : Client | gotTxns: emptyTxnList, AS > .
 
+  *** specific to Prepare-F HA
+  op gets : Address -> Content . 
+  
+  crl [start-ro-or-rw-txn] :
+      {T, A <- start}  
+      < M : Monitor | log: RECORD >
+      < TABLE : Table | table: REPLICA-TABLE, AS'' >
+      < A : Client | gotTxns: (< TID : Txn | operations: OPS,
+                                             latest: empty,
+ 										     keyAddrs: KADDRS, AS > ;; TXNS),
+                     executing: TXNS', AS' >
+    =>
+      < M : Monitor | log: (RECORD ; record(TID,T,0.0,empty,empty,false)) >
+      < TABLE : Table | table: REPLICA-TABLE, AS'' >
+      < A : Client | gotTxns: TXNS,
+                     executing: (TXNS' ;; < TID : Txn | operations: OPS,
+                                                        latest: vl(OPS),
+ 													    keyAddrs: (KADDRS ; addKeyAddrs(OPS,REPLICA-TABLE)), AS >), AS' >
+ 	 [nd, A <- gets(TID)]
+      if (not write-only(OPS)) .
 
-  --- "gotTxns" abstracts "client" away
- crl [start-ro-or-rw-txn] :
-     {T, A <- start}  
-     < M : Monitor | log: RECORD >
+   op write-only : OperationList -> Bool .
+   eq write-only((OPS (OID X :=read K) OPS')) = false .
+   eq write-only(OPS) = true [owise] .
+  
+   op vl : OperationList -> KeyTimestamps .
+   eq vl((write(OID,K,EXPR) OPS)) = vl(OPS) .
+   eq vl(((OID X :=read K) OPS)) = K |-> ts(-1,-1.0), vl(OPS) .
+   eq vl(nil) = empty .
+  
+   op nthAddr : NzNat AddressList -> Address .
+   eq nthAddr(1,(RID ;; RIDSS)) = RID .
+   eq nthAddr(s N,(RID ;; RIDSS)) = nthAddr(N,RIDSS) .
+  
+   op sizeOfAddrList : AddressList -> Nat .
+   eq sizeOfAddrList(RID ;; RIDSS) = s sizeOfAddrList(RIDSS) .
+   eq sizeOfAddrList(emptyAddrList) = 0 .
+  
+   *** randomly pick a replica 
+   op addKeyAddrs : OperationList ReplicaTable -> KeyAddrs .
+   eq addKeyAddrs(((OID X :=read K) OPS),[replicatingSites(K,RIDSS) ;; KR])
+    = kaddr(K,nthAddr(sampleUniWithInt(sizeOfAddrList(RIDSS)) + 1,RIDSS)) ;
+        addKeyAddrs(OPS,[replicatingSites(K,RIDSS) ;; KR]) .
+   eq addKeyAddrs((write(OID,K,EXPR) OPS),[KR]) = addKeyAddrs(OPS,[KR]) .
+   eq addKeyAddrs(nil,[KR]) = noKeyAddr .
+
+  rl [start-ro-or-rw-txn] :
+     {T, A <- gets(TID)}  
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | gotTxns: (< TID : Txn | operations: OPS,
-                                            latest: empty,
-											1stGetSites: 1STGETS, AS > ;; TXNS),
-                    executing: noActor,
-					dc: DC, AS' >
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
+                                                      keyAddrs: KADDRS,	 
+                                                      1stGetSites: 1STGETS, AS > ;; TXNS'),
+					dc: DC, AS' > 
    =>
-     < M : Monitor | log: (RECORD ; record(TID,T,0.0,empty,empty,false)) >
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | gotTxns: TXNS,
-                    executing: < TID : Txn | operations: OPS,
-                                             latest: vl(OPS),
-											 1stGetSites: (1STGETS ; 1st(TID,add1st(OPS,REPLICA-TABLE,DR,DC))), AS >,  --- initialize "v_latest"
-					dc: DC, AS' >
-     genGets(A,TID,OPS,REPLICA-TABLE,DR,DC) 
-     if (not write-only(OPS)) .
-	 
-  op write-only : OperationList -> Bool .
-  eq write-only((OPS (OID X :=read K) OPS')) = false .
-  eq write-only(OPS) = true [owise] .
-  
-  *** sticky: to local datacenter replica  
-  op add1st : OperationList ReplicaTable DcReplicas Address -> AddressSet .
-  eq add1st(((OID X :=read K) OPS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
-       RID ; add1st(OPS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) .
-  eq add1st((write(OID,K,EXPR) OPS),[KR],DR,DC) = add1st(OPS,[KR],DR,DC) .
-  eq add1st(nil,[KR],DR,DC) = empty .
-  
-  op genGets : Address Address OperationList ReplicaTable DcReplicas Address -> Config .
-  eq genGets(A,TID,((OID X :=read K) OPS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) = 
-       genGets(A,TID,OPS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC)
-       [ld, RID <- get(TID,K,eptTS,DC,A)] .  --- eptTS denotes "empty" in line 25
-  eq genGets(A,TID,(write(OID,K,EXPR) OPS),[KR],DR,DC) =
-       genGets(A,TID,OPS,[KR],DR,DC) .
-  eq genGets(A,TID,nil,[KR],DR,DC) = null .
 
-  op vl : OperationList -> KeyTimestamps .
-  eq vl((write(OID,K,EXPR) OPS)) = vl(OPS) .
-  eq vl(((OID X :=read K) OPS)) = K |-> ts(-1,-1.0), vl(OPS) .
-  eq vl(nil) = empty .
+     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
+	                                                  keyAddrs: KADDRS,
+                                                      1stGetSites: (1STGETS ; 1st(TID,add1st(KADDRS))), AS > ;; TXNS'),  
+					dc: DC, AS' >
+     genGets(A,TID,OPS,KADDRS,DR,DC) .
+  
+  op add1st : KeyAddrs -> AddressSet .
+  eq add1st(kaddr(K,RID) ; KADDRS) = RID ; add1st(KADDRS) .
+  eq add1st(noKeyAddr) = emptyAddrSet .
+  
+  op genGets : Address Address OperationList KeyAddrs DcReplicas Address -> Config .
+  eq genGets(A,TID,((OID X :=read K) OPS),(kaddr(K,RID) ; KADDRS),(DR ; dc(DC',(RID ; RIDS'))),DC)
+   = genGets(A,TID,OPS,(kaddr(K,RID) ; KADDRS),(DR ; dc(DC',(RID ; RIDS'))),DC)
+     [if DC == DC' then ld else rd fi, RID <- get(TID,K,eptTS,DC,A)] . 
+  eq genGets(A,TID,(write(OID,K,EXPR) OPS),KADDRS,DR,DC) =
+       genGets(A,TID,OPS,KADDRS,DR,DC) .
+  eq genGets(A,TID,nil,KADDRS,DR,DC) = null .
 
  crl [start-wo-txn] :
      {T, A <- start}  
@@ -129,36 +160,43 @@ mod RAMP-F is
                                             localVars: VARS, 
 											txnSqn: SQN, 
 											voteSites: VSTS, AS > ;; TXNS),
-                    executing: noActor,
+                    executing: TXNS',
 	        		dc: DC, AS' >
    =>
      < M : Monitor | log: (RECORD ; record(TID,T,0.0,empty,WRITES,false)) >
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
      < A : Client | gotTxns: TXNS,
-                    executing: < TID : Txn | operations: OPS,
-                                             localVars: VARS,
-											 txnSqn: T,
-											 voteSites: (VSTS ; voteSites(TID,addVotes(OPS,REPLICA-TABLE,DR,DC))), AS >,
+                    executing: (TXNS' ;; < TID : Txn | operations: OPS,
+                                                       localVars: VARS,
+										               txnSqn: T,
+											           voteSites: (VSTS ; addVotes(OPS,REPLICA-TABLE)), AS >),
 	    			dc: DC, AS' >
-     genPuts(A,TID,OPS,T,VARS,REPLICA-TABLE,DR,DC)
+     genPutsAll(A,OPS,T,VARS,REPLICA-TABLE,DR,DC)
      if write-only(OPS) /\
         WRITES := ws(OPS,A,T,VARS) .
 
-  op addVotes : OperationList ReplicaTable DcReplicas Address -> AddressSet .
-  eq addVotes((write(OID,K,EXPR) OPS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
-       RID ; addVotes(OPS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) .
-  eq addVotes(((OID X :=read K) OPS),[KR],DR,DC) = addVotes(OPS,[KR],DR,DC) .
-  eq addVotes(nil,[KR],DR,DC) = empty .  
+  op addVotes : OperationList ReplicaTable -> VoteSites .
+  eq addVotes((write(OID,K,EXPR) OPS),[replicatingSites(K,RIDSS) ;; KR]) =
+       voteSites(OID,makeSet(RIDSS)) ; addVotes(OPS,[replicatingSites(K,RIDSS) ;; KR]) .
+  eq addVotes(((OID X :=read K) OPS),[KR]) = addVotes(OPS,[KR]) .
+  eq addVotes(nil,[KR]) = noVS .  
   
-  op genPuts : Address Address OperationList Float LocalVars ReplicaTable DcReplicas Address -> Config .	
-  op $genPuts : Address Address OperationList Float LocalVars ReplicaTable DcReplicas Address OperationList -> Config .	
-  eq genPuts(A,TID,OPS,SQN,VARS,[KR],DR,DC) = $genPuts(A,TID,OPS,SQN,VARS,[KR],DR,DC,OPS) .
-  eq $genPuts(A,TID,(write(OID,K,EXPR) OPS),SQN,VARS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,(OPS' write(OID,K,EXPR) OPS'')) =
-       $genPuts(A,TID,OPS,SQN,VARS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,(OPS' write(OID,K,EXPR) OPS''))
-       [ld, RID <- prepare(TID,version(K,eval(EXPR,VARS),ts(A,SQN),md(OPS' OPS'')),DC,A)] .
-  eq $genPuts(A,TID,((OID X :=read K) OPS),SQN,VARS,[KR],DR,DC,OPS') =
-       $genPuts(A,TID,OPS,SQN,VARS,[KR],DR,DC,OPS') .
-  eq $genPuts(A,TID,nil,SQN,VARS,[KR],DR,DC,OPS') = null .
+  op genPutsAll : Address OperationList Float LocalVars ReplicaTable DcReplicas Address -> Config .	
+  op $genPutsAll : Address OperationList Float LocalVars ReplicaTable DcReplicas Address OperationList -> Config .	
+  eq genPutsAll(A,OPS,SQN,VARS,[KR],DR,DC) = $genPutsAll(A,OPS,SQN,VARS,[KR],DR,DC,OPS) .
+  eq $genPutsAll(A,(write(OID,K,EXPR) OPS),SQN,VARS,[replicatingSites(K,RIDSS) ;; KR],DR,DC,(OPS' write(OID,K,EXPR) OPS'')) 
+   = $genPutsAll(A,OPS,SQN,VARS,[replicatingSites(K,RIDSS) ;; KR],DR,DC,(OPS' write(OID,K,EXPR) OPS''))
+     genPuts(prepare(OID,version(K,eval(EXPR,VARS),ts(A,SQN),md(OPS' OPS'')),DC,A),RIDSS,DR) .
+  eq $genPutsAll(A,((OID X :=read K) OPS),SQN,VARS,[KR],DR,DC,OPS') 
+   = $genPutsAll(A,OPS,SQN,VARS,[KR],DR,DC,OPS') .
+  eq $genPutsAll(A,nil,SQN,VARS,[KR],DR,DC,OPS') = null .
+  
+  op genPuts : Content AddressList DcReplicas -> Config .
+  eq genPuts(prepare(OID,VERSION,DC,A),(RID ;; RIDSS),(DR ; dc(DC,(RID ; RIDS))))
+   = [ld, RID <- prepare(OID,VERSION,DC,A)] genPuts(prepare(OID,VERSION,DC,A),RIDSS,(DR ; dc(DC,(RID ; RIDS)))) .
+  eq genPuts(prepare(OID,VERSION,DC,A),(RID ;; RIDSS),DR)
+   = [rd, RID <- prepare(OID,VERSION,DC,A)] genPuts(prepare(OID,VERSION,DC,A),RIDSS,DR) [owise] .
+  eq genPuts(CONT,emptyAddrList,DR) = null .
   
   op ws : OperationList Address Float LocalVars -> Versions .
   op $ws : OperationList Address Float LocalVars OperationList -> Versions .
@@ -175,73 +213,104 @@ mod RAMP-F is
   eq md(((OID X :=read K) OPS)) = md(OPS) .
   eq md(nil) = empty .	
   
-	
+
   rl [receive-prepare] :
      < TABLE : Table | datacenter: DR, AS >
      < RID : Replica | datastore: VS, AS' >
-     {T, RID <- prepare(TID,VERSION,DC,A)}
+     {T, RID <- prepare(OID,VERSION,DC,A)}
    =>
      < TABLE : Table | datacenter: DR, AS >
      < RID : Replica | datastore: (VS,VERSION), AS' >
-     [if inDC(RID,DC,DR) then ld else rd fi, A <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
+     [if inDC(RID,DC,DR) then ld else rd fi, A <- prepare-reply(OID,true,RID)] .  --- always "true" in RAMP
 
   op inDC : Address Address DcReplicas -> Bool .
   eq inDC(RID,DC,(DR ; dc(DC,(RID ; RIDS)))) = true .
   eq inDC(RID,DC,DR) = false [owise] .
 
 
- crl [receive-prepare-reply] :
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | executing: < TID : Txn | operations: OPS,
-	                                         txnSqn: SQN,
-											 voteSites: VSTS,
-											 commitSites: CMTS, AS >,
-					dc: DC, AS' >
-     {T, A <- prepare-reply(TID,FLAG,RID')}  --- FLAG is always true in RAMP
-   =>
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     if VSTS'[TID] == empty  --- all votes received
-       then < A : Client | executing: < TID : Txn | operations: OPS,
-	                                                txnSqn: SQN,
-						                            voteSites: noVS,
-						                            commitSites: (CMTS ; voteSites(TID,addVotes(OPS,REPLICA-TABLE,DR,DC))), AS >,
-						   dc: DC, AS' >
-            genCommits(A,TID,OPS,SQN,REPLICA-TABLE,DR,DC)
-       else < A : Client | executing: < TID : Txn | operations: OPS,
-	                                                txnSqn: SQN,
-						                            voteSites: VSTS',
-						                            commitSites: CMTS, AS >,                    
-						   dc: DC, AS' >
-     fi 
-   if VSTS' := remove(TID,RID',VSTS) .
-   
-
-  op _[_] : VoteSites Address -> AddressSet .
-  eq (voteSites(TID,RIDS) ; VSTS)[TID] = RIDS . 
-
+ rl [receive-prepare-reply] :
+    < A : Client | executing: (TXNS ;; < TID : Txn | voteSites: VSTS, AS > ;; TXNS'), AS' >
+    {T, A <- prepare-reply(OID,FLAG,RID')}  
+  =>
+    < A : Client | executing: (TXNS ;; < TID : Txn | voteSites: remove(OID,RID',VSTS), AS > ;; TXNS'), AS' > 
+    if allQuorum(remove(OID,RID',VSTS)) 
+	  then [nd, A <- start] --- client returns
+	  else null 
+	fi  .
+    
+  op allQuorum : VoteSites -> Bool .
+*** replication factor: 2
+ ceq allQuorum(voteSites(OID,RIDS) ; VSTS) = false if size(RIDS) >= (2 / 2) . 
+  eq allQuorum(VSTS) = true [owise] .
+    
+  op size : AddressSet -> Nat .
+  eq size(RID ; RIDS) = size(RIDS) + 1 .
+  eq size(emptyAddrSet) = 0 . 
+	
   op remove : Address Address VoteSites -> VoteSites .
-  eq remove(TID,RID,(voteSites(TID,(RID ; RIDS)) ; VSTS)) =
-       voteSites(TID,RIDS) ; VSTS .
-  eq remove(TID,RID,VSTS) = VSTS [owise] .
+  eq remove(OID,RID,(voteSites(OID,(RID ; RIDS)) ; VSTS)) =
+       voteSites(OID,RIDS) ; VSTS .
+  eq remove(OID,RID,VSTS) = VSTS [owise] .
   
-  op genCommits : Address Address OperationList Float ReplicaTable DcReplicas Address -> Config .
-  eq genCommits(A,TID,(write(OID,K,EXPR) OPS),SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
-       genCommits(A,TID,OPS,SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC)
-       [ld, RID <- commit(TID,ts(A,SQN),DC,A)] .
-  eq genCommits(A,TID,((OID X :=read K) OPS),SQN,[KR],DR,DC) = genCommits(A,TID,OPS,SQN,[KR],DR,DC) .
-  eq genCommits(A,TID,nil,SQN,[KR],DR,DC) = null .
+*** all prepare-reply received
+  crl [all-received-prepare-reply] :
+      { T | SL }
+      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
+      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
+      < A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
+ 	                                                   txnSqn: SQN,
+ 											           voteSites: VSTS,
+ 											           commitSites: CMTS, AS > ;; TXNS'),
+				     committed: TXNS1,
+ 					 dc: DC, AS' >  
+    =>
+	  { T | SL }
+	  < M : Monitor | log: (RECORD ; record(TID,T1,T,READS,WRITES,true) ; RECORD') >
+      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >  
+	  < A : Client | executing: (TXNS ;; TXNS'),
+	                 committed: (TXNS1 ;; < TID : Txn | operations: OPS,
+ 	                                                    txnSqn: SQN,
+ 						                                voteSites: noVS,
+ 						                                commitSites: (CMTS ; addVotes(OPS,REPLICA-TABLE)), AS >),
+ 				     dc: DC, AS' >
+      genCommitsAll(A,OPS,SQN,REPLICA-TABLE,DR,DC)  
+	  if allReceived(VSTS) /\ write-only(OPS) .
 
+  op allReceived : VoteSites -> Bool .
+  eq allReceived(voteSites(OID,(RID ; RIDS)) ; VSTS) = false .
+  eq allReceived(VSTS) = true [owise] .
+  
+  op genCommitsAll : Address OperationList Float ReplicaTable DcReplicas Address -> Config .
+  eq genCommitsAll(A,(write(OID,K,EXPR) OPS),SQN,[replicatingSites(K,RIDSS) ;; KR],DR,DC) 
+   = genCommitsAll(A,OPS,SQN,[replicatingSites(K,RIDSS) ;; KR],DR,DC) 
+     genCommits(commit(OID,ts(A,SQN),DC,A),RIDSS,DR) .
+  eq genCommitsAll(A,((OID X :=read K) OPS),SQN,[KR],DR,DC) = genCommitsAll(A,OPS,SQN,[KR],DR,DC) .
+  eq genCommitsAll(A,nil,SQN,[KR],DR,DC) = null .
+  
+  op genCommits : Content AddressList DcReplicas -> Config .
+  eq genCommits(commit(OID,ts(A,SQN),DC,A),(RID ;; RIDSS),(DR ; dc(DC,(RID ; RIDS))))
+   = genCommits(commit(OID,ts(A,SQN),DC,A),RIDSS,(DR ; dc(DC,(RID ; RIDS))))
+     [ld, RID <- commit(OID,ts(A,SQN),DC,A)] .
+  eq genCommits(commit(OID,ts(A,SQN),DC,A),(RID ;; RIDSS),DR)
+   = genCommits(commit(OID,ts(A,SQN),DC,A),RIDSS,DR)
+     [rd, RID <- commit(OID,ts(A,SQN),DC,A)] .
+  eq genCommits(CONT,emptyAddrList,DR) = null .
 
+  ceq eagerEnabled(< A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
+        voteSites: VSTS, AS > ;; TXNS'), AS' > AC)
+    = true if allReceived(VSTS) /\ write-only(OPS) .
+
+  
   rl [receive-commit] :
      < TABLE : Table | datacenter: DR, AS >
      < RID : Replica | datastore: VS,
                        latestCommit: LC, AS' >
-     {T, RID <- commit(TID,ts(A,SQN),DC,A)}
+     {T, RID <- commit(OID,ts(A,SQN),DC,A)}
    =>
      < TABLE : Table | datacenter: DR, AS >
      < RID : Replica | datastore: VS,
                        latestCommit: cmt(LC,VS,ts(A,SQN)), AS' >
-     [if inDC(RID,DC,DR) then ld else rd fi, A <- committed(TID,RID)] .
+     [if inDC(RID,DC,DR) then ld else rd fi, A <- committed(OID,RID)] .
 	 
 	 
   op cmt : KeyTimestamps Versions Timestamp -> KeyTimestamps .
@@ -274,137 +343,12 @@ mod RAMP-F is
           fi .
 
 
- crl [receive-committed] :
-     < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
-	 < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | executing: < TID : Txn | operations: OPS,
-	                                         localVars: VARS,
-	                                         txnSqn: SQN,
-						                     commitSites: CMTS,
-						 					 voteSites: VSTS, AS >,
-                    committed: TXNS,
-					dc: DC, AS' >
-     {T, A <- committed(TID,RID')}
-   =>
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     if CMTS'[TID] == empty  --- all "committed" received
-       then < M : Monitor | log: (RECORD ; record(TID,T1,T,READS,WRITES,true) ; RECORD') >
-            < A : Client | executing: noActor,
-                           committed: (TXNS ;; < TID : Txn | operations: OPS,
-						                                     localVars: VARS,
-						                                     txnSqn: SQN,
-								                             commitSites: noVS,
-								  	   				         voteSites: (VSTS ; addVotesForRest(TID,OPS,REPLICA-TABLE,DR,DC)), AS >),  
-	   					   dc: DC, AS' >
-            [nd, A <- start]  
-			genPutsForRest(A,TID,OPS,SQN,VARS,REPLICA-TABLE,DR,DC)
-       else < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
-            < A : Client | executing: < TID : Txn | operations: OPS,
-			                                        localVars: VARS,
-			                                        txnSqn: SQN,
-						                            commitSites: CMTS',
-						 	   					    voteSites: VSTS, AS >,
-                           committed: TXNS,              
-	   					   dc: DC, AS' >
-     fi
-     if CMTS' := remove(TID,RID',CMTS) .
-  
-  
-  op addVotesForRest : Address OperationList ReplicaTable DcReplicas Address -> VoteSites .
-  op $addVotesForRest : Address OperationList ReplicaTable DcReplicas Address VoteSites -> VoteSites .  
-  eq addVotesForRest(TID,OPS,[KR],DR,DC) = $addVotesForRest(TID,OPS,[KR],DR,DC,noVS) .
-  eq $addVotesForRest(TID,(write(OID,K,EXPR) OPS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,VSTS) =
-       $addVotesForRest(TID,OPS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,addRestSites(TID,DR,(RIDSS ;; RIDSS'),VSTS)) .
-  eq $addVotesForRest(TID,((OID X :=read K) OPS),[KR],DR,DC,VSTS) = $addVotesForRest(TID,OPS,[KR],DR,DC,VSTS) .
-  eq $addVotesForRest(TID,nil,[KR],DR,DC,VSTS) = VSTS .  
-  
-  op addRestSites : Address DcReplicas AddressList VoteSites -> VoteSites .
-  eq addRestSites(TID,(DR ; dc(DC,(RID ; RIDS))),(RID ;; RIDSS),(voteSites(TID,DC,RIDS') ; VSTS)) =
-       addRestSites(TID,(DR ; dc(DC,(RID ; RIDS))),RIDSS,(voteSites(TID,DC,(RIDS' ; RID)) ; VSTS)) .
-  eq addRestSites(TID,(DR ; dc(DC,(RID ; RIDS))),(RID ;; RIDSS),VSTS) = 
-       addRestSites(TID,(DR ; dc(DC,(RID ; RIDS))),RIDSS,(voteSites(TID,DC,RID) ; VSTS)) [owise] .
-  eq addRestSites(TID,DR,emptyAddrList,VSTS) = VSTS .
-  
-  op genPutsForRest : Address Address OperationList Float LocalVars ReplicaTable DcReplicas Address -> Config .	
-  op $genPutsForRest : Address Address OperationList Float LocalVars ReplicaTable DcReplicas Address OperationList -> Config .	
-  eq genPutsForRest(A,TID,OPS,SQN,VARS,[KR],DR,DC) = $genPutsForRest(A,TID,OPS,SQN,VARS,[KR],DR,DC,OPS) .
-  eq $genPutsForRest(A,TID,(write(OID,K,EXPR) OPS),SQN,VARS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,(OPS' write(OID,K,EXPR) OPS'')) =
-       $genPutsForRest(A,TID,OPS,SQN,VARS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC,(OPS' write(OID,K,EXPR) OPS''))
-	   $$genPutsForRest(prepare(TID,version(K,eval(EXPR,VARS),ts(A,SQN),md(OPS' OPS'')),DC,A),(RIDSS ;; RIDSS')) .
-  eq $genPutsForRest(A,TID,((OID X :=read K) OPS),SQN,VARS,[KR],DR,DC,OPS') =
-       $genPutsForRest(A,TID,OPS,SQN,VARS,[KR],DR,DC,OPS') .
-  eq $genPutsForRest(A,TID,nil,SQN,VARS,[KR],DR,DC,OPS') = null .
-  
-  op $$genPutsForRest : Content AddressList -> Config .
-  eq $$genPutsForRest(CONT,(RID ;; RIDSS)) = [rd,RID <- CONT] $$genPutsForRest(CONT,RIDSS) .
-  eq $$genPutsForRest(CONT,emptyAddrList) = null .
-  
- 
- crl [receive-prepare-reply-committed] :
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | committed: (TXNS ;; < TID : Txn | operations: OPS,
-	                                                  txnSqn: SQN,
-										              voteSites: VSTS,
-											          commitSites: CMTS, AS > ;; TXNS'),
-					dc: DC, AS' >
-     {T, A <- prepare-reply(TID,FLAG,RID')}  --- FLAG is always true in RAMP
-   =>
-     < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     if allReceivedFromSameDc(VSTS')  --- all votes received for some datacenter
-       then < A : Client | committed: (TXNS ;; < TID : Txn | operations: OPS,
-	                                                txnSqn: SQN,
-						                            voteSites: onlyRestRemain(VSTS'),
-						                            commitSites: (CMTS ; voteSites(TID,allReceivedFromWhichDc(VSTS'),addVotesForThatDc(OPS,REPLICA-TABLE,DR,VSTS'))), AS > ;; TXNS'),
-						   dc: DC, AS' >
-            genCommitsForThatDc(A,TID,OPS,SQN,REPLICA-TABLE,DR,DC,allReceivedFromWhichDc(VSTS'))
-       else < A : Client | committed: (TXNS ;; < TID : Txn | operations: OPS,
-	                                                txnSqn: SQN,
-						                            voteSites: VSTS',
-						                            commitSites: CMTS, AS > ;; TXNS'),                    
-						   dc: DC, AS' >
-     fi 
-   if VSTS' := remove(TID,RID',VSTS) .
-   
-   
-   op remove : Address Address VoteSites -> VoteSites .
-   eq remove(TID,RID,(voteSites(TID,DC,(RID ; RIDS)) ; VSTS)) = 
-        voteSites(TID,DC,RIDS) ; VSTS .
-   eq remove(TID,RID,VSTS) = VSTS [owise] .
-   
-   op allReceivedFromSameDc : VoteSites -> Bool . 
-   eq allReceivedFromSameDc(voteSites(TID,DC,empty) ; VSTS) = true .
-   eq allReceivedFromSameDc(VSTS) = false [owise] .
-   
-   op onlyRestRemain : VoteSites -> VoteSites .
-   eq onlyRestRemain(voteSites(TID,DC,empty) ; VSTS) = onlyRestRemain(VSTS) .
-   eq onlyRestRemain(VSTS) = VSTS [owise] .
-   
-   op addVotesForThatDc : OperationList ReplicaTable DcReplicas VoteSites -> AddressSet . 
-   op $addVotesForThatDc : OperationList ReplicaTable DcReplicas Address -> AddressSet .
-   eq addVotesForThatDc(OPS,REPLICA-TABLE,DR,VSTS) = $addVotesForThatDc(OPS,REPLICA-TABLE,DR,allReceivedFromWhichDc(VSTS)) .
-   eq $addVotesForThatDc((write(OID,K,EXPR) OPS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
-        RID ; $addVotesForThatDc(OPS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) .
-   eq $addVotesForThatDc(((OID X :=read K) OPS),[KR],DR,DC) = $addVotesForThatDc(OPS,[KR],DR,DC) .
-   eq $addVotesForThatDc(nil,[KR],DR,DC) = empty .
-   
-   op allReceivedFromWhichDc : VoteSites -> Address .    
-   eq allReceivedFromWhichDc(voteSites(TID,DC,empty) ; VSTS) = DC .
-   
-   op genCommitsForThatDc : Address Address OperationList Float ReplicaTable DcReplicas Address Address -> Config .
-   eq genCommitsForThatDc(A,TID,(write(OID,K,EXPR) OPS),SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC',DC) =
-        genCommitsForThatDc(A,TID,OPS,SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC',DC)
-		[rd, RID <- commit(TID,ts(A,SQN),DC',A)] .
-   eq genCommitsForThatDc(A,TID,((OID X :=read K) OPS),SQN,[KR],DR,DC',DC) =
-		genCommitsForThatDc(A,TID,OPS,SQN,[KR],DR,DC',DC) .
-   eq genCommitsForThatDc(A,TID,nil,SQN,[KR],DR,DC',DC) = null .
-      
-
-  rl [receive-committed-committed] :
-     < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: CMTS, AS > ;; TXNS'), AS' >
-     {T, A <- committed(TID,RID')}
-   =>
-     < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: onlyRestRemain(remove(TID,RID',CMTS)), AS > ;; TXNS'), AS' > .
-   
+ rl [receive-committed] :
+    < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: CMTS, AS > ;; TXNS'), AS' >
+    {T, A <- committed(OID,RID')}
+  =>
+    < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: 
+      (if allReceived(remove(OID,RID',CMTS)) then noVS else remove(OID,RID',CMTS) fi), AS > ;; TXNS'), AS' > .
 
   rl [receive-get] :
      < TABLE : Table | datacenter: DR, AS >
@@ -436,33 +380,33 @@ mod RAMP-F is
  crl [receive-response1] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') >
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | executing: < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                              readSet: RS,
                                              localVars: VARS,
                                              latest: VL,
 						                     1stGetSites: 1STGETS,
-						                     2ndGetSites: 2NDGETS, AS >,
+						                     2ndGetSites: 2NDGETS, AS > ;; TXNS'),
 					dc: DC, AS' >
      {T, A <- response1(TID,version(K,V,TS,MD),RID')}
    =>
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,(READS,version(K,V,TS,MD)),WRITES,false) ; RECORD') >
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     if 1STGETS'[TID] == empty
-       then < A : Client  | executing: < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
+     if 1STGETS'[TID] == emptyAddrSet
+       then < A : Client  | executing: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                                      readSet: RS',
                                                      localVars: insert(X,V,VARS),  --- useless for read-only txns
                                                      latest: VL',
 						                             1stGetSites: 1STGETS',
-						                             2ndGetSites: (2NDGETS ; 2nd(TID,RIDS)), AS >,
+						                             2ndGetSites: (2NDGETS ; 2nd(TID,RIDS)), AS > ;; TXNS'),
 							dc: DC, AS' >
             gen2ndGets(A,TID,VL',RS',REPLICA-TABLE,DR,DC)
-            [nd, A <- commit-reads]
-       else < A : Client | executing: < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
+            [nd, A <- commit-reads(TID)]
+       else < A : Client | executing: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                                     readSet: RS',
                                                     localVars: insert(X,V,VARS),  --- useless for read-only txns
                                                     latest: VL',
 						                            1stGetSites: 1STGETS',
-						                            2ndGetSites: 2NDGETS, AS >,
+						                            2ndGetSites: 2NDGETS, AS > ;; TXNS'),
 							dc: DC, AS' >  
      fi 
      if RS' := RS, version(K,V,TS,MD) /\
@@ -490,9 +434,9 @@ mod RAMP-F is
   op 2ndSites : KeyTimestamps Versions ReplicaTable DcReplicas Address -> AddressSet .
   eq 2ndSites((K |-> TS',VL),(version(K,V,TS,MD),RS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
        2ndSites((K |-> TS',VL),RS,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) ;
-	   (if TS less-than TS' then RID else empty fi) .
-  eq 2ndSites(VL,RS,[KR],DR,DC) = empty [owise] .  --- if K is not in VL
-  eq 2ndSites(VL,empty,[KR],DR,DC) = empty .
+	   (if TS less-than TS' then RID else emptyAddrSet fi) .
+  eq 2ndSites(VL,RS,[KR],DR,DC) = emptyAddrSet [owise] .  --- if K is not in VL
+  eq 2ndSites(VL,empty,[KR],DR,DC) = emptyAddrSet .
 		
   op gen2ndGets : Address Address KeyTimestamps Versions ReplicaTable DcReplicas Address -> Config .		
   eq gen2ndGets(A,TID,(K |-> TS',VL),(version(K,V,TS,MD),RS),[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) = 
@@ -504,18 +448,18 @@ mod RAMP-F is
   
     rl [receive-response2] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,(READS,version(K,V',TS',MD')),WRITES,false) ; RECORD') >
-     < A : Client | executing: < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                              readSet: (RS,version(K,V',TS',MD')),
                                              localVars: VARS,
-								      		 2ndGetSites: 2NDGETS, AS >, AS' >
+								      		 2ndGetSites: 2NDGETS, AS > ;; TXNS'), AS' > 
      {T, A <- response2(TID,version(K,V,TS,MD),RID')}
    => 
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,(READS,version(K,V,TS,MD)),WRITES,false) ; RECORD') >   
-     < A : Client | executing: < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                              readSet: (RS,version(K,V,TS,MD)),
                                              localVars: insert(X,V,VARS),
-								     		 2ndGetSites: remove(TID,RID',2NDGETS), AS >, AS' >
-     [nd, A <- commit-reads] .
+								     		 2ndGetSites: remove(TID,RID',2NDGETS), AS > ;; TXNS'), AS' >
+     [nd, A <- commit-reads(TID)] .
 
 
 
@@ -523,24 +467,24 @@ mod RAMP-F is
   --- that is, all reads are sent out at the beginning of the txn
   --- so "writeSet" not needed: no read-your-write-in-the-same-txn
  crl [commit-reads] :
-     {T, A <- commit-reads}
+     {T, A <- commit-reads(TID)}
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD') > 
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
-     < A : Client | executing: < TID : Txn | operations: OPS,
+     < A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
                                              localVars: VARS,
                                              readSet: RS,
 						                     1stGetSites: 1STGETS,
 						                     2ndGetSites: 2NDGETS,
 						                     txnSqn: SQN,
-						                     voteSites: VSTS, AS >,
-                    committed: TXNS,
+						                     voteSites: VSTS, AS > ;; TXNS'),
+                    committed: TXNS1,
                     dc: DC, AS' >
    =>
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR >
      if read-only(OPS)
        then < M : Monitor | log: (RECORD ; record(TID,T1,T,READS,WRITES,true) ; RECORD') >
-            < A : Client | executing: noActor,
-                           committed: (TXNS ;; < TID : Txn | operations: OPS,
+            < A : Client | executing: (TXNS ;; TXNS'),
+                           committed: (TXNS1 ;; < TID : Txn | operations: OPS,
                                                              localVars: VARS,
                                                              readSet: RS,
 			      			                                 1stGetSites: delete(TID,1STGETS),
@@ -550,19 +494,19 @@ mod RAMP-F is
                            dc: DC, AS' >
             [nd, A <- start] 
        else < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES',false) ; RECORD') >
-            < A : Client | executing: < TID : Txn | operations: OPS,
+            < A : Client | executing: (TXNS ;; < TID : Txn | operations: OPS,
                                                     localVars: VARS,
                                                     readSet: RS,
 						                            1stGetSites: delete(TID,1STGETS),
 						                            2ndGetSites: delete(TID,2NDGETS),
 						                            txnSqn: T,
-						                            voteSites: (VSTS ; voteSites(TID,addVotes(OPS,REPLICA-TABLE,DR,DC))), AS >,
-                            committed: TXNS,
+						                            voteSites: (VSTS ; addVotes(OPS,REPLICA-TABLE)), AS > ;; TXNS'),
+                            committed: TXNS1,
                             dc: DC, AS' >
-            genPuts(A,TID,OPS,T,VARS,REPLICA-TABLE,DR,DC)
+            genPutsAll(A,OPS,T,VARS,REPLICA-TABLE,DR,DC)
      fi 
-     if 1STGETS[TID] == empty /\
-        2NDGETS[TID] == empty /\
+     if 1STGETS[TID] == emptyAddrSet /\
+        2NDGETS[TID] == emptyAddrSet /\
         WRITES' := ws(OPS,A,T,VARS) .
 
   op read-only : OperationList -> Bool .
@@ -576,15 +520,14 @@ mod RAMP-F is
   op delete : Address 2ndGets -> 2ndGets .
   eq delete(TID,(2nd(TID,RIDS) ; 2NDGETS)) = 2NDGETS .
   eq delete(TID,2NDGETS) = 2NDGETS [owise] .
-  
+
 
  crl [not-ready-to-commit-reads] :
-     {T, A <- commit-reads}
-     < A : Client | executing: < TID : Txn | 1stGetSites: 1STGETS,
-                                             2ndGetSites: 2NDGETS, AS >, AS' >
+     {T, A <- commit-reads(TID)}
+     < A : Client | executing: (TXNS ;; < TID : Txn | 1stGetSites: 1STGETS,
+                                             2ndGetSites: 2NDGETS, AS > ;; TXNS'), AS' >
   =>
-     < A : Client | executing: < TID : Txn | 1stGetSites: 1STGETS,
-                                             2ndGetSites: 2NDGETS, AS >, AS' >
-     if 1STGETS[TID] =/= empty or 2NDGETS[TID] =/= empty .
-    
+     < A : Client | executing: (TXNS ;; < TID : Txn | 1stGetSites: 1STGETS,
+                                             2ndGetSites: 2NDGETS, AS > ;; TXNS'), AS' >
+     if 1STGETS[TID] =/= emptyAddrSet or 2NDGETS[TID] =/= emptyAddrSet .
 endm
