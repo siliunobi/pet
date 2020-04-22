@@ -1,0 +1,130 @@
+load protocol
+
+mod INIT-STATE is
+  inc TOKEN-RING-MUTEX .
+
+  vars N N' : Nat .
+  var P : Float .
+  
+  op init : Nat Float -> Config .
+  eq init(N,P) = { 0.0 | nil } [0.0, start to 0]
+                 < 0 : Monitor | delays: empty,
+                                 nodes: nodeList(N,P) >
+			     genNodes(N) .
+			   
+  op nodeList : Nat Float -> AddressList .
+  eq nodeList(s N,P) = nodeList(N,P) ;; (if sampleBerWithP(P) then (s N) else emptyAddrList fi) .
+  eq nodeList(0,P) = emptyAddrList . 
+    
+  op genNodes : Nat -> Config .
+  op $genNodes : Nat Nat -> Config .
+  
+  eq genNodes(N) = $genNodes(1,N) .
+  eq $genNodes(N,N')
+   = if N == N' then < N : Node | state: outsideCS, next: 1 > 
+       else $genNodes(s N,N') < N : Node | state: outsideCS, next: (s N) > fi .
+  
+endm
+
+mod TEST is
+  inc INIT-STATE + APMAUDE .
+  
+  eq LIMIT = Infinity .
+	
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+  eq initState = init(15,0.5) .
+
+  ---(
+  eq initState = { 0.0 | nil } < 0 : Monitor | starter: 1, terminator: 10, delays: empty,
+                                               nodes: (1 ;; 2 ;; 3 ;; 4 ;; 5 ;; 6 ;; 7 ;; 8 ;; 9 ;; 10) >
+            [0.0, start to 0]      *** don't forget token!
+            < 1 : Node | state: outsideCS, next: 2 >
+            < 2 : Node | state: outsideCS, next: 3 >
+            < 3 : Node | state: outsideCS, next: 4 >
+            < 4 : Node | state: outsideCS, next: 5 >
+            < 5 : Node | state: outsideCS, next: 6 > 
+            < 6 : Node | state: outsideCS, next: 7 >
+            < 7 : Node | state: outsideCS, next: 8 >
+            < 8 : Node | state: outsideCS, next: 9 >
+            < 9 : Node | state: outsideCS, next: 10 >
+           < 10 : Node | state: outsideCS, next: 1 > .
+  )
+
+  *** Metric
+  vars O O' M : Address .
+  var WT : WaitTimes .
+  var C : Config .
+  vars T T' : Float .
+  var AS : AttributeSet .
+  var WTL : WaitTimeList .
+  var N : Nat .
+  
+  ***
+  op avgWait : Config -> Float .
+  eq avgWait(< M : Monitor | delays: WT, AS > C) = totalWaitTime(WT) / totalWaitNodes(WT) .
+  
+  op totalWaitTime : WaitTimes -> Float .
+  eq totalWaitTime(WT ; < O,T >) = T + totalWaitTime(WT) .
+  eq totalWaitTime(empty) = 0.0 .
+  
+  op totalWaitNodes : WaitTimes -> Float .
+  eq totalWaitNodes(WT ; < O,T >) = 1.0 + totalWaitNodes(WT) .
+  eq totalWaitNodes(empty) = 0.0 .
+  
+  ***
+  op longestWait : Config -> Float .
+  eq longestWait(< M : Monitor | delays: WT, AS > C) = maxWaitTime(WT) .
+  
+  op maxWaitTime : WaitTimes -> Float .
+  op $maxWaitTime : WaitTimes Float -> Float .
+  eq maxWaitTime(WT) = $maxWaitTime(WT,0.0) .
+  eq $maxWaitTime((WT ; < O,T >),T') 
+   = $maxWaitTime(WT,(if T > T' then T else T' fi)) . 
+  eq $maxWaitTime(empty,T') = T' .
+  
+  ***
+  op median : Config -> Float .
+  eq median(< M : Monitor | delays: WT, AS > C) = medianWaitTime(s2l(WT)) .
+  
+  sort WaitTimeList .
+  subsort WaitTime < WaitTimeList .
+  op nil : -> WaitTimeList [ctor] .
+  op _;;_ : WaitTimeList WaitTimeList -> WaitTimeList [ctor assoc id: nil] .
+  
+  op s2l : WaitTimes -> WaitTimeList .
+  op $s2l : WaitTimes WaitTimeList -> WaitTimeList .
+  eq s2l(WT) = $s2l(WT,nil) .
+  eq $s2l((WT ; < O,T >),WTL) = $s2l(WT,insert(< O,T >,WTL)) . 
+  eq $s2l(empty,WTL) = WTL . 
+  
+  op insert : WaitTime WaitTimeList -> WaitTimeList .
+  eq insert(< O,T >,(< O',T' > ;; WTL))
+   = if T <= T' then < O,T > ;; < O',T' > ;; WTL
+       else < O',T' > ;; insert(< O,T >,WTL) fi .
+  eq insert(< O,T >,nil) = < O,T > .
+  
+  op medianWaitTime : WaitTimeList -> Float .
+  eq medianWaitTime(WTL) 
+   = if length(WTL) rem 2 == 0 
+       then (nth(WTL,length(WTL) / 2) + nth(WTL,length(WTL) / 2 + 1)) / 2.0 
+	   else nth(WTL,(length(WTL) + 1) / 2) fi .
+	   
+  op length : WaitTimeList -> Nat .
+  eq length(< O,T > ;; WTL) = 1 + length(WTL) .
+  eq length(nil) = 0 .
+  
+  op nth : WaitTimeList NzNat -> Float .
+ ceq nth((< O,T > ;; WTL),s N) = nth(WTL,N) if N =/= 0 .
+  eq nth((< O,T > ;; WTL),s N) = T [owise] .
+  
+
+  --- PVESTA interfaces
+  eq val(0,C) = avgWait(C) .
+  eq val(1,C) = longestWait(C) .
+  eq val(2,C) = median(C) .
+  
+endm
+
+---set clear rules off .
+---rew initConfig . 

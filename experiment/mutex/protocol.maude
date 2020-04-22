@@ -1,0 +1,114 @@
+set show advisories off .
+
+load apmaude
+load sampler
+
+mod TOKEN-RING-MUTEX is
+  inc SCHEDULER .
+  inc SAMPLER .
+  
+  op delay : -> Delay .
+  eq delay = sampleLogNormal(0.0,1.0) .
+  
+  op sd : -> Delay .
+  eq sd = 0.0 .
+
+  *** sort ***
+  sort MutexState .
+  ops outsideCS waitForCS insideCS : -> MutexState [ctor] .
+  
+  sort AddressList .
+  subsort Address < AddressList .
+  op emptyAddrList : -> AddressList [ctor] .
+  op _;;_ : AddressList AddressList -> AddressList [ctor assoc id: emptyAddrList] .
+  
+  sorts WaitTime WaitTimes .
+  subsort WaitTime < WaitTimes .
+  op <_,_> : Address Float -> WaitTime .
+  op empty : -> WaitTimes [ctor] .
+  op _;_ : WaitTimes WaitTimes -> WaitTimes [ctor comm assoc id: empty] .  
+  
+
+  *** Msgs ***
+  op start : -> Content .
+  op token : -> Content .
+
+  *** Node ***
+  op Node  :              -> ActorType .
+  op state:_ : MutexState -> Attribute .
+  op next:_  : Address    -> Attribute .
+  
+  op Monitor : -> ActorType .
+  op nodes:_ : AddressList -> Attribute .
+  op delays:_ : WaitTimes -> Attribute .
+
+  *** Algorithm ***
+  vars O O' O'' M S : Address .
+  vars AS AS' : AttributeSet .
+  vars T T' : Float .
+  var AC : ActorConfig .
+  vars OS OS' : AddressList .
+  var WT : WaitTimes .
+  var N : Nat .
+  
+  rl [start] :
+     < M : Monitor | nodes: OS, AS' >
+     {T, start to M} 
+    =>
+     < M : Monitor | nodes: OS, AS' >
+	 gen(OS) [sampleExp(100.0), msg token from M to randomStarter(OS)] .
+
+  op gen : AddressList -> Config .
+  eq gen(O ;; OS) = gen(OS) [sampleExp(100.0), start to O] .
+  eq gen(emptyAddrList) = null .
+  
+  op randomStarter : AddressList -> Address .
+  eq randomStarter(OS) = nth(OS,sampleUniWithInt(size(OS)) + 1) .
+  
+  op size : AddressList -> Nat .
+  eq size(O ;; OS) = 1 + size(OS) .
+  eq size(emptyAddrList) = 0 .
+  
+  op nth : AddressList NzNat -> Address .
+ ceq nth((O ;; OS),s N) = nth(OS,N) if N =/= 0 .
+  eq nth((O ;; OS),s N) = O [owise] .
+	 
+
+  --- Try to enter into critical section:
+  rl [wantToEnterCS] :
+     < M : Monitor | delays: WT, AS' >  
+     {T, start to O}
+     < O : Node | state: outsideCS, AS >
+    =>
+     < M : Monitor | delays: (WT ; < O,T >), AS' >  
+	 < O : Node | state: waitForCS, AS > .
+
+  rl [getToken1] :
+     {T, msg token from O to O'}
+     < O' : Node | state: outsideCS, next: O'', AS >
+    =>
+	 < O' : Node | state: outsideCS, next: O'', AS >
+	 [delay, msg token from O' to O''] .
+
+  rl [getToken2] :
+     < M : Monitor | delays: (WT ; < O',T' >), AS' > 
+     {T, msg token from O to O'}
+     < O' : Node | state: waitForCS, AS >
+    =>
+	 < M : Monitor | delays: (WT ; < O',(T - T') >), AS' > 
+     < O' : Node | state: insideCS, AS > .
+
+  --- Exit critical section and pass on token:
+  rl [exitCS] :
+     < M : Monitor | nodes: (OS ;; O ;; OS'), AS' >
+     < O : Node | state: insideCS, next: O', AS >
+    =>
+	 < M : Monitor | nodes: (OS ;; OS'), AS' >
+     < O : Node | state: outsideCS, next: O', AS >
+	 if (OS ;; OS') == emptyAddrList
+	   then null
+       else [delay, msg token from O to O'] fi .
+	   
+  eq eagerEnabled(< O : Node | state: insideCS, next: O', AS > AC) = true .
+	 
+endm
