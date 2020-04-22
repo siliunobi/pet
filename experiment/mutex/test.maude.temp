@@ -33,7 +33,7 @@ mod TEST is
 	
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
-  eq initState = init(15,0.5) .
+  eq initState = init($1,$2) .
 
   ---(
   eq initState = { 0.0 | nil } < 0 : Monitor | starter: 1, terminator: 10, delays: empty,
