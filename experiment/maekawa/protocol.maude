@@ -1,0 +1,148 @@
+set show advisories off .
+
+load apmaude
+load sampler
+
+mod TOKEN-RING-MUTEX is
+  inc SCHEDULER .
+  inc SAMPLER .
+  
+  op delay : -> Delay .
+  eq delay = sampleLogNormal(0.0,1.0) .
+  
+  op sd : -> Delay .
+  eq sd = genRandom(0.0,10.0) .
+
+  *** sort ***  
+  sort AddressList .
+  subsort Address < AddressList .
+  op emptyAddrList : -> AddressList [ctor] .
+  op _;;_ : AddressList AddressList -> AddressList [ctor assoc id: emptyAddrList] .
+  
+  sort AddressSet .
+  subsort Address < AddressSet .
+  op emptyAddrSet : -> AddressSet [ctor] .
+  op _;_ : AddressSet AddressSet -> AddressSet [ctor comm assoc id: emptyAddrSet] .
+  
+  sort ExecutionState .
+  ops outsideCS insideCS : -> ExecutionState [ctor] .
+  op waitForCS : AddressSet -> ExecutionState [ctor] .
+  
+  sorts WaitTime WaitTimes .
+  subsort WaitTime < WaitTimes .
+  op <_,_> : Address Float -> WaitTime .
+  op empty : -> WaitTimes [ctor] .
+  op _;_ : WaitTimes WaitTimes -> WaitTimes [ctor comm assoc id: empty] .  
+  
+
+  *** Msgs ***
+  op start : -> Content .
+  ops requestCS ok releaseCS : -> Content .
+
+  *** Node ***
+  op Node  :              -> ActorType .
+  op state:_ : ExecutionState -> Attribute .  
+  op queue:_ : AddressList -> Attribute .
+  op votingSet:_ : AddressSet -> Attribute .
+  op accessGranted:_ : Bool -> Attribute .
+  
+  op Monitor : -> ActorType .
+  op nodes:_ : AddressList -> Attribute .
+  op delays:_ : WaitTimes -> Attribute .
+
+  *** Algorithm ***
+  vars O O' O'' O1 O2 M S : Address .
+  vars AS AS' : AttributeSet .
+  vars T T' : Float .
+  var AC : ActorConfig .
+  vars OL OL' : AddressList .
+  var WT : WaitTimes .
+  var N : Nat .
+  vars OS OS' : AddressSet . 
+  var CONT : Content .
+  
+  rl [start] :
+     < M : Monitor | nodes: OL, AS' >
+     {T, start to M} 
+    =>
+     < M : Monitor | nodes: OL, AS' >
+	 gen(OL) .
+
+  op gen : AddressList -> Config .
+  eq gen(O ;; OL) = gen(OL) [sd, start to O] .
+  eq gen(emptyAddrList) = null .
+  
+  --- From outsideCS, the guy wants to join CS, and multicasts a message 
+  --- to each guy in his voting set:
+  rl [requestCS] :
+     {T, start to O}
+     < O : Node | votingSet: OS, state: outsideCS, AS >
+    =>
+     < O : Node | votingSet: OS, state: waitForCS(OS), AS >
+	 multicast(requestCS,O,OS) .
+	 
+  op multicast : Content Address AddressSet -> Config .
+  eq multicast(CONT,O,(O' ; OS)) = multicast(CONT,O,OS) [delay, msg CONT from O to O'] .
+  eq multicast(CONT,O,emptyAddrSet) = null .
+
+
+  --- Get one ok vote, but still awaiting votes from others: 
+  rl [receiveVote1] :
+     {T, msg ok from O1 to O}
+     < O : Node | state: waitForCS(O1 ; O2 ; OS), AS >
+    =>
+     < O : Node | state: waitForCS(O2 ; OS), AS > .
+
+
+  --- Get last ok vote, and access CS: 
+  rl [receiveVote2] :
+     {T, msg ok from O1 to O}
+     < O : Node | state: waitForCS(O1), AS >
+    =>
+     < O : Node | state: insideCS, AS > .
+	 
+	 
+  --- Exit CS: send releaseCS to all guy in voting set: 
+  rl [exitCS] :
+     < O : Node | votingSet: OS, state: insideCS, AS >
+    =>
+     < O : Node | votingSet: OS, state: outsideCS, AS > 
+	 multicast(releaseCS,O,OS) .
+	 
+  eq eagerEnabled(< O : Node | votingSet: OS, state: insideCS, AS > AC) = true .
+
+
+   --- Only read and answer request when you have NOT granted access to others: 
+   rl [vote] :
+      {T, msg requestCS from O1 to O}
+      < O : Node | accessGranted: false, AS >
+    =>
+      < O : Node | accessGranted: true, AS > 
+	  [delay, msg ok from O to O1] .
+	  
+
+  --- When I get releaseCS, I set accessGranted to 'false':
+  rl [receiveRelease] :
+     {T, msg releaseCS from O1 to O}
+     < O : Node | accessGranted: true, AS > 
+    =>
+     < O : Node | accessGranted: false, AS > .
+
+
+  *** with queue
+  rl [vote-queue] :
+     {T, msg requestCS from O1 to O}
+     < O : Node | accessGranted: true, queue: OL, AS >
+   =>
+     < O : Node | accessGranted: true, queue: (OL ;; O1), AS > .
+	  
+	    
+  rl [release-queue] :
+     < O : Node | accessGranted: false, queue: (O1 ;; OL), AS > 
+    =>
+     < O : Node | accessGranted: true, queue: OL, AS >
+	 [delay, msg ok from O to O1] .
+
+  eq eagerEnabled(< O : Node | accessGranted: false, queue: (O1 ;; OL), AS > AC) = true .
+  
+endm
