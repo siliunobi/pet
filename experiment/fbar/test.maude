@@ -1,0 +1,48 @@
+load protocol
+
+mod TEST is
+  inc PROTOCOL + APMAUDE .
+  
+  eq LIMIT = Infinity .
+	
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+  eq initState = { 0.0 | nil } < 10 : Monitor | optimal: empty, chosen: empty, total: 0, cap1: nil, cap2: nil, cap3: nil, count: 0, path: emptyAddrList >
+                 [0.0, start to 0]			 
+                 < 0 : Node | neighbors: (1 ; 2), 
+				              mem: ('metric |-> sampleUniWithInt(10)), 
+							  table: empty, 
+							  buffer: ((send data0 from 0 to 3 of sid(0,1)) ) >
+				 < 1 : Node | neighbors: 3, 
+				              mem: ('metric |-> sampleUniWithInt(10)), 
+							  table: empty, buffer: ept >
+				 < 2 : Node | neighbors: 3, 
+				              mem: ('metric |-> sampleUniWithInt(10)), 
+							  table: empty, buffer: ept >
+				 < 3 : Node | neighbors: (1 ; 2), 
+				              mem: ('metric |-> sampleUniWithInt(10)), 
+							  table: empty, buffer: ept > .
+							  
+							  ---;(send data1 from 0 to 3 of sid(0,2))
+				 
+		
+---(
+  *** Metric
+  vars O O' : Address .
+  var OS : AddressSet .
+  var C : Config .
+  var AS : AttributeSet .
+
+  op deadlock : Config -> Float .
+  eq deadlock(< O : Node | state: waitForCS(O' ; OS), AS > C) = 1.0 .
+  eq deadlock(C) = 0.0 [owise] .
+ 
+  --- PVESTA interfaces
+  eq val(0,C) = deadlock(C) .
+  )
+endm
+
+set clear rules off .
+rew initConfig . 
+
+	

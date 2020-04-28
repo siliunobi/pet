@@ -1,0 +1,187 @@
+set show advisories off .
+
+load apmaude
+load sampler
+
+mod PROTOCOL is
+  inc SCHEDULER .
+  inc SAMPLER .
+  
+  op delay : -> Delay .
+  eq delay = sampleLogNormal(0.0,1.0) .
+  
+  *** Sorts ***
+  sort AddressList .
+  subsort Address < AddressList .
+  op emptyAddrList : -> AddressList [ctor] .
+  op _;;_ : AddressList AddressList -> AddressList [ctor assoc id: emptyAddrList] .
+  
+  sorts Path PathList .
+  subsort Path < PathList .
+  op [_] : AddressList -> Path .
+  op emptyPathList : -> PathList [ctor] .
+  op _;;_ : PathList PathList -> PathList [ctor assoc id: emptyPathList] .
+  
+  
+  sorts Route RouteList .
+  subsort Route < RouteList .
+  
+  op (source:_,dest:_,pv:_,metric:_) : Address Address AddressList Nat -> Route .
+  
+  op nil : -> RouteList [ctor] .
+  op _;;_ : RouteList RouteList -> RouteList [ctor assoc id: nil] .
+  
+  sorts Neighbor Neighbors .
+  subsort Neighbor < Neighbors .
+  
+  op mkNeigh : Address Nat -> Neighbor .
+
+  op eptNeighbors : -> Neighbors [ctor] .
+  op _;_ : Neighbors Neighbors -> Neighbors [ctor comm assoc id: eptNeighbors] .  
+  
+
+  *** Msg ***
+  op sendPacket(_,_,_,_,_) : Address Address Address Nat AddressList -> Content .
+  
+  op error : -> Msg .
+
+  *** Node ***
+  op router  :                  -> ActorType .
+  op routingTable:_ : RouteList -> Attribute .  
+  op bestPath:_     : Route     -> Attribute .
+  op nb:_           : Neighbors -> Attribute .
+
+  op Logger : -> ActorType .
+  op history:_ : PathList -> Attribute .
+
+  *** Protocol ***
+  vars S N N' D D' pa O O' : Address .
+  vars C C' : Nat .
+  vars PV PV' : AddressList .
+  var T : Float .
+  var AS : AttributeSet .
+  vars RT RT' : RouteList .
+  vars Pb R R' R'' : Route .
+  var NB : Neighbors .
+  var HIS : PathList .
+  var NBENTRY : Neighbor .
+  var GT : Float .
+  
+  *** User-defined ***
+  op export : Route -> Route .
+  op import : Route -> Route .
+  op lookUpRank : AddressList -> Nat .
+  
+  ---(
+  rl [init] :
+     {GT, start to O} 
+	 < O : Logger | AS >
+   =>
+     < O : Logger | AS > 
+	 sendPacket msgs
+  )
+  
+ crl [route-update-case1] :
+     ---< pa : Logger | history: HIS >
+     {T, msg sendPacket(S,N,D,C,PV) from S to N}
+     < N : router | routingTable: RT, bestPath: Pb, nb: NB, AS >
+   => 
+     < N : router | routingTable: updateRT(N,newPath(sendPacket(S,N,D,C,PV),NB),RT),
+	                bestPath: newPath(sendPacket(S,N,D,C,PV),NB),
+				    nb: NB, AS >
+	 multiCast(NB,export(newPath(sendPacket(S,N,D,C,PV),NB)))
+	 if getDest(newPath(sendPacket(S,N,D,C,PV),NB)) == getDest(Pb) and
+		prefer?(newPath(sendPacket(S,N,D,C,PV),NB),Pb) == true .
+	  
+ crl [route-update-case2] :
+     ---< pa : Logger | history: HIS >
+     {T, msg sendPacket(S,N,D,C,PV) from S to N}
+     < N : router | routingTable: RT, bestPath: Pb, nb: NB, AS >
+   =>
+	 < N : router | routingTable: updateRT(N,newPath(sendPacket(S,N,D,C,PV),NB),RT),
+	 			    bestPath: Pb,
+	 				nb: NB, AS >
+	 if getDest(newPath(sendPacket(S,N,D,C,PV),NB)) == getDest(Pb) and
+	    getNext(N,newPath(sendPacket(S,N,D,C,PV),NB)) =/= getNext(N,Pb) and
+	    prefer?(Pb,newPath(sendPacket(S,N,D,C,PV),NB)) == true .
+		
+ crl [route-update-case3] :
+     ---< pa : Logger | history: HIS >
+     {T, msg sendPacket(S,N,D,C,PV) from S to N}
+     < N : router | routingTable: RT, bestPath: Pb, nb: NB, AS >
+   =>		
+	 < N : router | routingTable: updateRT(N,newPath(sendPacket(S,N,D,C,PV),NB),RT),
+	                bestPath: newBest(newPath(sendPacket(S,N,D,C,PV),NB),updateRT(N,newPath(sendPacket(S,N,D,C,PV),NB),RT)),
+	                nb: NB, AS >             
+	 multiCast(NB,export(newBest(newPath(sendPacket(S,N,D,C,PV),NB),updateRT(N,newPath(sendPacket(S,N,D,C,PV),NB),RT))))
+	 if getDest(newPath(sendPacket(S,N,D,C,PV),NB)) == getDest(Pb) and
+		getNext(N,newPath(sendPacket(S,N,D,C,PV),NB)) == getNext(N,Pb) and
+		prefer?(Pb, newPath(sendPacket(S,N,D,C,PV),NB)) == true .
+
+ crl [route-update-case4] :
+     ---< pa : Logger | history: HIS >
+     {T, msg sendPacket(S,N,D,C,PV) from S to N}
+     < N : router | routingTable: RT, bestPath: Pb, nb: NB, AS >
+   =>	
+     < N : router | routingTable: RT, bestPath: Pb, nb: NB, AS >
+	 error
+	 if getDest(newPath(sendPacket(S,N,D,C,PV),NB)) =/= getDest(Pb) .
+	 					  
+	 
+  --- destination consumes any incoming msg silently
+  rl [dest] :
+     {T, msg sendPacket(S,D,D,C,PV) from S to D}
+     < D : router | AS >
+   =>
+     < D : router | AS > .
+	 
+	 
+  op newBest : Route RouteList -> Route .
+  eq newBest(R,(R' ;; RT)) 
+   = if prefer?(R',R) then newBest(R',RT) else newBest(R,RT) fi .
+  eq newBest(R,nil) = R .
+  
+  op prefer? : Route Route -> Bool .
+  eq prefer?((source: N, dest: D, pv: PV, metric: C),
+             (source: N',dest: D',pv: PV',metric: C'))
+   = if C > C' then true else false fi .
+  
+  op newPath : Content Neighbors -> Route [ctor] .
+  eq newPath(sendPacket(S,N,D,C,PV),NB)
+   = (source: N,dest: D,pv: (N ;; PV),metric: lookUpRank(N ;; PV)) .
+   
+  op updateRT : Address Route RouteList -> RouteList .
+  eq updateRT(N,R,nil) = R .
+  eq updateRT(N,R,(R' ;; RT)) 
+   = if getDest(R) == getDest(R') and getNext(N,R) == getNext(N,R')
+       then R ;; RT
+	   else R' ;; updateRT(N,R,RT) fi .
+	   
+  ---??
+  op getNext : Address Route -> Address .
+  eq getNext(O,(source: N,dest: D,pv: (O ;; O' ;; PV),metric: C)) = O' .
+
+  
+  op getDest : Route -> Address .
+  eq getDest((source: S, dest: D, pv: PV, metric: C)) = D .
+    
+  op multiCast : Neighbors Route -> Config .
+  eq multiCast((NBENTRY ; NB), (source: S, dest: D, pv: PV, metric: C))
+   = [delay, msg sendPacket(S, getOid(NBENTRY), D, C, PV) from S to getOid(NBENTRY)]
+     multiCast(NB, (source: S, dest: D, pv: PV, metric: C)) .
+  
+  op getOid : Neighbor -> Address .
+  eq getOid(mkNeigh(O,C)) = O . 
+  
+  *** Disagree Policy
+  ops n1 n2 n0 : -> Address .
+  
+  eq export (R) = R . 
+  eq import (R) = R .
+  
+  eq lookUpRank (n1 n2 n0) = 1 . 
+  eq lookUpRank (n1 n0) = 2 .
+  eq lookUpRank (n2 n1 n0) = 1 . 
+  eq lookUpRank (n2 n0) = 2 .
+
+endm

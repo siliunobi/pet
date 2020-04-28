@@ -1,0 +1,257 @@
+set show advisories off .
+
+load apmaude
+load sampler
+
+fmod SORTS is
+  sort Key .
+endfm
+view Key from TRIV to SORTS is sort Elt to Key . endv 
+
+mod PROTOCOL is
+  inc SCHEDULER .
+  inc SAMPLER .
+  pr MAP{Key,Nat} * (sort Map{Key,Nat} to Dict) .
+
+  op delay : -> Delay .
+  eq delay = sampleLogNormal(0.0,1.0) .
+  
+  sort Data .
+
+  op 'metric : -> Key .
+  op map : Address  Address  Nat -> Nat .
+  ops data0 data1 : -> Data .
+  op sid : Address  Nat -> Key .
+
+  sorts Pair PList .
+  subsort Pair < PList .  
+  op pair : Address  Nat -> Pair .
+  op nil : -> PList [ctor] .
+  op _;;_ : PList PList -> PList [ctor assoc id: nil] .
+  
+  sort AddressSet .
+  subsort Address < AddressSet .
+  op emptyAddrSet : -> AddressSet [ctor] .
+  op _;_ : AddressSet AddressSet -> AddressSet [ctor comm assoc id: emptyAddrSet] .
+  
+  sort AddressList .
+  subsort Address < AddressList .
+  op emptyAddrList : -> AddressList [ctor] .
+  op _;;_ : AddressList AddressList -> AddressList [ctor assoc id: emptyAddrList] .
+  
+  *** Msg ***
+  
+  *** pScout : sId loc  src  dst  pathmsg 
+  op pScout : Key Address  Address  Address  PList -> Content .
+  *** pFlow : sId loc  dst  last pathmsg 
+  op pFlow : Key Address  Address  Address  PList -> Content . 
+  *** pData : data sId loc  dstmsg 
+  op pData : Data Key Address  Address  -> Content .
+  *** Wait : sId data srcmsg 
+  op Wait : Key Data Address  -> Content .
+  
+  op send_from_to_of_ : Data Address  Address  Key -> Content . 
+  op start : -> Content .
+  
+  sort Contents .
+  subsort Content < Contents .
+  op ept : -> Contents [ctor] .
+  op _;_ : Contents Contents -> Contents [ctor comm assoc id: ept] .
+  
+  sort ContentList .
+  subsort Content < ContentList .
+  op nil : -> ContentList [ctor] .
+  op _;;_ : ContentList ContentList -> ContentList [ctor assoc id: nil] .
+    
+  *** Node ***
+  op Node  :                         -> ActorType .
+  op neighbors:_ :   AddressSet      -> Attribute .
+  op mem:_ :         Dict -> Attribute .
+  op table:_ :       Dict -> Attribute .
+  op buffer:_ :      Contents        -> Attribute .
+  
+  op Monitor : -> ActorType .
+  op optimal:_ : Dict -> Attribute .
+  op chosen:_  : Dict -> Attribute .
+  op total:_   : Nat -> Attribute .
+  op cap1:_ : ContentList -> Attribute .
+  op cap2:_ : ContentList -> Attribute .
+  op cap3:_ : ContentList -> Attribute .
+  op count:_ : Nat -> Attribute .
+  op path:_ : AddressList -> Attribute .
+  
+  
+  *** Protocol ***
+  vars AS AS' : AttributeSet .
+  vars N N' M M' SRC DST O MON : Address  .
+  vars S OS : AddressSet .
+  vars D T DICT DICT' : Dict .
+  var SID : Key .
+  var DATA : Data .
+  var GT : Float .
+  var L : PList .
+  vars METRIC METRIC' OPTIMAL CHOSEN : Nat .
+  vars V V' : Nat .
+  var K : Key .
+  vars CS CS' : Contents .
+  var TOTAL : Nat .
+  var AC : ActorConfig .
+  vars CL CL' : ContentList .
+  var COUNT : Nat .
+  var AL : AddressList .
+  
+  ---(
+  rl [Init] :
+     (send DATA from SRC to DST of SID)
+   => pScout(SID, SRC, SRC, DST, nil) 
+      Wait(SID, DATA, SRC) .
+  )
+
+
+  eq (send DATA from SRC to DST of SID)
+   = pScout(SID, SRC, SRC, DST, nil) ; Wait(SID, DATA, SRC) .
+
+
+  --- added for P-transf.
+  rl [Init] :
+     {GT, start to N}
+	 < N : Node | buffer: CS, AS >
+   =>
+     < N : Node | buffer: wait(CS), AS >
+	 genScout(CS) .
+	 
+	 
+  op wait : Contents -> Contents .
+  eq wait(Wait(SID,DATA,SRC) ; CS) = Wait(SID,DATA,SRC) ; wait(CS) .
+  eq wait(pScout(SID, N, SRC, DST, L) ; CS) = wait(CS) .
+  eq wait(ept) = ept .
+  
+  op genScout : Contents -> Config . 
+  eq genScout(pScout(SID, N, SRC, DST, L) ; CS)
+   = [0.0, msg pScout(SID, N, SRC, DST, L) from N to N]
+     genScout(CS) .
+  eq genScout(Wait(SID,DATA,SRC) ; CS) = genScout(CS) .
+  eq genScout(ept) = null .
+  
+  rl [RecScout-init] :
+     < N : Node | neighbors: S, mem: D, AS >
+	 {GT, msg pScout(SID, N, M, M', nil) from N to N}
+   =>
+     < N : Node | neighbors: S, mem: D, AS >
+	 scoutNeighbors(SID,S,N,M,M',pair(N,D['metric])) .
+	  
+	  
+  crl [RecScout] :
+      < N : Node | neighbors: S, mem: D, AS >
+	  {GT, msg pScout(SID, N, M, M', (pair(N', METRIC) ;; L)) from N' to N}
+	=>
+	  < N : Node | neighbors: S, mem: insert(SID,METRIC + D['metric], D), AS >
+	  scoutNeighbors(SID, S, N, M, M', (pair(N, METRIC + D['metric]) ;; pair(N', METRIC) ;; L))
+	  if (METRIC + D['metric] slt D[SID]) and (N =/= M') .
+	
+  op scoutNeighbors : Key AddressSet Address  Address  Address  PList -> Config .
+  eq scoutNeighbors(SID,(O ; OS),N,M,M',L) 
+   = scoutNeighbors(SID,OS,N,M,M',L)
+     [delay, msg pScout(SID,O,M,M',L) from N to O] .
+  eq scoutNeighbors(SID,emptyAddrSet,N,M,M',L) = null .
+  
+  *** strictly less than
+  op _slt_ : Nat Nat -> Bool .
+  eq V slt undefined = true .
+  eq V slt V' = V < V' [owise] .
+  
+  
+  crl [RecScout] :
+      < N : Node | mem: D, AS >
+	  {GT, msg pScout(SID,N, M, M', (pair(N', METRIC) ;; L)) from N' to N}
+	=>
+	  < N : Node | mem: D, AS >
+	  if (not (METRIC + D['metric] slt D[SID])) and (N =/= M') .
+	  
+*** error?? ***
+*** Last write wins, but may not be the optimal
+  rl [SendFlow] :
+     < MON : Monitor | optimal: DICT, chosen: DICT', AS' >
+     < N : Node | mem: D, AS >
+	 {GT, msg pScout(SID,N, M, N, (pair(N',METRIC) ;; L)) from N' to N}
+   =>
+     < MON : Monitor | optimal: opt(SID,METRIC,DICT), chosen: insert(SID,METRIC,DICT'), AS' >
+     < N : Node | mem: insert(SID, METRIC, D), AS >
+	 [delay, msg pFlow(SID,N', N, N, (pair(N', METRIC) ;; L)) from N to N'] .
+
+  op opt : Key Nat  Dict -> Dict .
+  eq opt(SID,METRIC,DICT) 
+   = if (not $hasMapping(DICT,SID))
+       then insert(SID,METRIC,DICT)
+	   else insert(SID,min(METRIC,DICT[SID]),DICT) fi .
+
+  *** Error!! 
+  crl [RecFlow] :
+      < N : Node | mem: D, AS >
+	  {GT, msg pFlow(SID, N, M, N', (pair(N, METRIC) ;; L ;; pair(SRC,METRIC'))) from N' to N}
+	=>
+	  < N : Node | mem: D, AS >
+	  if D[SID] =/= METRIC 
+	     and N =/= SRC .
+
+
+  crl [RecFlow] :
+  < MON : Monitor | cap1: CL, cap2: CL', AS' >
+      < N : Node | mem: D, table: T, AS >
+	  {GT, msg pFlow(SID, N, M, N', (pair(N, METRIC) ;; pair(M', METRIC') ;; L)) from N' to N}
+	=>
+  < MON : Monitor | cap1: (CL ;; pFlow(SID, N, M, N', (pair(N, METRIC) ;; pair(M', METRIC') ;; L))),
+                    cap2: (CL' ;; pFlow(SID, M', M, N,(pair(M', METRIC') ;; L))), AS' >
+	  < N : Node | mem: D, table: insert(SID, map(M, N', METRIC), T), AS >
+	  [delay, msg pFlow(SID, M', M, N,(pair(M', METRIC') ;; L)) from N to M']
+	  if D[SID] == METRIC .
+	  
+	  
+  rl [EndFlow] :
+     < MON : Monitor | cap3: CL, count: COUNT, AS' >
+     < N : Node | table: T, AS >
+	 {GT, msg pFlow(SID, N, M, N', pair(N, METRIC)) from N' to N}
+   =>
+     < MON : Monitor | cap3: (CL ;; pFlow(SID, N, M, N', pair(N, METRIC))), count: (s COUNT), AS' >
+     < N : Node | table: insert(SID, map(M, N', METRIC), T), AS > .
+
+
+  rl [Send] :
+     < MON : Monitor | path: AL, AS' >
+	 < N : Node | table: (K |-> map(M, M', METRIC), T), 
+	              buffer: (CS ; Wait(K, DATA, N)), AS >
+   =>
+     < MON : Monitor | path: (AL ;; M'), AS' >
+	 < N : Node | table: (K |-> map(M, M', METRIC), T),
+	              buffer: CS, AS >
+	 [delay, msg pData(DATA, K, M', M) from N to M'] .  
+	 
+  eq eagerEnabled(< N : Node | table: (K |-> map(M, M', METRIC), T), 
+	              buffer: (CS ; Wait(K, DATA, N)), AS > AC) = true .
+	 
+	 
+  crl [RecData] :
+	  {GT, msg pData(DATA, K, N, N') from O to N}
+      < N : Node | table: (K |-> map(N', M, METRIC), T), AS >
+	=>
+	  < N : Node | table: (K |-> map(N', M, METRIC), T), AS >
+	  [delay, msg pData(DATA, K, M, N') from N to M]
+	  if N =/= N' .
+	  
+  crl [RecData] :
+      {GT, msg pData(DATA,SID,N,N') from O to N}
+	  < N : Node | table: T, AS >
+	=>
+	  < N : Node | table: T, AS >
+	  if (not $hasMapping(T,SID)) and (N =/= N') .
+	  
+  --- added for P-transf.
+   rl [RecData] :
+      < MON : Monitor | total: TOTAL, AS' >
+      {GT, msg pData(DATA,SID,N,N) from O to N}
+	  < N : Node | AS >
+	=>
+	  < MON : Monitor | total: (s TOTAL), AS' >
+	  < N : Node | AS > .
+
+endm
