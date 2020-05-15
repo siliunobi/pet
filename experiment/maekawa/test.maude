@@ -73,17 +73,43 @@ mod TEST is
   eq initState = init(3) .
 
   *** Metric
-  vars O O' : Address .
+  vars O O' M : Address .
   var OS : AddressSet .
   var C : Config .
   var AS : AttributeSet .
+  vars WT WT' : WaitTimes .
+  vars T T' : Float .
+
 
   op deadlock : Config -> Float .
   eq deadlock(< O : Node | state: waitForCS(O' ; OS), AS > C) = 1.0 .
   eq deadlock(C) = 0.0 [owise] .
+  
+  ***
+  op avgWait : Config -> Float .
+ ceq avgWait(< M : Monitor | delays: WT, AS > C)
+   = totalWaitTime(WT') / totalWaitNodes(WT') 
+     if WT' := noDeadLocked(WT,C) .
+	 
+  op noDeadLocked : WaitTimes Config -> WaitTimes .
+  eq noDeadLocked((WT ; < O,T >),(< O : Node | state: waitForCS(O' ; OS), AS > C))
+   = noDeadLocked(WT,(< O : Node | state: waitForCS(O' ; OS), AS > C)) .
+  eq noDeadLocked((WT ; < O,T >),C) = noDeadLocked(WT,C) ; < O,T > [owise] .
+  eq noDeadLocked(empty,C) = empty .
+  
+  
+  op totalWaitTime : WaitTimes -> Float .
+  eq totalWaitTime(WT ; < O,T >) = T + totalWaitTime(WT) .
+  eq totalWaitTime(empty) = 0.0 .
+  
+  op totalWaitNodes : WaitTimes -> Float .
+  eq totalWaitNodes(WT ; < O,T >) = 1.0 + totalWaitNodes(WT) .
+  eq totalWaitNodes(empty) = 0.0 .
+  
  
   --- PVESTA interfaces
   eq val(0,C) = deadlock(C) .
+  eq val(1,C) = avgWait(C) .
 endm
 
 ---set clear rules off .

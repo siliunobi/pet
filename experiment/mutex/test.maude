@@ -4,16 +4,21 @@ mod INIT-STATE is
   inc TOKEN-RING-MUTEX .
 
   vars N N' : Nat .
-  var P : Float .
+  var P : Nat .
   
-  op init : Nat Float -> Config .
+  op init : Nat Nat -> Config .
   eq init(N,P) = { 0.0 | nil } [0.0, start to 0]
                  < 0 : Monitor | delays: empty,
                                  nodes: nodeList(N,P) >
 			     genNodes(N) .
 			   
-  op nodeList : Nat Float -> AddressList .
-  eq nodeList(s N,P) = nodeList(N,P) ;; (if sampleBerWithP(P) then (s N) else emptyAddrList fi) .
+  op nodeList : Nat Nat -> AddressList .
+---(
+  --- not everyone tries to join
+  eq nodeList(s N,P) = nodeList(N,P) ;; (if sampleBerWithP(float(P) / 10.0) then (s N) else emptyAddrList fi) .
+  )
+  
+  eq nodeList(s N,P) = nodeList(N,P) ;; (s N) .
   eq nodeList(0,P) = emptyAddrList . 
     
   op genNodes : Nat -> Config .
@@ -33,7 +38,7 @@ mod TEST is
 	
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
-  eq initState = init(100,90.0) .
+  eq initState = init(10,1) .
 
   ---(
   eq initState = { 0.0 | nil } < 0 : Monitor | starter: 1, terminator: 10, delays: empty,
@@ -126,5 +131,5 @@ mod TEST is
   
 endm
 
----set clear rules off .
----rew initConfig . 
+set clear rules off .
+rew initConfig . 

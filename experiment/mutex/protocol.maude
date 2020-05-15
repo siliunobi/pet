@@ -11,7 +11,7 @@ mod TOKEN-RING-MUTEX is
   eq delay = sampleLogNormal(0.0,1.0) .
   
   op sd : -> Delay .
-  eq sd = 0.0 .
+  eq sd = sampleExp(100.0) .
 
   *** sort ***
   sort MutexState .
@@ -56,10 +56,10 @@ mod TOKEN-RING-MUTEX is
      {T, start to M} 
     =>
      < M : Monitor | nodes: OS, AS' >
-	 gen(OS) [sampleExp(100.0), msg token from M to randomStarter(OS)] .
+	 gen(OS) [0.0, msg token from M to randomStarter(OS)] .
 
   op gen : AddressList -> Config .
-  eq gen(O ;; OS) = gen(OS) [sampleExp(100.0), start to O] .
+  eq gen(O ;; OS) = gen(OS) [sd, start to O] .
   eq gen(emptyAddrList) = null .
   
   op randomStarter : AddressList -> Address .

@@ -11,7 +11,7 @@ mod TOKEN-RING-MUTEX is
   eq delay = sampleLogNormal(0.0,1.0) .
   
   op sd : -> Delay .
-  eq sd = genRandom(0.0,10.0) .
+  eq sd = sampleExp(100.0) .
 
   *** sort ***  
   sort AddressList .
@@ -75,9 +75,11 @@ mod TOKEN-RING-MUTEX is
   --- From outsideCS, the guy wants to join CS, and multicasts a message 
   --- to each guy in his voting set:
   rl [requestCS] :
+     < M : Monitor | delays: WT, AS' >  
      {T, start to O}
      < O : Node | votingSet: OS, state: outsideCS, AS >
     =>
+     < M : Monitor | delays: (WT ; < O,T >), AS' >  
      < O : Node | votingSet: OS, state: waitForCS(OS), AS >
 	 multicast(requestCS,O,OS) .
 	 
@@ -96,9 +98,11 @@ mod TOKEN-RING-MUTEX is
 
   --- Get last ok vote, and access CS: 
   rl [receiveVote2] :
+     < M : Monitor | delays: (WT ; < O,T' >), AS' > 
      {T, msg ok from O1 to O}
      < O : Node | state: waitForCS(O1), AS >
     =>
+	 < M : Monitor | delays: (WT ; < O,(T - T') >), AS' > 
      < O : Node | state: insideCS, AS > .
 	 
 	 
