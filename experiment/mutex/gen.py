@@ -2,7 +2,7 @@ import sys
 FILE=sys.argv[1]
 OUT=sys.argv[2]
 NODE=int(sys.argv[3])
-BIAS=float(sys.argv[4])
+BIAS=int(sys.argv[4])
 
 file1 = open(FILE)
 s = file1.read()

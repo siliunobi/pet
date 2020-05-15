@@ -4,9 +4,9 @@ mod INIT-STATE is
   inc TOKEN-RING-MUTEX .
 
   vars N N' : Nat .
-  var P : Float .
+  var P : Nat .
   
-  op init : Nat Float -> Config .
+  op init : Nat Nat -> Config .
   eq init(N,P) = { 0.0 | nil } [0.0, start to 0]
                  < 0 : Monitor | delays: empty,
                                  nodes: nodeList(N,P) >
@@ -123,12 +123,14 @@ mod TEST is
  ceq nth((< O,T > ;; WTL),s N) = nth(WTL,N) if N =/= 0 .
   eq nth((< O,T > ;; WTL),s N) = T [owise] .
   
-
+  op totalWait : Config -> Float .
+  eq totalWait(< M : Monitor | delays: WT, AS > C) = totalWaitTime(WT) .
+  
   --- PVESTA interfaces
   eq val(0,C) = avgWait(C) .
   eq val(1,C) = longestWait(C) .
   eq val(2,C) = median(C) .
-  
+  eq val(3,C) = totalWait(C) .
 endm
 
 ---set clear rules off .

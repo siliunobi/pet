@@ -38,7 +38,7 @@ mod TEST is
 	
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
-  eq initState = init(10,1) .
+  eq initState = init(3,1) .
 
   ---(
   eq initState = { 0.0 | nil } < 0 : Monitor | starter: 1, terminator: 10, delays: empty,
@@ -123,12 +123,14 @@ mod TEST is
  ceq nth((< O,T > ;; WTL),s N) = nth(WTL,N) if N =/= 0 .
   eq nth((< O,T > ;; WTL),s N) = T [owise] .
   
-
+  op totalWait : Config -> Float .
+  eq totalWait(< M : Monitor | delays: WT, AS > C) = totalWaitTime(WT) .
+  
   --- PVESTA interfaces
   eq val(0,C) = avgWait(C) .
   eq val(1,C) = longestWait(C) .
   eq val(2,C) = median(C) .
-  
+  eq val(3,C) = totalWait(C) .
 endm
 
 set clear rules off .

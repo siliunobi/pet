@@ -106,10 +106,14 @@ mod TEST is
   eq totalWaitNodes(WT ; < O,T >) = 1.0 + totalWaitNodes(WT) .
   eq totalWaitNodes(empty) = 0.0 .
   
+  op totalWait : Config -> Float .
+  eq totalWait(< M : Monitor | delays: WT, AS > C)
+   = totalWaitTime(WT') if WT' := noDeadLocked(WT,C) . 
  
   --- PVESTA interfaces
   eq val(0,C) = deadlock(C) .
   eq val(1,C) = avgWait(C) .
+  eq val(2,C) = totalWait(C) .
 endm
 
 ---set clear rules off .
