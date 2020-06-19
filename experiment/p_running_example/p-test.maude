@@ -1,0 +1,33 @@
+load example-output
+
+mod P-TEST is
+  inc INTERFACE + TEST .
+  
+  var OBJS : Objects .  var MSGS : Msgs .
+  var T : Float .  var C : Config .  
+  var M : Msg .  var ML : MsgList .
+
+  op init : Config -> Config .
+  eq init(OBJS MSGS) = { OBJS delay-init(OBJS,MSGS,sort(MSGS)) | 0.0 } .
+
+  op delay-init : Objects Msgs MsgList -> DTask .
+
+  rl [delay-init-1] :
+     { delay-init(OBJS,MSGS,(M :: ML)) C | T }
+  =>
+     { delay-init(OBJS,MSGS,ML) C
+	   [T + u-init(OBJS,MSGS,sample-init(OBJS,MSGS)), M] | T } .
+	   
+  rl [delay-init-2] : delay-init(OBJS,MSGS,nil) => null .
+  
+  *** PVeStA interface
+  eq initState = init(initial) .  
+
+  *** Quatex
+  op prop : Config -> Float .
+  eq prop({ C | T }) = T .
+  
+  eq val(0,C) = prop(C) .
+endm
+
+set clear rules off .

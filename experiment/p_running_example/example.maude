@@ -1,0 +1,107 @@
+load pframework
+
+mod SORTS is
+  inc SCHEDULING .
+  pr NAT .
+  
+  sorts Query Queries Key Value Oids .
+  subsort Nat < Value < Payload .
+  subsort Query < Queries .
+  subsort Query < Payload .
+  subsort Oid < Oids .
+
+  
+  op read : Key -> Query .
+  
+  op ept : -> Queries .
+  op _::_ : Queries Queries -> Queries [assoc id: ept] .
+
+  op empty : -> Oids .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .
+  
+  op start : -> Payload .
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv
+view Value from TRIV to SORTS is sort Elt to Value . endv
+view Oids from TRIV to SORTS is sort Elt to Oids . endv
+
+mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Value} .
+  pr MAP{Key,Oids} .
+  
+  ops Client Server Table : -> ObjType .
+  
+  op queries:_ : Queries -> Attribute .
+  op waiting:_ : Oids  -> Attribute .
+  op read:_    : Value -> Attribute .
+  
+  op database:_ : Map{Key,Value} -> Attribute .
+  
+  op replicas:_ : Map{Key,Oids} -> Attribute .
+endm
+
+mod PROTOCOL is
+  inc OBJS .
+  
+  vars O O' TB : Oid .  var QS : Queries .
+  var OS : Oids .  var R : Map{Key,Oids} .
+  vars AS AS' : Attributes .  var K : Key .
+  var D : Map{Key,Value} .  vars V V' : Value .
+  var P : Payload .
+  
+  rl [issue] :
+     (to O : start) 
+	 < O : Client | queries: (read(K) :: QS), waiting: OS, AS > 
+	 < TB : Table | replicas: R, AS' >
+  => 
+     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), AS > 
+	 < TB : Table | replicas: R, AS' > 
+	 (propagate read(K) to R[K] from O) .
+	 
+	
+  op propagate_to_from_ : Payload Oids Oid -> Config .
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+	 
+
+  rl [reply] :
+     (to O from O' : read(K)) 
+	 < O : Server | database: D, AS >
+  => 
+     < O : Server | database: D, AS > 
+	 (to O' from O : D[K]) .
+	 
+	
+  rl [update] :
+     (to O from O' : V') 
+	 < O : Client | read: V, waiting: (O' ; OS), AS >
+  => 
+     < O : Client | read: max(V,V'), waiting: OS, AS > .
+	 
+ crl [finish] :
+     < O : Client | queries: (read(K) :: QS), waiting: empty, read: V, AS >
+  => 
+     < O : Client | queries: QS, waiting: empty, read: V, AS > 
+	 (to O : start) 
+	 if V =/= 0 .
+	 
+endm
+
+mod TEST is
+  inc PROTOCOL .
+  
+  ops tb c1 c2 s1 s2 s3 : -> Oid . 
+  ops k1 k2 k3 : -> Key .
+   
+  op initial : -> Config .
+  eq initial =
+       < tb : Table | replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)) >
+       (to c1 : start) (to c2 : start)
+	   < c1 : Client | queries: (read(k1) :: read(k3)), waiting: empty, read: 0 >
+	   < c2 : Client | queries: read(k2), waiting: empty, read: 0 >
+	   < s1 : Server | database: (k1 |-> 23, k3 |-> 8) >
+	   < s2 : Server | database: (k1 |-> 10, k2 |-> 7) >
+	   < s3 : Server | database: (k2 |-> 14, k3 |-> 3) > .
+
+endm

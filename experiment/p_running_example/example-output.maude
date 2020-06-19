@@ -1,0 +1,179 @@
+*** P ***
+load sampling-ext
+
+mod SORTS is
+  inc SCHEDULING .
+  pr NAT .
+  
+  sorts Query Queries Key Value Oids .
+  subsort Nat < Value < Payload .
+  subsort Query < Queries .
+  subsort Query < Payload .
+  subsort Oid < Oids .
+
+  
+  op read : Key -> Query .
+  
+  op ept : -> Queries .
+  op _::_ : Queries Queries -> Queries [assoc id: ept] .
+
+  op empty : -> Oids .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .
+  
+  op start : -> Payload .
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv
+view Value from TRIV to SORTS is sort Elt to Value . endv
+view Oids from TRIV to SORTS is sort Elt to Oids . endv
+
+mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Value} .
+  pr MAP{Key,Oids} .
+  
+  ops Client Server Table : -> ObjType .
+  
+  op queries:_ : Queries -> Attribute .
+  op waiting:_ : Oids  -> Attribute .
+  op read:_    : Value -> Attribute .
+  
+  op database:_ : Map{Key,Value} -> Attribute .
+  
+  op replicas:_ : Map{Key,Oids} -> Attribute .
+endm
+
+mod PROTOCOL is
+  inc OBJS .
+  pr SAMPLING-EXT .
+  
+  vars O O' TB : Oid .  var QS : Queries .
+  var OS : Oids .  var R : Map{Key,Oids} .
+  vars AS AS' : Attributes .  var K : Key .
+  var D : Map{Key,Value} .  vars V V' : Value .
+  var P : Payload .
+  
+  *** P ***
+  *** new variables 
+  var @T : Float .  var @OBJS : Objects .
+  var @DMS : DMsgs .  var @C : Config .
+  var @M : Msg .  var @ML : MsgList .
+  
+  *** P ***
+  rl [issue-p] :
+     	{ 
+     (to O : start) 
+	 < O : Client | queries: (read(K) :: QS), waiting: OS, AS > 
+	 < TB : Table | replicas: R, AS' >
+     	@OBJS @DMS | @T }
+  => 
+   	 	{
+     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), AS > 
+	 < TB : Table | replicas: R, AS' > 
+	    delay-issue(O,K,QS,OS,AS,TB,R,AS',sort(propagate read(K) to R[K] from O))
+     	@OBJS @DMS | @T } .	 
+	
+  op propagate_to_from_ : Payload Oids Oid -> Config .
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+
+  *** P ***
+  op delay-issue : Oid Key Queries Oids Attributes Oid Map{Key,Oids} Attributes MsgList -> DTask .
+
+  rl [delay-issue-1] :
+     { delay-issue(O,K,QS,OS,AS,TB,R,AS',(@M :: @ML)) @C | @T }
+  =>
+     { delay-issue(O,K,QS,OS,AS,TB,R,AS',@ML) @C 
+	   [@T + u-issue(O,K,QS,OS,AS,TB,R,AS',sample-issue(O,K,QS,OS,AS,TB,R,AS')), @M] | @T } .
+
+  rl [delay-issue-2] : delay-issue(O,K,QS,OS,AS,TB,R,AS',nil) => null .
+
+
+  *** P ***
+  rl [reply-p] :
+     {
+     (to O from O' : read(K)) 
+	 < O : Server | database: D, AS >
+     	@OBJS @DMS | @T }
+  => 
+     {
+     < O : Server | database: D, AS > 
+	    delay-reply(O,O',K,D,AS,sort(to O' from O : D[K]))
+     	@OBJS @DMS | @T } .	 
+	 
+  op delay-reply : Oid Oid Key Map{Key,Value} Attributes MsgList -> DTask .
+
+  rl [delay-reply-1] :
+     { delay-reply(O,O',K,D,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-reply(O,O',K,D,AS,@ML) @C 
+	   [@T + u-reply(O,O',K,D,AS,sample-reply(O,O',K,D,AS)), @M] | @T } .
+  
+  rl [delay-reply-2] : delay-reply(O,O',K,D,AS,nil) => null .
+
+	
+  *** P ***
+  rl [update-p] :
+     {
+     (to O from O' : V') 
+	 < O : Client | read: V, waiting: (O' ; OS), AS >
+	 	@OBJS @DMS | @T }
+  => 
+     {
+     < O : Client | read: max(V,V'), waiting: OS, AS >
+	    delay-update(O,O',V',V,OS,AS,sort(null))
+     	@OBJS @DMS | @T } .	 
+	 
+  op delay-update : Oid Oid Value Value Oids Attributes MsgList -> DTask .
+
+  rl [delay-update-1] :
+     { delay-update(O,O',V',V,OS,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-update(O,O',V',V,OS,AS,@ML) @C 
+	   [@T + u-update(O,O',V',V,OS,AS,sample-update(O,O',V',V,OS,AS)), @M] | @T } .
+	 
+  rl [delay-update-2] : delay-update(O,O',V',V,OS,AS,nil) => null .
+
+
+  *** P ***
+ crl [finish-p] :
+     {
+     < O : Client | queries: (read(K) :: QS), waiting: empty, read: V, AS >
+	 	@OBJS @DMS | @T }	 
+  => 
+     {
+     < O : Client | queries: QS, waiting: empty, read: V, AS >  
+	    delay-finish(O,K,QS,V,AS,sort(to O : start))
+     	@OBJS @DMS | @T }
+	 if V =/= 0 .
+
+  op delay-finish : Oid Key Queries Value Attributes MsgList -> DTask .
+
+  rl [delay-finish-1] :
+     { delay-finish(O,K,QS,V,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-finish(O,K,QS,V,AS,@ML) @C 
+	   [@T + u-finish(O,K,QS,V,AS,sample-finish(O,K,QS,V,AS)), @M] | @T } . 
+  
+  rl [delay-finish-2] : delay-finish(O,K,QS,V,AS,nil) => null .
+  
+  ceq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: V, AS >)
+    = true if V =/= 0 .
+
+endm
+
+mod TEST is
+  inc PROTOCOL .
+  
+  ops tb c1 c2 s1 s2 s3 : -> Oid . 
+  ops k1 k2 k3 : -> Key .
+   
+  op initial : -> Config .
+  eq initial =
+       < tb : Table | replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)) >
+       (to c1 : start) (to c2 : start)
+	   < c1 : Client | queries: (read(k1) :: read(k3)), waiting: empty, read: 0 >
+	   < c2 : Client | queries: read(k2), waiting: empty, read: 0 >
+	   < s1 : Server | database: (k1 |-> 23, k3 |-> 8) >
+	   < s2 : Server | database: (k1 |-> 10, k2 |-> 7) >
+	   < s3 : Server | database: (k2 |-> 14, k3 |-> 3) > .
+endm
