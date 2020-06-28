@@ -55,7 +55,7 @@ mod PROTOCOL is
   var @M : Msg .  var @ML : MsgList .
   
   *** P ***
-  rl [req] :
+  rl [req-p] :
   		{
      (to O from O' : QS')
      < O : Client | queries: QS, AS > 
