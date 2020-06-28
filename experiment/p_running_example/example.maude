@@ -6,20 +6,16 @@ mod SORTS is
   
   sorts Query Queries Key Value Oids .
   subsort Nat < Value < Payload .
-  subsort Query < Queries .
-  subsort Query < Payload .
+  subsort Query < Queries < Payload .
   subsort Oid < Oids .
 
-  
   op read : Key -> Query .
   
   op ept : -> Queries .
   op _::_ : Queries Queries -> Queries [assoc id: ept] .
 
   op empty : -> Oids .
-  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .
-  
-  op start : -> Payload .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
 endm
 view Key from TRIV to SORTS is sort Elt to Key . endv
 view Value from TRIV to SORTS is sort Elt to Value . endv
@@ -44,19 +40,22 @@ endm
 mod PROTOCOL is
   inc OBJS .
   
-  vars O O' TB : Oid .  var QS : Queries .
+  vars O O' TB : Oid .  vars QS QS' : Queries .
   var OS : Oids .  var R : Map{Key,Oids} .
   vars AS AS' : Attributes .  var K : Key .
   var D : Map{Key,Value} .  vars V V' : Value .
   var P : Payload .
   
+  rl [req] :
+     (to O from O' : QS')
+     < O : Client | queries: QS, AS > 
+  =>
+     < O : Client | queries: (QS :: QS'), AS > .
+  
   rl [issue] :
-     (to O : start) 
-	 < O : Client | queries: (read(K) :: QS), waiting: OS, AS > 
-	 < TB : Table | replicas: R, AS' >
+	 < O : Client | queries: (read(K) :: QS), waiting: empty, read: 0, replicas: R, AS > 
   => 
-     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), AS > 
-	 < TB : Table | replicas: R, AS' > 
+     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: 0, replicas: R, AS > 
 	 (propagate read(K) to R[K] from O) .
 	 
 	
@@ -83,7 +82,6 @@ mod PROTOCOL is
      < O : Client | queries: (read(K) :: QS), waiting: empty, read: V, AS >
   => 
      < O : Client | queries: QS, waiting: empty, read: V, AS > 
-	 (to O : start) 
 	 if V =/= 0 .
 	 
 endm
@@ -91,17 +89,17 @@ endm
 mod TEST is
   inc PROTOCOL .
   
-  ops tb c1 c2 s1 s2 s3 : -> Oid . 
+  ops u1 u2 c1 c2 s1 s2 s3 : -> Oid . 
   ops k1 k2 k3 : -> Key .
    
   op initial : -> Config .
   eq initial =
-       < tb : Table | replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)) >
-       (to c1 : start) (to c2 : start)
-	   < c1 : Client | queries: (read(k1) :: read(k3)), waiting: empty, read: 0 >
-	   < c2 : Client | queries: read(k2), waiting: empty, read: 0 >
+       (to c1 from u1 : (read(k1) :: read(k3))) (to c2 from u2 : read(k2))
+	   < c1 : Client | queries: ept, waiting: empty, read: 0,
+	                   replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)) >
+	   < c2 : Client | queries: ept, waiting: empty, read: 0,
+	                   replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)) >
 	   < s1 : Server | database: (k1 |-> 23, k3 |-> 8) >
 	   < s2 : Server | database: (k1 |-> 10, k2 |-> 7) >
 	   < s3 : Server | database: (k2 |-> 14, k3 |-> 3) > .
-
 endm
