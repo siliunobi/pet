@@ -1,6 +1,6 @@
 load pframework
 
-mod SORTS is
+(mod SORTS is
   inc SCHEDULING .
   pr NAT .
   
@@ -20,12 +20,12 @@ mod SORTS is
   op _;_ : Oids Oids -> Oids [assoc comm id: empty] .
   
   op start : -> Payload .
-endm
-view Key from TRIV to SORTS is sort Elt to Key . endv
-view Value from TRIV to SORTS is sort Elt to Value . endv
-view Oids from TRIV to SORTS is sort Elt to Oids . endv
+endm)
+(view Key from TRIV to SORTS is sort Elt to Key . endv)
+(view Value from TRIV to SORTS is sort Elt to Value . endv)
+(view Oids from TRIV to SORTS is sort Elt to Oids . endv)
 
-mod OBJS is
+(mod OBJS is
   inc SORTS .
   pr MAP{Key,Value} .
   pr MAP{Key,Oids} .
@@ -39,9 +39,9 @@ mod OBJS is
   op database:_ : Map{Key,Value} -> Attribute .
   
   op replicas:_ : Map{Key,Oids} -> Attribute .
-endm
+endm)
 
-mod PROTOCOL is
+(mod PROTOCOL is
   inc OBJS .
   
   vars O O' TB : Oid .  var QS : Queries .
@@ -86,9 +86,9 @@ mod PROTOCOL is
 	 (to O : start) 
 	 if V =/= 0 .
 	 
-endm
+endm)
 
-mod TEST is
+(mod TEST is
   inc PROTOCOL .
   
   ops tb c1 c2 s1 s2 s3 : -> Oid . 
@@ -104,4 +104,4 @@ mod TEST is
 	   < s2 : Server | database: (k1 |-> 10, k2 |-> 7) >
 	   < s3 : Server | database: (k2 |-> 14, k3 |-> 3) > .
 
-endm
+endm)

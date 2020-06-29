@@ -1,5 +1,5 @@
 *** P ***
-load sampling-ext
+load sampling-ext --- MZ: How do I know to load this module? 
 
 mod SORTS is
   inc SCHEDULING .
@@ -44,7 +44,7 @@ endm
 
 mod PROTOCOL is
   inc OBJS .
-  pr SAMPLING-EXT .
+  pr SAMPLING-EXT . --- same question 
   
   vars O O' TB : Oid .  var QS : Queries .
   var OS : Oids .  var R : Map{Key,Oids} .
@@ -67,9 +67,9 @@ mod PROTOCOL is
      	@OBJS @DMS | @T }
   => 
    	 	{
-     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), AS > 
+   < O : Client | queries: (read(K) :: QS), waiting: (R[K]), AS > 
 	 < TB : Table | replicas: R, AS' > 
-	    delay-issue(O,K,QS,OS,AS,TB,R,AS',sort(propagate read(K) to R[K] from O))
+	    delay-issue(O,K,QS,OS,AS,TB,R,AS',sort(propagate read(K) to R[K] from O)) *** sort the message 
      	@OBJS @DMS | @T } .	 
 	
   op propagate_to_from_ : Payload Oids Oid -> Config .
@@ -77,6 +77,7 @@ mod PROTOCOL is
   eq propagate P to empty from O' = null .
 
   *** P ***
+  *** how do I know the para list of delay-issue??? 
   op delay-issue : Oid Key Queries Oids Attributes Oid Map{Key,Oids} Attributes MsgList -> DTask .
 
   rl [delay-issue-1] :
