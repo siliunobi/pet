@@ -11,33 +11,17 @@ mod SAMPLING-EXT is
   var P : Payload .  var DL : Float .
   var OBJS : Objects .  var MSGS : Msgs .
   
-  op u-issue : Oid Key Queries Oids Attributes Oid Map{Key,Oids} Attributes Float -> Float .
-  eq u-issue(O,K,QS,OS,AS,TB,R,AS',DL) = DL .
+  op u-issue : Oid Key Queries Map{Key,Oids} Attributes Float -> Float .
+  eq u-issue(O,K,QS,R,AS,DL) = DL .
   
-  op sample-issue : Oid Key Queries Oids Attributes Oid Map{Key,Oids} Attributes -> Float .
-  eq sample-issue(O,K,QS,OS,AS,TB,R,AS') = 1.0 .
-  
+  op sample-issue : Oid Key Queries Map{Key,Oids} Attributes -> Float .
+  eq sample-issue(O,K,QS,R,AS) = 1.0 .
   
   op u-reply : Oid Oid Key Map{Key,Value} Attributes Float -> Float .
   eq u-reply(O,O',K,D,AS,DL) = DL .
   
   op sample-reply : Oid Oid Key Map{Key,Value} Attributes -> Float .
-  eq sample-reply(O,O',K,D,AS) = 1.0 .
-  
-  
-  op u-update : Oid Oid Value Value Oids Attributes Float -> Float .
-  eq u-update(O,O',V',V,OS,AS,DL) = DL .	 
-
-  op sample-update : Oid Oid Value Value Oids Attributes -> Float .
-  eq sample-update(O,O',V',V,OS,AS) = 1.0 .	 
-  
-	   
-  op u-finish : Oid Key Queries Value Attributes Float -> Float .
-  eq u-finish(O,K,QS,V,AS,DL) = DL .	 
-  
-  op sample-finish : Oid Key Queries Value Attributes -> Float .
-  eq sample-finish(O,K,QS,V,AS) = 2.0 .	  
-  
+  eq sample-reply(O,O',K,D,AS) = 1.0 . 
   
   op u-init : Objects Msgs Float -> Float .
   eq u-init(OBJS,MSGS,DL) = DL .
