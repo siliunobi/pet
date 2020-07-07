@@ -54,6 +54,56 @@ mod PROTOCOL is
   var @DMS : DMsgs .  var @C : Config .
   var @M : Msg .  var @ML : MsgList .
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   *** P ***
   rl [req-p] :
       {
@@ -64,6 +114,43 @@ mod PROTOCOL is
       {
      < O : Client | queries: (QS :: QS'), AS >
     @OBJS @DMS | @T } .
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
   
   *** P ***
   rl [issue-p] :
@@ -76,7 +163,11 @@ mod PROTOCOL is
       delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
       @OBJS @DMS | @T } .  
   
-  op propagate_to_from_ : Payload Oids Oid -> Config .
+
+
+
+
+  op propagate_to_from_ : Payload Oids Oid -> Msgs .
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
 

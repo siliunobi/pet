@@ -68,7 +68,7 @@ endfm)
   
   *** MsgList:
   sort MsgList .
-  subsort Msg < MsgList .
+  subsort Msg < MsgList < Config .
   
   op nil : -> MsgList .
   op _::_ : MsgList MsgList -> MsgList [assoc id: nil] . 

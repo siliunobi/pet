@@ -1,4 +1,4 @@
-mod SAMPLING is
+(mod SAMPLING is
   pr RANDOM + COUNTER + CONVERSION .
 
   *** predefined
@@ -26,4 +26,4 @@ mod SAMPLING is
 
   op sampleLogNormal : Float Float -> [Float] . 
   eq sampleLogNormal(MEAN,SD) = exp(MEAN + SD * sampleNormal) .
-endm
+endm)

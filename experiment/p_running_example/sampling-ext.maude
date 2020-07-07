@@ -1,26 +1,25 @@
 load sampling
-load example
 
-mod SAMPLING-EXT is
+(mod SAMPLING-EXT is
   inc SAMPLING + OBJS .
   
   vars O O' TB : Oid .  var QS : Queries .
-  var OS : Oids .  var R : Map{Key,Oids} .
+  var OS : Oids .  var R : KeyReplicas .
   vars AS AS' : Attributes .  var K : Key .
-  var D : Map{Key,Value} .  vars V V' : Value .
+  var D : Database .  vars V V' : Value .
   var P : Payload .  var DL : Float .
   var OBJS : Objects .  var MSGS : Msgs .
   
-  op u-issue : Oid Key Queries Map{Key,Oids} Attributes Float -> Float .
+  op u-issue : Oid Key Queries KeyReplicas Attributes Float -> Float .
   eq u-issue(O,K,QS,R,AS,DL) = DL .
   
-  op sample-issue : Oid Key Queries Map{Key,Oids} Attributes -> Float .
+  op sample-issue : Oid Key Queries KeyReplicas Attributes -> Float .
   eq sample-issue(O,K,QS,R,AS) = 1.0 .
   
-  op u-reply : Oid Oid Key Map{Key,Value} Attributes Float -> Float .
+  op u-reply : Oid Oid Key Database Attributes Float -> Float .
   eq u-reply(O,O',K,D,AS,DL) = DL .
   
-  op sample-reply : Oid Oid Key Map{Key,Value} Attributes -> Float .
+  op sample-reply : Oid Oid Key Database Attributes -> Float .
   eq sample-reply(O,O',K,D,AS) = 1.0 . 
   
   op u-init : Objects Msgs Float -> Float .
@@ -28,4 +27,4 @@ mod SAMPLING-EXT is
  
   op sample-init : Objects Msgs -> Float .
   eq sample-init(OBJS,MSGS) = sampleExp(1.0) .
-endm
+endm)

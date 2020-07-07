@@ -46,23 +46,73 @@ endm)
   var D : Map{Key,Value} .  vars V V' : Value .
   var P : Payload .
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   rl [req] :
      (to O from O' : QS')
      < O : Client | queries: QS, AS > 
   =>
      < O : Client | queries: (QS :: QS'), AS > .
   
+
   rl [issue] :
    < O : Client | queries: (read(K) :: QS), waiting: empty, read: 0, replicas: R, AS > 
   => 
      < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: 0, replicas: R, AS > 
    (propagate read(K) to R[K] from O) .
-   
-  
-  op propagate_to_from_ : Payload Oids Oid -> Config .
+
+  op propagate_to_from_ : Payload Oids Oid -> Msgs . *** Config -> Msg??? 
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
    
+  
+
 
   rl [reply] :
      (to O from O' : read(K)) 
@@ -71,7 +121,7 @@ endm)
      < O : Server | database: D, AS > 
    (to O' from O : D[K]) .
    
-  
+
   rl [update] :
      (to O from O' : V') 
    < O : Client | read: V, waiting: (O' ; OS), AS >
@@ -83,6 +133,39 @@ endm)
   => 
      < O : Client | queries: QS, waiting: empty, read: V, AS > 
    if V =/= 0 .
+
+endm)
+eof 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+
    
 endm)
 
