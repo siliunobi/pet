@@ -1,0 +1,30 @@
+load sampling
+
+(mod SAMPLING-EXT is
+  inc SAMPLING + OBJS .
+  
+  vars O O' TB : Oid .  var QS : Queries .
+  var OS : Oids .  var R : KeyReplicas .
+  vars AS AS' : Attributes .  var K : Key .
+  var D : Database .  vars V V' : Value .
+  var P : Payload .  var DL : Float .
+  var OBJS : Objects .  var MSGS : Msgs .
+  
+  op u-issue : Oid Key Queries KeyReplicas Attributes Float -> Float .
+  eq u-issue(O,K,QS,R,AS,DL) = DL .
+  
+  op sample-issue : Oid Key Queries KeyReplicas Attributes -> Float .
+  eq sample-issue(O,K,QS,R,AS) = 1.0 .
+  
+  op u-reply : Oid Oid Key Database Attributes Float -> Float .
+  eq u-reply(O,O',K,D,AS,DL) = DL .
+  
+  op sample-reply : Oid Oid Key Database Attributes -> Float .
+  eq sample-reply(O,O',K,D,AS) = 1.0 . 
+  
+  op u-init : Objects Msgs Float -> Float .
+  eq u-init(OBJS,MSGS,DL) = DL .
+ 
+  op sample-init : Objects Msgs -> Float .
+  eq sample-init(OBJS,MSGS) = sampleExp(1.0) .
+endm)

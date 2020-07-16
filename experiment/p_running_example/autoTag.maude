@@ -20,9 +20,9 @@ fmod TAG-BUILTINS is
     including UNIT .
     including DATABASE-DECLS  .
     including EXT-QID-LIST .
-    
+    including CONVERSION .    
     op tag : OModule -> OModule .
-    op tag : SModule -> SModule .
+    op tag : SModule SModule -> SModule . --- 1st M: flattened, 2nd M: target module 
     op tagID : Qid -> Qid .
     
     
@@ -52,7 +52,7 @@ fmod TAG-BUILTINS is
     E
     R
 endom) = omod tagID(Q)  is
-IL
+    IL
     sorts S .
     SS
     CDS
@@ -63,27 +63,31 @@ IL
     monitorEquations(E,O)
     addConditions(R)
     monitorRules(R,O)
-endom .
+    endom .
 
-    eq tag(mod Q is
-	  IL
-    sorts S .
-    SS
-	  O
-    M
-    E
-    R
-endm) = mod tagID(Q)  is
-IL
-    sorts S .
-    SS
-    O
-    addOps(R) --- add auxilary ops for rewrite rules. 
-	  M
-    E
-    addBrackets(R) --- two functions: 1. add {}, 2. add two aux rules for each rule 
-    addRls(R) 
-endm .
+    op copy : ORTuple -> ORTuple .
+
+
+    ceq tag(SM, mod Q is
+      	  IL
+          sorts S .
+          SS
+      	  O
+          M
+          E
+          R
+      endm) = mod tagID(Q)  is
+      (IL including 'SAMPLING-EXT .)
+      sorts S .
+      SS
+      O
+      OPDS 
+  	  M
+      E
+	  RLS1
+      endm 
+      if {OPDS ; RLS1} := copy(processRules(SM,R)) .
+
 
     vars T T' : Term .
     var ATS : AttrSet .
@@ -96,6 +100,10 @@ endm .
     var OPDS : OpDeclSet .
     var EqS : EquationSet .
     var TP : Type .
+    var Q1 : Qid .
+
+    eq copy(ORT:ORTuple) = ORT:ORTuple .
+
 
     op monitorEquations : EquationSet OpDeclSet -> EquationSet .
     op monitorOperators : OpDeclSet -> OpDeclSet .
@@ -208,6 +216,185 @@ endm .
           'false.Bool,'empty.Set`{KeyVersion`},'empty.Set`{KeyVersion`}],'LOG@M:Log]]] .
 
 
+    op addOps : RuleSet -> OpDeclSet .
+    eq addOps(R) = none .  *** to fix 
+
+    sort ORTuple .
+    op {_;_} : OpDeclSet RuleSet -> ORTuple .
+    vars OPDS1 OPDS2 : OpDeclSet .
+    vars EqS1 EqS2 : EquationSet .
+    vars RLS1 RLS2 : RuleSet .
+
+    op _+_ : ORTuple ORTuple -> ORTuple [assoc comm] .
+    eq {OPDS1 ; RLS1} + {OPDS2  ; RLS2} = 
+    	{OPDS1 OPDS2  ; RLS1 RLS2} .
+    
+    op addRls : RuleSet -> RuleSet .
+    eq addRls(R) = none . *** to fix 
+
+
+    op processRules : Module RuleSet -> ORTuple .
+    eq processRules(SM, Rl R) = addBracketsAux(SM,Rl) + processRules(SM, R)  .
+    eq processRules(SM, none) = { none ; none} .
+
+ 	var TPL : TypeList .
+ 	var N : Nat .
+
+    --- op addBrackets : Module RuleSet -> ORTuple .
+    op addBracketsAux : Module Rule -> ORTuple .
+    op addBracket2Term : Term -> Term .
+
+    --- eq addBrackets(SM, Rl R) = addBracketsAux(SM, Rl) addBrackets(SM, R) .
+    --- eq addBrackets(SM, none) = none .
+
+    *** the following two equations are used to add brackets to terms in rules. 
+    op break : Term -> Term .
+    eq break(T) = T .
+
+  *** if no new message at RHS 
+    ceq addBracketsAux(SM, rl T => '__[TL] [ATR label(Q)] . ) = 
+     {none ; (rl addBracket2Term(T) => addBracket2Term('__[TL]) [ATR label(Q)] .)}
+     if  {TL1 ; TL2} := getMsg(SM, TL) /\ 
+         TL2  == empty .
+
+   ceq addBracketsAux(SM, crl T => '__[TL] if CD [ATR label(Q)] . ) = 
+     {none ; (crl addBracket2Term(T) => addBracket2Term('__[TL]) if CD [ATR label(Q)] .)}
+     if  {TL1 ; TL2} := getMsg(SM, TL) /\ 
+         TL2  == empty .
+
+      *** to deal with new message at RHS 
+    ceq addBracketsAux(SM, rl T => '__[TL] [ATR label(Q)] .) = 
+      {OPD ; (rl addBracket2Term(T) => 
+        addBracket2Term('__[TL1,qid("delay-" + string(Q))[rmDup(Vars(T)),'sort[TL2]]]) [ATR label(Q)] . R) }
+    if {TL1 ; TL2} := getMsg(SM, TL) /\ 
+       TL2  =/= empty /\ 
+       OPD := getOpDecl(T,Q) /\ 
+       R := delayRules(OPD, Q) .
+
+     op delayRules : OpDecl Qid -> RuleSet .
+     eq delayRules((op Q : TPL 'MsgList -> 'DTask [none] .), Q') =
+     (rl '`{_|_`}[Q[newVars(TPL),'__['_::_['@M:Msg,'@ML:MsgList],'@C:Config]],'@T:Float] =>
+     	'`{_|_`}['__[Q[newVars(TPL),'@ML:MsgList],'@C:Config,
+     			 '`[_`,_`]['_+_['@T:Float,qid("u-" + string(Q'))
+     			 	[ newVars(TPL),
+     			 	qid("sample-" + string(Q'))[newVars(TPL)]]],'@M:Msg]],'@T:Float] [label(qid(string(Q) + "-" + string(1,10)))] .
+     ) (rl Q[newVars(TPL),'nil.MsgList] => 'null.DTask [label(qid(string(Q) + "-" + string(2,10)))] .) .
+
+
+     op newVars : TypeList -> TermList .
+     op newVars : TypeList Nat -> TermList . 
+     eq newVars(TPL) = newVars(TPL,1) .
+     eq newVars((Q TPL), N) = qid("@P" + string(N,10) + ":" + string(Q)), newVars(TPL, N + 1) .
+     eq newVars(nil, N) = empty .
+
+    --- I stop here today .
+    ---- next, define equations based on OPD.    
+
+   ceq addBracketsAux(SM, crl T => '__[TL] if CD [ATR label(Q)] . ) = 
+      {OPD  ; (crl addBracket2Term(T) => 
+        addBracket2Term('__[TL1,qid("delay-" + string(Q))[rmDup(Vars(T)),'sort[TL2]]]) if CD [ATR label(Q)] . R)}
+     if  {TL1 ; TL2} := getMsg(SM, TL) /\ 
+         TL2  =/= empty /\ 
+       OPD := getOpDecl(T,Q) /\ 
+       R := delayRules(OPD, Q) .
+
+   ceq addBracketsAux(SM, rl T => Q'[TL] [ATR label(Q)] . ) = 
+    { none ; (rl addBracket2Term(T) => addBracket2Term(Q'[TL]) [ATR label(Q)] .)}
+     if Q' =/= '__ /\  
+     {TL1 ; TL2} := getMsg(SM, Q'[TL]) /\ 
+         TL2  == empty .
+
+   ceq addBracketsAux(SM, crl T => Q'[TL] if CD [ATR label(Q)] . ) = 
+    {none ;  (crl addBracket2Term(T) => addBracket2Term(Q'[TL]) if CD [ATR label(Q)] .)}
+     if Q' =/= '__ /\  
+        {TL1 ; TL2} := getMsg(SM, Q'[TL]) /\ 
+        TL2  == empty .
+
+      *** to deal with new message at RHS 
+    ceq addBracketsAux(SM, rl T => Q'[TL] [ATR label(Q)] .) = 
+      {OPD ; (rl addBracket2Term(T) => 
+        addBracket2Term(qid("delay-" + string(Q))[rmDup(Vars(T)), 'sort[Q'[TL]]]) [ATR label(Q)] .)}
+    if Q' =/= '__ /\  
+        {TL1 ; TL2} := getMsg(SM, Q'[TL]) /\ 
+        TL2  =/= empty /\ 
+       OPD := getOpDecl(T,Q) .
+
+    ceq addBracketsAux(SM, crl T => Q'[TL] if CD [ATR label(Q)] . ) = 
+      {OPD ; (crl addBracket2Term(T) => 
+                addBracket2Term(qid("delay-" + string(Q))[rmDup(Vars(T)), 'sort[Q'[TL]]]) if CD [ATR label(Q)] .)}
+     if   Q' =/= '__ /\  
+          {TL1 ; TL2} := getMsg(SM, Q'[TL]) /\ 
+         TL2  =/= empty /\ 
+       OPD := getOpDecl(T,Q) .     
+
+    ceq addBracket2Term(T) = '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,TL],'@T:Float] 
+      if '__[TL] := T .
+    eq addBracket2Term(T) = '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,T],'@T:Float] [owise].
+
+    op getOpDecl : Term Qid -> OpDeclSet .
+    var OPD : OpDecl .
+
+    eq getOpDecl(T, Q) = 
+      (op qid("delay-" + string(Q)) : var2types(rmDup(Vars(T))) 'MsgList -> 'DTask [none] .) .
+
+
+    op rmDup : TermList -> TermList . 
+    eq rmDup((TL, T)) = if T in TL then rmDup(TL) else (rmDup(TL),T) fi .
+    eq rmDup(T) = T .
+    eq rmDup(empty) = empty .
+    op var2types : TermList -> TypeList .
+    eq var2types((V, TL)) = getType(V) var2types(TL) .
+    eq var2types(empty) = nil .
+
+    *** RHS term and rule label 
+
+    op toggleFunc : Module TermList Qid -> TermList .
+
+    eq toggleFunc(SM, TL,Q1) = TL .
+
+    sort TLPair .
+    op {_;_} : TermList TermList -> TLPair [ctor] .
+
+    op getMsg : Module TermList -> TLPair .
+    op addLeft : Term TLPair -> TLPair .
+    op addRight : Term TLPair -> TLPair .
+    eq addLeft(T, {TL1 ; TL2}) = {(T, TL1); TL2} .
+    eq addRight(T, {TL1 ; TL2}) = {TL1 ; (T, TL2)} .
+
+    ceq getMsg(SM,(T, TL)) = if Q == 'Msgs or Q == 'Msg then addRight(T, getMsg(SM,TL)) 
+        else addLeft(T, getMsg(SM, TL)) fi
+    if Q := leastSort(SM,T) .
+
+    eq getMsg(SM, empty) = {empty ; empty} .
+
+---    ceq getMsg(SM, Q'[TL]) = 
+---        if Q == 'Msgs or Q == 'Msg then {empty ; Q'[TL]} else {Q'[TL] ; empty} fi 
+---    if  Q' =/= '__ /\ 
+---        Q := leastSort(SM,Q'[TL]) .
+
+---    ceq getMsg(SM, (T, TL)) = addLeft(T1,addRight(TL2,getMsg(SM,TL))) 
+---    if TL =/= empty /\ 
+---       {TL1 ; TL2} := getMsg(SM, T) .
+
+    ***(
+    op newMsg : Term Term -> TermList
+    op simplifyTerms : TermList TermList -> TermList .
+
+    eq newMsg('__[TL1], '__[TL2]) = simplifyTerms(TL1,TL2) . 
+    ceq newMsg(T, '__[TL2]) = simplifyTerms(T,TL2) if Q[TL1] := T /\ Q =/= '__ . 
+    ceq newMsg('__[TL1], T) = simplifyTerms(TL1,T) if Q[TL2] := T /\ Q =/= '__ . 
+    eq newMsg(T1,T2) = simplifyTerms(T1,T2) [owise] . 
+
+    eq simplifyTerms(TL, none) = none .
+    ceq simplifyTerms(TL, (T, TL1)) = simplifyTerms(TL, TL1) if (T in TL) .
+    ceq simplifyTerms(TL, (T, TL1)) = 
+        if (getType(metaParse(M, T)) == 'Msg) then 
+        T else 
+        simplifyTerms(TL, TL1)
+     if not (T in TL) .
+    )
+    *** todo: I need to know when to add delay-issue, delay-reply 
+    *** to define two aux functions for delay 
 
     eq monitorRules(Rl R, OPDS) = monitorRulesAux(Rl,OPDS) monitorRules(R,OPDS)  .
     eq monitorRules(none, OPDS) = none . 
@@ -655,7 +842,7 @@ mod TAG-DATABASE-HANDLING is
 				   Atts  >
       if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
 	  M := getTopModule(ME', DB') /\ 
-	  M' := tag(M) /\
+	  M' := tag(getFlatModule(ME', DB'),M) /\
 	  Q := getName(M') /\ 
 	  DB'' := insTermModule(Q,M',DB') .
 endm 
@@ -719,9 +906,12 @@ endm
 
 set print conceal on .
 
-*** print conceal mod_is_sorts_._____endm .
+ print conceal mod_is_sorts_._____endm .
 *** print conceal fmod_is_sorts_.____endfm .
 print conceal db .
+set break off .
+break select copy .
+
     
 loop init .
     

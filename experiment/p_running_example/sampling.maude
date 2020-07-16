@@ -1,0 +1,29 @@
+(mod SAMPLING is
+  pr RANDOM + COUNTER + CONVERSION .
+
+  *** predefined
+  op rand : -> [Float] .
+  rl [rnd] : rand => float(random(counter) / 4294967296) .
+
+  var N : Nat .
+  var R : Float .
+
+  op sampleBer : Float -> [Bool] .
+  eq sampleBer(R) = if rand < R then true else false fi .
+  
+  op sampleUni : Nat -> [Nat] .
+  eq sampleUni(N) = random(counter) rem N .
+  
+  op sampleExp : Float -> [Float] .
+  eq sampleExp(R) = (- log(rand)) / R . 
+
+  op sampleNormal : -> [Float] .
+  op sampleNormal : Float -> [Float] .
+  eq sampleNormal = sampleNormal(rand) .
+  eq sampleNormal(R) = sqrt(- 2.0 * log(R)) * cos(2.0 * pi * R) .
+
+  vars MEAN SD : Float .  --- mean and standard deviation
+
+  op sampleLogNormal : Float Float -> [Float] . 
+  eq sampleLogNormal(MEAN,SD) = exp(MEAN + SD * sampleNormal) .
+endm)

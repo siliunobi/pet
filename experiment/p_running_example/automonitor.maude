@@ -77,12 +77,11 @@ endm) = mod tagID(Q)  is
 IL
     sorts S .
     SS
-    O
-    addOps(R) --- add auxilary ops for rewrite rules. 
+    monitorOperators(O) 
 	  M
-    E
-    addBrackets(R) --- two functions: 1. add {}, 2. add two aux rules for each rule 
-    addRls(R) 
+    monitorEquations(E,O)
+    addConditions(R)
+    monitorRules(R,O)
 endm .
 
     vars T T' : Term .
