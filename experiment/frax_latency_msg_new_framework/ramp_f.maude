@@ -296,6 +296,8 @@ mod RAMP-F is
       [if inDC(RID,DC,DR) then ld * float(length(msg2string(prepare-reply(TID,true,RID))))
 	     else rd * float(length(msg2string(prepare-reply(TID,true,RID)))) fi, A <- prepare-reply(TID,true,RID)] .  --- always "true" in RAMP
 
+---(
+--- two-phase writes
   crl [receive-prepare-reply] :
       < TABLE : Table | table: REPLICA-TABLE, datacenter: DR, AS1 >
       < A : Client | executing: < TID : Txn | operations: OPS,
@@ -388,4 +390,93 @@ mod RAMP-F is
                             committed: TXNS, AS' >
       fi
       if CMTS' := remove(TID,RID',CMTS) .
+)
+
+--- one-phase write, i.e., asynch commits
+  crl [receive-prepare-reply] :
+      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD'), AS2 >
+      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR, AS1 >
+      < A : Client | executing: < TID : Txn | operations: OPS,
+ 	                                         txnSqn: SQN,
+ 											 voteSites: VSTS,
+ 											 commitSites: CMTS, AS >,
+					 committed: TXNS,
+ 					 dc: DC, AS' >
+      {T, A <- prepare-reply(TID,FLAG,RID')}  --- FLAG is always true in RAMP
+    =>
+      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR, AS1 >
+      if VSTS'[TID] == empty  --- all votes received
+        then < M : Monitor | log: (RECORD ; record(TID,T1,T,READS,WRITES,true) ; RECORD'), AS2 >
+		     < A : Client | executing: noActor,
+							committed: (TXNS ;; < TID : Txn | operations: OPS,
+ 	                                                txnSqn: SQN,
+ 						                            voteSites: noVS,
+ 						                            commitSites: (CMTS ; voteSites(TID,addVotes(OPS,REPLICA-TABLE,DR,DC))), AS >),
+ 						    dc: DC, AS' >
+             genCommits(A,TID,OPS,SQN,REPLICA-TABLE,DR,DC)
+			 [nd, A <- start]
+        else < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD'), AS2 >
+		     < A : Client | executing: < TID : Txn | operations: OPS,
+ 	                                                txnSqn: SQN,
+ 						                            voteSites: VSTS',
+ 						                            commitSites: CMTS, AS >,   
+							committed: TXNS,                 
+ 						    dc: DC, AS' >
+      fi 
+    if VSTS' := remove(TID,RID',VSTS) .
+   
+
+   op _[_] : VoteSites Address -> AddressSet .
+   eq (voteSites(TID,RIDS) ; VSTS)[TID] = RIDS . 
+
+   op remove : Address Address VoteSites -> VoteSites .
+   eq remove(TID,RID,(voteSites(TID,(RID ; RIDS)) ; VSTS)) =
+        voteSites(TID,RIDS) ; VSTS .
+   eq remove(TID,RID,VSTS) = VSTS [owise] .
+  
+   op genCommits : Address Address OperationList Float ReplicaTable DcReplicas Address -> Config .
+   eq genCommits(A,TID,(write(OID,K,EXPR) OPS),SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC) =
+        genCommits(A,TID,OPS,SQN,[replicatingSites(K,(RIDSS ;; RID ;; RIDSS')) ;; KR],(DR ; dc(DC,(RID ; RIDS))),DC)
+        [ld * float(length(msg2string(commit(TID,ts(A,SQN),DC,A)))), RID <- commit(TID,ts(A,SQN),DC,A)] .
+   eq genCommits(A,TID,((OID X :=read K) OPS),SQN,[KR],DR,DC) = genCommits(A,TID,OPS,SQN,[KR],DR,DC) .
+   eq genCommits(A,TID,nil,SQN,[KR],DR,DC) = null .
+
+
+   rl [receive-commit] :
+      < TABLE : Table | datacenter: DR, AS >
+      < RID : Replica | datastore: VS,
+                        latestCommit: LC, AS' >
+      {T, RID <- commit(TID,ts(A,SQN),DC,A)}
+    =>
+      < TABLE : Table | datacenter: DR, AS >
+      < RID : Replica | datastore: VS,
+                        latestCommit: cmt(LC,VS,ts(A,SQN)), AS' >
+      [if inDC(RID,DC,DR) then ld * float(length(msg2string(committed(TID,RID))))
+	     else rd * float(length(msg2string(committed(TID,RID)))) fi, A <- committed(TID,RID)] .
+	 
+	 
+   op cmt : KeyTimestamps Versions Timestamp -> KeyTimestamps .
+   eq cmt(LC,VS,TS) = $cmt(LC,keyFilter(VS,TS),TS) .
+   op $cmt : KeyTimestamps KeySet Timestamp -> KeyTimestamps .
+   eq $cmt(LC,(K,KS),TS) = $cmt(insert(K,maxts(LC,K,TS),LC),KS,TS) .
+   eq $cmt(LC,empty,TS) = LC .
+  
+   op keyFilter : Versions Timestamp -> KeySet . 
+   eq keyFilter((version(K,V,TS,MD),VS),TS) = K, keyFilter(VS,TS) .
+   eq keyFilter(VS,TS) = empty [owise] .
+
+   op maxts : KeyTimestamps Key Timestamp -> Timestamp .
+   eq maxts(LC,K,TS) = if $hasMapping(LC,K)
+                            then if LC[K] less-than TS
+                                   then TS
+                                   else LC[K]
+                                 fi
+                            else TS
+                          fi . 
+
+  rl [receive-committed] :
+     < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: CMTS, AS > ;; TXNS'), AS' >
+     {T, A <- committed(TID,RID')}
+   =>
+     < A : Client | committed: (TXNS ;; < TID : Txn | commitSites: remove(TID,RID',CMTS), AS > ;; TXNS'), AS' > .
 endm
