@@ -153,9 +153,11 @@ mod RAMP-F is
        genGets(A,TID,OPS,[KR],DR,DC,KT) .
   eq genGets(A,TID,nil,[KR],DR,DC,KT) = null .
 
-
+  *** log here the requested version,
+  *** since the returned ts and md are from a different version
   rl [receive-get] :
-      < M : Monitor | concurReads: TIDS, AS2 >
+      < M : Monitor | concurReads: TIDS, 
+	                  log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD'), AS2 >
       < TABLE : Table | datacenter: DR, AS >
       < RID : Replica | datastore: VS,
                         latestCommit: LC, AS' >
@@ -170,7 +172,8 @@ mod RAMP-F is
 				          else TIDS fi
 		           else if TS == ts(0,0.0)
 		                  then TIDS
-				          else (TIDS ; TID) fi fi fi), AS2 >		 
+				          else (TIDS ; TID) fi fi fi),
+					   log: (RECORD ; record(TID,T1,0.0,(READS, version(K,valmatch(TS,K,VS),TS,mdmatch(TS,K,VS))),WRITES,false) ; RECORD'), AS2 >		 
       < TABLE : Table | datacenter: DR, AS >
       < RID : Replica | datastore: VS,
                         latestCommit: LC, AS' >
@@ -192,6 +195,10 @@ mod RAMP-F is
   op mdmatch : Timestamp Key Versions -> KeySet .
   eq mdmatch(TS,K,(version(K,V,TS,MD),VS)) = MD .
   
+  op valmatch : Timestamp Key Versions -> Value .
+  eq valmatch(TS,K,(version(K,V,TS,MD),VS)) = V .  
+  
+  *** do NOT need to log reads any more
   *** only one RTT for reads
  crl [receive-response1] :
      < M : Monitor | log: (RECORD ; record(TID,T1,0.0,READS,WRITES,false) ; RECORD'), AS2 >
@@ -205,7 +212,7 @@ mod RAMP-F is
    =>
      < TABLE : Table | table: REPLICA-TABLE, datacenter: DR, kvec: insert(K,< TS MD >,KT), AS1 >
      if 1STGETS'[TID] == empty
-	   then < M : Monitor | log: (RECORD ; record(TID,T1,T,(RS, version(K,V,TS,MD)),WRITES,true) ; RECORD'), AS2 >
+	   then < M : Monitor | log: (RECORD ; record(TID,T1,T,READS,WRITES,true) ; RECORD'), AS2 >
             < A : Client  | executing: noActor,
 					        committed: (TXNS ;; < TID : Txn | operations: (OPS (OID X :=read K) OPS'),
                                               readSet: (RS, version(K,V,TS,MD)),

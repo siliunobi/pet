@@ -26,13 +26,13 @@ mod RAMP-SNOW-ANALYSIS is
   vars T T' T1 T2 T1' T2' NUMBER : Float .
   var C : Config .
   vars M TID TID' : Address .
-  vars RECORD RECORD' : Record . 
+  vars RECORD RECORD' RECORD'' : Record . 
   vars READS READS' WRITES WRITES' VS VS' : Versions .
   var FLAG : Bool .
-  vars TS TS' : Timestamp .
-  vars MD MD' : KeySet .
-  vars V V' : Value .
-  var K : Key .
+  vars TS TS' TS1 TS2 TS1' TS2' : Timestamp .
+  vars MD MD' MD1 MD2 MD1' MD2' : KeySet .
+  vars V V' V1 V2 V1' V2' : Value .
+  vars K K1 K2 : Key .
   vars TIDS TIDS' : AddressSet .
   var AS : AttributeSet .
 
@@ -141,6 +141,19 @@ mod RAMP-SNOW-ANALYSIS is
 *** read latency
 
 
+  *** read atomicity
+  op ra : Config -> Float .
+  op ra : Record -> Float .
+  eq ra(< M : Monitor | log: RECORD, AS > C) = ra(RECORD) .
+ ceq ra(RECORD ; record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD' ;
+          record(TID',T1',T2',READS',(version(K1,V1,TS1,MD1),version(K2,V2',TS2',MD2'),WRITES'),true) ; RECORD'') = 0.0 
+	 if TS2 less-than TS2' .
+ ceq ra(RECORD ; record(TID',T1',T2',READS',(version(K1,V1,TS1,MD1),version(K2,V2',TS2',MD2'),WRITES'),true) ; RECORD' ;
+          record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD'') = 0.0 
+	 if TS2 less-than TS2' . 
+  eq ra(RECORD) = 1.0 [owise] .
+
+
   --- PVESTA interfaces
   eq val(0,C) = throughput(C) .
   eq val(1,C) = avgLatency(C) .
@@ -148,6 +161,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(3,C) = pf(C) .
   eq val(4,C) = cr(C) .
   eq val(5,C) = isCr(C) .
+  eq val(6,C) = ra(C) .
   
 endm
 
