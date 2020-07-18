@@ -19,7 +19,7 @@ mod RAMP-SNOW-ANALYSIS is
 
   
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init($1,$2,0,$3,2,20,$4,$6,$7,0,$5) .
+  eq initState = init($1,$2,0,$3,1,5,$4,$6,$7,0,$5) .
 
 
   --- Metrics
@@ -85,74 +85,18 @@ mod RAMP-SNOW-ANALYSIS is
   
   *** 
   op pf : Config -> Float .
-  eq pf(< M : Monitor | log: RECORD, AS > C) = freshReads(RECORD) / totalReads(RECORD) .
-  
-  op totalReads : Record -> Float .
- ceq totalReads((record(TID,T1,T2,READS,WRITES,true) ; RECORD))
-   = totalReads(RECORD) + 1.0
-  if READS =/= empty .
-  eq totalReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD)) = totalReads(RECORD) [owise] .
-  eq totalReads(noRecord) = 0.0 .
-  
-  op freshReads : Record -> Float .
-  op $freshReads : Record Record Float -> Float .
-  eq freshReads(RECORD) = $freshReads(RECORD,RECORD,0.0) .
- ceq $freshReads((record(TID,T1,T2,READS,WRITES,true) ; RECORD),
-                 (record(TID',T1',T2',READS',READS,true) ; RECORD'), NUMBER) 
-   = $freshReads(RECORD,(record(TID',T1',T2',READS',READS,true) ; RECORD'), 
-                 NUMBER + 1.0) 
-  if T1' < T1 and noWriteBetween(T1',T1,READS,RECORD') and READS =/= empty .
-  
- ceq $freshReads((record(TID,T1,T2,(version(K,[0],ts(0,0.0),empty),READS),WRITES,true) ; RECORD),RECORD', NUMBER) 
-   = $freshReads(RECORD,RECORD', NUMBER + 1.0)
-  if noWriteBetween(0.0,T1,(version(K,[0],ts(0,0.0),empty),READS),RECORD') .
-  
-  eq $freshReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD), RECORD', NUMBER) 
-   = $freshReads(RECORD, RECORD', NUMBER) [owise] . 
-  eq $freshReads(noRecord, RECORD', NUMBER) = NUMBER .
-  
-  op noWriteBetween : Float Float Versions Record -> Bool .
- ceq noWriteBetween(T,T',(version(K,V,TS,MD),VS),(record(TID,T1,T2,READS,(version(K,V',TS',MD'),VS'),true) ; RECORD))
-   = false if T < T1 and T1 < T' .
-  eq noWriteBetween(T,T',VS,RECORD) = true [owise] .
-  
   
   *** concurrent reads
   *** assume txns are always committed; owise, need to match TID and "true" TID in LOG
   op cr : Config -> Float .
-  eq cr(< M : Monitor | concurReads: TIDS, log: RECORD, AS > C) = numberOfDiff(TIDS) / totalReads(RECORD) .
-  
-  op diff : AddressSet -> AddressSet .
-  eq diff(TID ; TID ; TIDS) = diff(TID ; TIDS) .
-  eq diff(TIDS) = TIDS [owise] .
-  
-  op numberOfDiff : AddressSet -> Float .
-  op $numberOfDiff : AddressSet -> Float .  
-  eq numberOfDiff(TIDS) = $numberOfDiff(diff(TIDS)) .
-  eq $numberOfDiff(TID ; TIDS) = 1.0 + $numberOfDiff(TIDS) .
-  eq $numberOfDiff(empty) = 0.0 .
-
   op isCr : Config -> Float .
-  eq isCr(< M : Monitor | concurReads: TIDS, AS > C) 
-   = if numberOfDiff(TIDS) > 0.0 then 1.0 else 0.0 fi .
-
     
 *** ryw; ryw vs pf vs cr
 *** read latency
 
-
   *** read atomicity
   op ra : Config -> Float .
-  op ra : Record -> Float .
-  eq ra(< M : Monitor | log: RECORD, AS > C) = ra(RECORD) .
- ceq ra(RECORD ; record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD' ;
-          record(TID',T1',T2',READS',(version(K1,V1,TS1,MD1),version(K2,V2',TS2',MD2'),WRITES'),true) ; RECORD'') = 0.0 
-	 if TS2 less-than TS2' .
- ceq ra(RECORD ; record(TID',T1',T2',READS',(version(K1,V1,TS1,MD1),version(K2,V2',TS2',MD2'),WRITES'),true) ; RECORD' ;
-          record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD'') = 0.0 
-	 if TS2 less-than TS2' . 
-  eq ra(RECORD) = 1.0 [owise] .
-
+  
 
   --- PVESTA interfaces
   eq val(0,C) = throughput(C) .
@@ -162,7 +106,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(4,C) = cr(C) .
   eq val(5,C) = isCr(C) .
   eq val(6,C) = ra(C) .
-  
+      
 endm
 
 ---set clear rules off .
