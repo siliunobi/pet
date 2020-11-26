@@ -1,4 +1,5 @@
-load pframework
+---load pframework
+load apmaude
   *** P *** file name format: pi-"system spec file"
 load pi-query
   *** P *** file name format: fixed
