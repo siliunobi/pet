@@ -13,7 +13,7 @@ mod TEST is
   
   *** Quatex
   op prop : Config -> Float .
-  eq prop({ C | T }) = T .
+  eq prop({ C | T }) = T / 3.0 .
   
   eq val(0,C) = prop(C) .
 endm
