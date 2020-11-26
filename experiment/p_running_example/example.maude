@@ -47,53 +47,6 @@ endm)
   var P : Payload .
   
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   rl [req] :
      (to O from O' : QS')
      < O : Client | queries: QS, AS > 
@@ -111,8 +64,6 @@ endm)
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
    
-  
-
 
   rl [reply] :
      (to O from O' : read(K)) 

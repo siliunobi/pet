@@ -55,55 +55,6 @@ mod PROTOCOL is
   var @M : Msg .  var @ML : MsgList .
   
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   *** P ***
   rl [req-p] :
       {
@@ -116,42 +67,6 @@ mod PROTOCOL is
     @OBJS @DMS | @T } .
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-  
   *** P ***
   rl [issue-p] :
       { 
@@ -162,9 +77,6 @@ mod PROTOCOL is
      < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: 0, replicas: R, AS > 
       delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
       @OBJS @DMS | @T } .  
-  
-
-
 
 
   op propagate_to_from_ : Payload Oids Oid -> Msgs .
