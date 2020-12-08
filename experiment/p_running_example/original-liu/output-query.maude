@@ -45,7 +45,7 @@ mod OBJS is
 endm
 
   
----(
+
   *** P *** renaming: P-
 mod P-QUERY is
   inc OBJS .
@@ -65,7 +65,8 @@ mod P-QUERY is
   *** P *** new variables 
   var @T : Float .    var @OBJS : Objects .
   var @DMS : DMsgs .  var @C : Config .
-  var @M : Msg .      var @ML : MsgList .
+  var @M : Msg .      var @ML : MsgList .  
+  var @MSGS : Msgs .
 
 
   rl [req] :
@@ -151,9 +152,19 @@ mod P-QUERY is
   *** P ***	 
   ceq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: DAT, AS >)
     = true if DAT =/= null .
-endm)
+	
+  *** P ***
+  *** initial state
+  rl [delay-init-1] :
+     { delay-init(@OBJS,@MSGS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-init(@OBJS,@MSGS,@ML) @C
+	   [@T + (sample(exponential(0.1))[rand]), @M] | @T } .
+	   
+  rl [delay-init-2] : delay-init(@OBJS,@MSGS,nil) => null .
+endm
 
-
+---(
 mod P-QUERY is
   including BOOL .
   including OBJS .
@@ -236,4 +247,4 @@ mod P-QUERY is
 < O:Oid : Client | queries: QS:Queries,waiting: empty,read: null,AS:Attributes >
     if DAT:Data =/=(null).Data = true [label finish] .
 endm
-
+)
