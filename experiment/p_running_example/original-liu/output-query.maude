@@ -1,0 +1,239 @@
+load apmaude
+  *** P *** file name format: pi-"system spec file"
+load pi-query
+  *** P *** file name format: fixed
+load sampling-lib
+
+mod SORTS is
+  inc SCHEDULING .
+  pr NAT .
+  
+  sorts Query Queries Key Value Timestamp Data Oids .
+  subsort Data < Payload .
+  subsort Nat < Timestamp .
+  subsort Nat < Value .
+  subsort Query < Queries < Payload .
+  subsort Oid < Oids .
+
+  op <_,_> : Value Timestamp -> Data [ctor] .
+  op null : -> Data .
+  
+  op read : Key -> Query .
+  
+  op ept : -> Queries .
+  op _::_ : Queries Queries -> Queries [assoc id: ept] .
+
+  op empty : -> Oids .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv
+view Data from TRIV to SORTS is sort Elt to Data . endv
+view Oids from TRIV to SORTS is sort Elt to Oids . endv
+
+mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Data} .
+  pr MAP{Key,Oids} .
+  
+  ops Client Server Table : -> ObjType .
+  
+  op queries:_ : Queries -> Attribute .
+  op waiting:_ : Oids  -> Attribute .
+  op read:_    : Data -> Attribute .
+  op replicas:_ : Map{Key,Oids} -> Attribute .  
+  op database:_ : Map{Key,Data} -> Attribute .
+endm
+
+  
+---(
+  *** P *** renaming: P-
+mod P-QUERY is
+  inc OBJS .
+  *** P *** module name format: PI-"system spec module"
+  inc PI-QUERY .
+  *** P *** file name format: fixed
+  inc SAMPLING-LIB .
+  
+  
+  vars O O' TB : Oid .  vars QS QS' : Queries .
+  var OS : Oids .  var R : Map{Key,Oids} .
+  vars AS AS' : Attributes .  var K : Key .
+  var DB : Map{Key,Data} .  vars V V' : Value .
+  var P : Payload .  vars DAT DAT' : Data .  
+  vars TS TS' : Timestamp .
+  
+  *** P *** new variables 
+  var @T : Float .    var @OBJS : Objects .
+  var @DMS : DMsgs .  var @C : Config .
+  var @M : Msg .      var @ML : MsgList .
+
+
+  rl [req] :
+     (to O : QS')
+     < O : Client | queries: QS, AS > 
+  =>
+     < O : Client | queries: (QS :: QS'), AS > .
+	
+	
+  *** P ***
+  rl [issue] :
+     {
+     < O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS > 
+	 @OBJS @DMS | @T }
+  => 
+     {
+     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, replicas: R, AS > 
+	 delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
+     @OBJS @DMS | @T } .  
+	 
+  *** P ***
+  op delay-issue : Oid Key Queries Map{Key,Oids} Attributes MsgList -> DTask .
+
+  rl [delay-issue-1] :
+     { delay-issue(O,K,QS,R,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-issue(O,K,QS,R,AS,@ML) @C 
+     [@T + (delta-issue(O,K,QS,R,AS)[sample(lognormal(mSize(K),0.1))[rand]]), @M] | @T } .
+
+  rl [delay-issue-2] : delay-issue(O,K,QS,R,AS,nil) => null .
+  
+  
+  eq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS >)
+   = true .
+
+
+  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+
+
+  *** P ***
+  rl [reply] :
+     {
+     (to O from O' : read(K)) 
+     < O : Server | database: DB, AS >
+	 @OBJS @DMS | @T }
+  => 
+     {
+     < O : Server | database: DB, AS > 
+	 delay-reply(O,O',K,DB,AS,sort(to O' from O : DB[K]))
+     @OBJS @DMS | @T } . 
+
+  *** P ***	 
+  op delay-reply : Oid Oid Key Map{Key,Data} Attributes MsgList -> DTask .	 
+
+  rl [delay-reply-1] :
+     { delay-reply(O,O',K,DB,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-reply(O,O',K,DB,AS,@ML) @C 
+     [@T + (delta-reply(O,O',K,DB,AS)[sample(lognormal(mSize(DB[K]),0.1))[rand]]), @M] | @T } .
+  
+  rl [delay-reply-2] : delay-reply(O,O',K,DB,AS,nil) => null .	 
+
+
+  rl [update] :
+     (to O from O' : DAT') 
+     < O : Client | read: DAT, waiting: (O' ; OS), AS >
+  => 
+     < O : Client | read: latest(DAT,DAT'), waiting: OS, AS > .
+	 
+  op latest : Data Data -> Data .
+  eq latest(< V,TS >,null) = < V,TS > .
+  eq latest(null,< V,TS >) = < V,TS > .
+  eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
+   
+ crl [finish] :
+     < O : Client | queries: (read(K) :: QS), waiting: empty, read: DAT, AS >
+  => 
+     < O : Client | queries: QS, waiting: empty, read: null, AS > 
+     if DAT =/= null .
+	 
+  *** P ***	 
+  ceq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: DAT, AS >)
+    = true if DAT =/= null .
+endm)
+
+
+mod P-QUERY is
+  including BOOL .
+  including OBJS .
+  including PI-QUERY .
+  including SAMPLING-LIB .
+  op delay-issue : Oid Key Queries Map{Key,Oids}Attributes MsgList -> DTask .
+  op delay-reply : Oid Key Oid Map{Key,Data}Attributes MsgList -> DTask .
+  op latest : Data Data -> Data .
+  op propagate_to_from_ : Payload Oids Oid -> Msgs .
+  eq latest(null,< V:Value,TS:Timestamp >)
+    = < V:Value,TS:Timestamp > .
+  eq latest(< V:Value,TS:Timestamp >,null)
+    = < V:Value,TS:Timestamp > .
+  eq latest(< V:Value,TS:Timestamp >,< V':Value,TS':Timestamp >)
+    = if TS:Timestamp >= TS':Timestamp then < V:Value,TS:Timestamp > else < V':Value,TS':Timestamp > fi .
+  eq objectEnabled(
+< O:Oid : Client | queries:(read(K:Key):: QS:Queries),waiting: empty,read: null,replicas: R:Map{Key,Oids},AS:Attributes
+    >)
+    = true .
+  eq propagate P:Payload to empty from O':Oid
+    = (null).DMsgs .
+  eq propagate P:Payload to O:Oid ; OS:Oids from O':Oid
+    = (propagate P:Payload to OS:Oids from O':Oid)to O:Oid from O':Oid : P:Payload .
+  ceq objectEnabled(
+< O:Oid : Client | queries:(read(K:Key):: QS:Queries),waiting: empty,read: DAT:Data,AS:Attributes >)
+    = true
+    if DAT:Data =/=(null).Data = true .
+  rl (to O:Oid : QS':Queries)
+< O:Oid : Client | queries: QS:Queries,AS:Attributes >
+    =>
+< O:Oid : Client | queries:(QS:Queries :: QS':Queries),AS:Attributes > [label req] .
+  rl (to O:Oid from O':Oid : DAT':Data)
+< O:Oid : Client | read: DAT:Data,waiting:(O':Oid ; OS:Oids),AS:Attributes >
+    =>
+< O:Oid : Client | read: latest(DAT:Data,DAT':Data),waiting: OS:Oids,AS:Attributes > [label update] .
+  rl
+{@C:Config delay-issue(O:Oid,K:Key,QS:Queries,R:Map{Key,Oids},AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    =>
+{(@C:Config[@T:Float +(delta-issue(O:Oid,K:Key,QS:Queries,R:Map{Key,Oids},AS:Attributes)[sample(lognormal(mSize(K:Key),
+    1.0000000000000001e-1))[rand]]),@M:Msg])delay-issue(O:Oid,K:Key,QS:Queries,R:Map{Key,Oids},AS:Attributes,
+    @ML:MsgList)|
+@T:Float} [label delay-issue] .
+  rl
+{@C:Config delay-reply(O':Oid,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    =>
+{(@C:Config[@T:Float +(delta-reply(O:Oid,O':Oid,K:Key,DB:Map{Key,Data},AS:Attributes)[sample(lognormal(mSize(DB:Map{
+    Key,Data}[K:Key]),1.0000000000000001e-1))[rand]]),@M:Msg])delay-reply(O':Oid,K:Key,O:Oid,DB:Map{Key,Data},
+    AS:Attributes,@ML:MsgList)|
+@T:Float} [label delay-reply] .
+  rl
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries:(read(K:Key):: QS:Queries),waiting: empty,read: null,replicas: R:Map{Key,Oids},AS:Attributes
+    > |
+@T:Float}
+    =>
+{@OBJS:Objects @DMS:DMsgs(
+< O:Oid : Client | queries:(read(K:Key):: QS:Queries),waiting:(R:Map{Key,Oids}[K:Key]),read: null,replicas: R:Map{Key,
+    Oids},AS:Attributes > propagate read(K:Key)to R:Map{Key,Oids}[K:Key]from O:Oid)delay-issue(O:Oid,K:Key,QS:Queries,
+    R:Map{Key,Oids},AS:Attributes,sort(propagate read(K:Key)to R:Map{Key,Oids}[K:Key]from O:Oid))|
+@T:Float} [label issue] .
+  rl
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O':Oid : read(K:Key))
+< O:Oid : Server | database: DB:Map{Key,Data},AS:Attributes > |
+@T:Float}
+    =>
+{@OBJS:Objects @DMS:DMsgs(
+< O:Oid : Server | database: DB:Map{Key,Data},AS:Attributes > to O':Oid from O:Oid : DB:Map{Key,Data}[
+    K:Key])delay-reply(O':Oid,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,sort(to O':Oid from O:Oid : DB:Map{Key,Data}[
+    K:Key]))|
+@T:Float} [label reply] .
+  rl delay-issue(O:Oid,K:Key,QS:Queries,R:Map{Key,Oids},AS:Attributes,nil)
+    => (null).DMsgs [label delay-issue] .
+  rl delay-reply(O':Oid,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,nil)
+    => (null).DMsgs [label delay-reply] .
+  crl
+< O:Oid : Client | queries:(read(K:Key):: QS:Queries),waiting: empty,read: DAT:Data,AS:Attributes >
+    =>
+< O:Oid : Client | queries: QS:Queries,waiting: empty,read: null,AS:Attributes >
+    if DAT:Data =/=(null).Data = true [label finish] .
+endm
+
