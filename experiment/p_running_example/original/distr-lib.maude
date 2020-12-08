@@ -1,4 +1,4 @@
-fmod DISTR-LIB is
+(fmod DISTR-LIB is
   pr FLOAT + QID .
   
   sort RFun .  *** real function sort
@@ -13,14 +13,15 @@ fmod DISTR-LIB is
   
   sorts Tuple Tuples .    subsort Tuple < Tuples .  *** interface for Pi
 
-  op [_,_,_] : Qid RFun RFun -> Tuple [ctor] .
-  op [_,_] : Qid RFun -> Tuple [ctor] .
+  op `[_`,_`,_`] : Qid RFun RFun -> Tuple [ctor] .
+  op `[_`,_`] : Qid RFun -> Tuple [ctor] .
 
   op empty : -> Tuples [ctor] .
   op _;;_ : Tuples Tuples -> Tuples [ctor comm assoc id: empty] .
   
   op tpls : -> Tuples .
   
-  op _[_] : RFun Float -> Float [ctor] .  *** real function application
-endfm
+  op _`[_`] : RFun Float -> Float [ctor] .  *** real function application
+endfm)
+
 

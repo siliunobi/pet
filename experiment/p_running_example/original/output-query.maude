@@ -80,7 +80,7 @@ mod P-QUERY is
 	 @OBJS @DMS | @T }
   => 
      {
-     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, replicas: R, AS > 
+     < O : Client | queries: (read(K) :: QS), waiting: (FKR[K]), read: null, replicas: R, AS > 
 	 delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
      @OBJS @DMS | @T } .  
 	 
@@ -95,7 +95,7 @@ mod P-QUERY is
 
   rl [delay-issue-2] : delay-issue(O,K,QS,R,AS,nil) => null .
   
-  
+  --- if LHS no msg 
   eq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS >)
    = true .
 

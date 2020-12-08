@@ -1,6 +1,6 @@
 load apmaude
 
-mod SORTS is
+(mod SORTS is
   inc SCHEDULING .
   pr NAT .
   
@@ -11,7 +11,7 @@ mod SORTS is
   subsort Query < Queries < Payload .
   subsort Oid < Oids .
 
-  op <_,_> : Value Timestamp -> Data [ctor] .
+  op <_`,_> : Value Timestamp -> Data [ctor] .
   op null : -> Data .
   
   op read : Key -> Query .
@@ -21,12 +21,15 @@ mod SORTS is
 
   op empty : -> Oids .
   op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
-endm
-view Key from TRIV to SORTS is sort Elt to Key . endv
-view Data from TRIV to SORTS is sort Elt to Data . endv
-view Oids from TRIV to SORTS is sort Elt to Oids . endv
+endm)
 
-mod OBJS is
+
+
+(view Key from TRIV to SORTS is sort Elt to Key . endv)
+(view Data from TRIV to SORTS is sort Elt to Data . endv)
+(view Oids from TRIV to SORTS is sort Elt to Oids . endv)
+
+(mod OBJS is
   inc SORTS .
   pr MAP{Key,Data} .
   pr MAP{Key,Oids} .
@@ -38,9 +41,9 @@ mod OBJS is
   op read:_    : Data -> Attribute .
   op replicas:_ : Map{Key,Oids} -> Attribute .  
   op database:_ : Map{Key,Data} -> Attribute .
-endm
+endm)
 
-mod QUERY is
+(mod QUERY is
   inc OBJS .
   
   vars O O' TB : Oid .  vars QS QS' : Queries .
@@ -51,12 +54,18 @@ mod QUERY is
   vars TS TS' : Timestamp .
   
 
-  rl [req] :
-     (to O : QS')
-     < O : Client | queries: QS, AS > 
-  =>
-     < O : Client | queries: (QS :: QS'), AS > .
   
+  rl [reply] :
+     (to O from O' : read(K)) 
+     < O : Server | database: DB, AS >
+  => 
+     < O : Server | database: DB, AS > 
+     (to O' from O : DB[K]) .
+
+
+
+
+
 
   rl [issue] :
      < O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS > 
@@ -64,16 +73,20 @@ mod QUERY is
      < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, replicas: R, AS > 
      (propagate read(K) to R[K] from O) .
 
+
+
   op propagate_to_from_ : Payload Oids Oid -> Msgs . 
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
+
+
+  rl [req] :
+     (to O : QS')
+     < O : Client | queries: QS, AS > 
+  =>
+     < O : Client | queries: (QS :: QS'), AS > .
    
-  rl [reply] :
-     (to O from O' : read(K)) 
-     < O : Server | database: DB, AS >
-  => 
-     < O : Server | database: DB, AS > 
-     (to O' from O : DB[K]) .
+
    
 
   rl [update] :
@@ -92,4 +105,5 @@ mod QUERY is
   => 
      < O : Client | queries: QS, waiting: empty, read: null, AS > 
      if DAT =/= null .
-endm
+endm)
+

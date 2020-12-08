@@ -1,6 +1,37 @@
 set show advisories off .
 
-fmod TERM-ORDER{X :: TRIV} is
+(fmod MAP{X :: TRIV, Y :: TRIV} is
+  protecting BOOL .
+  sorts Entry{X,Y} Map{X,Y} .
+  subsort Entry{X,Y} < Map{X,Y} .
+  
+  op _|->_ : X$Elt Y$Elt -> Entry{X,Y} [ctor] .
+  op empty : -> Map{X,Y} [ctor] .
+  op _`,_ : Map{X,Y} Map{X,Y} -> Map{X,Y} [ctor assoc comm id: empty prec 121 format (d r os d)] .
+  
+  var D : X$Elt .
+  var R : Y$Elt .
+  var R' : Y$Elt .
+  var M : Map{X,Y} .
+  
+  op insert : X$Elt Y$Elt Map{X,Y} -> Map{X,Y} .
+  eq insert(D, R, (M, D |-> R'))
+   = if $hasMapping(M, D)
+       then insert(D, R, M)
+       else (M, D |-> R)
+     fi .
+  eq insert(D, R, M) = (M, D |-> R) [owise] .
+
+  op $hasMapping : Map{X,Y} X$Elt -> Bool .
+  eq $hasMapping((M, D |-> R), D) = true .
+  eq $hasMapping(M, D) = false [owise] .
+  
+  op _`[_`] : Map{X,Y} X$Elt -> Y$Elt [prec 23] .
+  eq (M, D |-> R)[D] = R .
+
+endfm)
+
+(fmod TERM-ORDER{X :: TRIV} is
   pr EXT-BOOL + CONVERSION + META-LEVEL .
 
   vars E F : [X$Elt] .
@@ -20,9 +51,9 @@ fmod TERM-ORDER{X :: TRIV} is
   eq $lt(empty, B) = true .
   eq $lt(C, empty) = false .
   eq $lt((T, C), (U, D)) = if T == U then $lt(C, D) else $lt(T, U) fi .
-endfm
+endfm)
 
-fmod CONFIG is
+(fmod CONFIG is
   pr FLOAT .
 
   sorts Object Msg Config .
@@ -59,11 +90,11 @@ fmod CONFIG is
   *** Attributes:
   op mt : -> Attributes .
   op _`,_ : Attributes Attributes -> Attributes [assoc comm id: mt] .
-endfm
+endfm)
 
-view Msg from TRIV to CONFIG is sort Elt to Msg . endv
+(view Msg from TRIV to CONFIG is sort Elt to Msg . endv)
 
-fmod SORTING is
+(fmod SORTING is
   pr CONFIG + TERM-ORDER{Msg} .
   
   *** MsgList:
@@ -86,9 +117,9 @@ fmod SORTING is
    = if lt(M,M') then M :: M' :: ML
        else M' :: insert(M,ML) fi .
   eq insert(M,nil) = M .  
-endfm
+endfm)
 
-mod SCHEDULING is
+(mod SCHEDULING is
   inc SORTING .
   
   var OBJ : Object .  var OBJS : Objects .  
@@ -110,9 +141,9 @@ mod SCHEDULING is
   eq times(DMSGS) = times(DMSGS,Infinity) .
   eq times(([T,MSG] DMSGS),T') = times(DMSGS,min(T,T')) .
   eq times(null,T') = T' .
-endm
+endm)
 
-mod INTERFACE is
+(mod INTERFACE is
   pr SCHEDULING .
 
   *** Operations supported by PVeStA
@@ -127,4 +158,4 @@ mod INTERFACE is
 
   eq tick(C) = C .
   eq getTime({ C | T }) = T .
-endm
+endm)

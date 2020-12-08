@@ -1,7 +1,8 @@
 load distr-lib
 load query
+load sampling-lib 
 
-mod PI-QUERY is 
+(mod PI-QUERY is 
   inc DISTR-LIB + QUERY .
  	
   *** user-defined distributions
@@ -40,4 +41,5 @@ mod PI-QUERY is
             ['init,exponential(0.1)] ;; 
 			['issue,lognormal(mSize(K),0.1),delta-issue(O,K,QS,R,AS)] [nonexec] .
 
-endm
+endm)
+

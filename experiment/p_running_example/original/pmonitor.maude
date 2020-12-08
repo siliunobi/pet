@@ -1,0 +1,344 @@
+load full-maude
+
+fmod TAG-COMMANDS is
+    including COMMANDS .
+
+    op monitor_. : @ModExp@ -> @Command@ .
+    
+endfm 
+
+
+fmod META-TAG-SIGNATURE is
+	including META-FULL-MAUDE-SIGN .
+	
+	op TagGRAMMAR : -> FModule .
+	eq TagGRAMMAR = addImports((including 'TAG-COMMANDS .), GRAMMAR ) .
+
+endfm
+
+fmod TAG-BUILTINS is
+    including UNIT .
+    including DATABASE-DECLS  .
+    including EXT-QID-LIST .
+    
+    sort OERTriple .
+    op <_;_;_> : OpDeclSet EquationSet RuleSet -> OERTriple [ctor] .
+    op getOps : OERTriple -> OpDeclSet .
+    op getEqs : OERTriple -> EquationSet .
+    op getRls : OERTriple -> RuleSet .
+
+    eq getOps(< OPDS ; EqS ; R >) = OPDS .
+    eq getEqs(< OPDS ; EqS ; R >) = EqS .
+    eq getRls(< OPDS ; EqS ; R >) = R .
+    
+    op tag : SModule SModule SModule -> SModule .
+    op tagID : Qid -> Qid .
+    op delayID : Qid -> Qid .    
+    op deltaID : Qid -> Qid .  
+
+    vars SM SM1 : SModule .
+    var Q : Qid .
+    var IL : ImportList .
+    var S : SortSet .
+    var SS : SubsortDeclSet .
+    var CDS : ClassDeclSet .
+    var SCDS : SubclassDeclSet .
+    var O : OpDeclSet .
+    var MS : MsgDeclSet .
+    var M : MembAxSet .
+    var E : EquationSet .
+    var R : RuleSet .
+    var DB : Database .
+
+    ceq tag(mod Q is IL sorts S .  SS O M E R endm,SM, SM1) = 
+           mod tagID(Q)  is IL (including string2qidList("PI-" + string(Q)) .)(including 'SAMPLING-LIB .)  
+           sorts S . SS (O OPDS) M (E EqS) RS endm 
+    if  < OPDS ; EqS ; RS > := bp(copeMsg(R, SM,SM1)) .
+
+    vars T T' T2 T3 : Term .
+    var ATS : AttrSet .
+    var B : Bool .
+    var CD : Condition .
+    var ATR : AttrSet .
+    var Rl : Rule .
+    var RS : RuleSet .
+    var QL : QidList .
+    var AtS : AttrSet .
+    var OPDS : OpDeclSet .
+    var EqS : EquationSet .
+    var TP : Type .
+    var LBL : Qid .
+    vars TL TL' : TermList .
+
+    op copeMsg : RuleSet SModule SModule -> OERTriple .
+
+
+        --- if a msg appears at RHL of a rule 
+    ceq copeMsg((crl T => T' if CD [ATR label(LBL)] .) R, SM,SM1) = 
+       < OPDS genDelayOp(T,LBL) ; genEqs((crl T => T' if CD [ATR label(LBL)] .), SM) EqS  ; 
+         genRls(T,LBL,SM1) RS  
+        (crl wrapLeft(T) => wrapRight(T,T',TL',LBL) if CD [ATR label(LBL)] .)  > 
+       if '__[TL] := T' /\ 
+       TL' := getMessages(TL,SM) /\ 
+       TL' =/= empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .  
+
+    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1) = 
+        < OPDS ; genEqs((crl T => T' if CD [ATR] .), SM) EqS ; RS (crl T => T' if CD [ATR] .) > 
+    if Q[TL] := T' /\ 
+       Q =/= '__ /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .    
+
+    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1) = 
+        < OPDS ; genEqs((crl T => T' if CD [ATR] .), SM) EqS ; RS (crl T => T' if CD [ATR] .) > 
+    if '__[TL] := T' /\ 
+       getMessages(TL,SM) == empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .   
+    
+    --- if a msg appears at RHL of a rule 
+    ceq copeMsg((rl T => T' [ATR label(LBL)] .) R, SM,SM1) = 
+       < OPDS genDelayOp(T,LBL) ; 
+        genEqs((rl T => T' [ATR label(LBL)] .), SM) EqS  ; 
+        genRls(T,LBL,SM1) RS  (rl wrapLeft(T) => wrapRight(T,T',TL',LBL) [ATR label(LBL)] .)  > 
+       if '__[TL] := T' /\ 
+       TL' := getMessages(TL,SM) /\ 
+       TL' =/= empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .    
+
+          --- if no msg appears at RHL, skip it. 
+    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1) = 
+        < OPDS ; genEqs((rl T => T' [ATR] .), SM) EqS ; RS (rl T => T' [ATR] .) > 
+    if '__[TL] := T' /\ 
+       getMessages(TL,SM) == empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .
+
+    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1) = 
+        < OPDS ; genEqs((rl T => T' [ATR] .), SM) EqS ; RS (rl T => T' [ATR] .) > 
+    if Q[TL] := T' /\ 
+       Q =/= '__ /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .
+
+
+    op genEqs : Rule SModule -> EquationSet .
+    ceq genEqs(rl T => T' [ATR] ., SM) = none 
+     if '__[TL] := T /\ getMessages(TL,SM) =/= empty .
+
+    ceq genEqs(rl T => T' [ATR] ., SM) = (eq 'objectEnabled[T] = 'true.Bool [none] .) 
+     if Q[TL] := T /\ Q =/= '__ . 
+
+    ceq genEqs(rl T => T' [ATR] ., SM) = (eq 'objectEnabled[T] = 'true.Bool [none] .) 
+     if '__[TL] := T /\ getMessages(TL,SM) == empty .      
+
+    ceq genEqs(crl T => T' if CD [ATR] ., SM) = none 
+     if '__[TL] := T /\ getMessages(TL,SM) =/= empty .
+
+    ceq genEqs(crl T => T' if CD [ATR] ., SM) = 
+      (ceq 'objectEnabled[T] = 'true.Bool if CD [none] .)  
+     if Q[TL] := T /\ Q =/= '__ .  
+
+    ceq genEqs(crl T => T' if CD [ATR] ., SM) = 
+      (ceq 'objectEnabled[T] = 'true.Bool if CD [none] .) 
+     if '__[TL] := T /\ getMessages(TL,SM) == empty .      
+
+
+    eq copeMsg(none,SM,SM1) = < none ; none ; none > .
+
+    op genDelayOp : Term Qid -> OpDecl .
+
+    eq genDelayOp(T,LBL) = (op delayID(LBL) : getSorts(T) 'MsgList -> 'DTask [none] . ) .
+
+    op genRls : Term Qid SModule -> RuleSet .
+    ceq genRls(T, LBL,SM) = (
+          rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
+          rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,
+          '_`[_`][T3,'_`[_`]['sample[T2],'rand.Float]]],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] [label(delayID(LBL))] . ) 
+    if T2,T3 := get23TermsByID(LBL, SM) .
+
+    ceq genRls(T, LBL,SM) = (
+          rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
+          rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,'_`[_`]['sample[T2],'rand.Float]],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] [label(delayID(LBL))] . ) 
+    if T2 := get23TermsByID(LBL, SM) .
+
+
+    op get23TermsByID : Qid SModule -> TermList .
+    op get23TermsByID : Qid Term -> TermList .
+    ceq get23TermsByID(LBL, SM) = get23TermsByID(LBL, EqS)
+       if EqS := getEqs(SM) .
+    eq get23TermsByID(LBL, (eq 'tpls.Tuples = T  [nonexec] .) EqS) = 
+      get23TermsByID(upTerm(LBL), T) .
+
+   op get23TermsByID : Constant EquationSet -> TermList .
+   var C1 : Constant .
+   eq get23TermsByID(C, '`[_`,_`,_`][C, T2, T3]) = (T2, T3) .
+   eq get23TermsByID(C, '`[_`,_`][C, T2]) = T2 .
+   eq get23TermsByID(C, '_;;_['`[_`,_`,_`][C, T2, T3],T]) = (T2, T3) .
+   eq get23TermsByID(C, '_;;_['`[_`,_`][C, T2],T]) = T2 .
+   ceq get23TermsByID(C, '_;;_['`[_`,_`][C1, T2],T]) =  get23TermsByID(C,T) if C =/= C1 .
+   ceq get23TermsByID(C, '_;;_['`[_`,_`,_`][C1, T2, T3],T]) = get23TermsByID(C,T) if C =/= C1 .
+
+
+    op getSorts : Term -> TypeList .
+    eq getSorts(T) = vars2Types(getVars(T)) .
+
+    op vars2Types : TermList -> TypeList .
+    eq vars2Types((V, TL)) = getType(V) vars2Types(TL) .
+    eq vars2Types(empty) = nil .
+
+    op getVars : Term -> TermList . --- get list of variables (remove dupulicates)
+    op getVarAux : TermList -> TermList .
+    
+    var C : Constant .
+    var V : Variable .
+
+    eq is T subTermOf empty = false .
+
+    eq getVars(C) = empty .
+    eq getVars(V) = V .
+    eq getVars(Q[TL]) = getVarAux(TL) .
+    eq getVarAux((C, TL)) = getVarAux(TL) .
+    eq getVarAux((V, TL)) = 
+        if is V subTermOf TL then getVarAux(TL) else (V, getVarAux(TL)) fi .
+    eq getVarAux((Q[TL], TL')) = getVarAux((TL, TL')) .
+    eq getVarAux(empty) = empty .
+
+    var RP : ResultPair? .
+
+    op getMessages : TermList SModule -> TermList .
+
+    --- to get messages from a term 
+    ceq getMessages((T,TL), SM) = 
+        (if RP :: ResultPair and (getType(RP) == 'Msgs or getType(RP) == 'Msg) then  
+            T, getMessages(TL, SM)
+          else 
+            getMessages(TL, SM)
+          fi
+        )
+     if RP := metaReduce(SM,T) .
+
+     eq getMessages(empty,SM) = empty .
+
+     var OER : OERTriple .
+     op bp : OERTriple  -> OERTriple .
+     eq bp(OER) = OER .
+
+    op wrapLeft : Term -> Term .
+    --- LHS, RHS, Msgs, Label 
+    op wrapRight : Term Term Term Qid -> Term .
+
+    eq wrapLeft(T) = '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,T],'@T:Float] . 
+    eq wrapRight(T, T',TL,LBL) = '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,T',delayID(LBL)[getVars(T),'sort[TL]]],'@T:Float] .
+
+    eq deltaID(Q) = string2qidList("delta-" + string(Q)) .
+    eq delayID(Q) = string2qidList("delay-" + string(Q)) .
+    eq tagID(Q) = string2qidList("P-" + string(Q)) .
+    ---eq tagID(Q) = string2qidList(string(Q)) .
+    
+endfm
+    
+    
+mod TAG-DATABASE-HANDLING is
+    protecting DATABASE-HANDLING .
+    protecting META-TAG-SIGNATURE .    
+    including TAG-BUILTINS .
+    
+    var N 				: Nat .
+    var X@Database         : DatabaseClass .
+    var O 				: Oid .
+    var QI 				: Qid .
+    vars QIL QIL' QIL''	        : QidList .
+    vars T T' T''		        : Term .
+    vars H H'			        : Header .
+    var Q 				: Qid .
+    vars DB DB' DB''           	: Database .
+    var F					: Qid .
+    vars MD M	M'	M''		: Module .
+    var Atts 			        : AttributeSet .
+    vars RP RP'			: ResultPair? .
+    vars ME ME' ME''	                : ModuleExpression . 
+    
+    crl [handle-tag-func] : 
+        < O         : X@Database | db : DB,
+				   input     : ('monitor_.[T]),
+				   output  : nil, Atts > => 
+        < O         : X@Database | db : DB'',
+				   input     : nilTermList,
+				    output : ('New 'module '\g Q '\o 'with 'monitors 'generated!),
+				   Atts  >
+      if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
+	  M := getTopModule(ME', DB') /\ 
+	  M' := tag(M,getFlatModule(ME',DB'),getTopModule(string2qidList("PI-" + string(getName(M))),DB')) /\
+	  Q := getName(M') /\ 
+	  DB'' := insTermModule(Q,M',DB') .
+endm 
+
+
+mod MONITORING is
+    extending LOOP-MODE .
+    protecting TAG-DATABASE-HANDLING .
+    
+    subsort Object < State .
+    op o : -> Oid .
+    
+    var H 				: Header .
+    var O 				: Oid .
+    var X@Database 		        : DatabaseClass .
+    var QI 				: Qid .
+    vars QIL QIL' QIL''             : QidList .
+    var TL 				: TermList .
+    var DB 				: Database .
+    var Atts 			: AttributeSet .
+    
+    op init 			: -> System .
+    
+    
+    
+    rl [init] : init => [nil,
+	  < o		: Database | 
+	  db		: initialDatabase, 
+	  input 	: nilTermList , 
+          default      : 'CONVERSION ,
+	  output 	: nil >,
+	  ('\s '\s '\s '\s '\s '\g string2qidList("Welcome to PET!") '\o)] .
+    
+    rl [input] : 	[QI QIL, 
+	  < O 			: X@Database | 
+	  input 		: nilTermList, 
+	  output 		: nil, Atts >,  
+	  QIL' ] => 
+      if metaParse(TagGRAMMAR, QI QIL, '@Input@) :: ResultPair
+	then
+	  [nil, 
+	    < O 		: X@Database | 
+	    input 		: getTerm(metaParse(TagGRAMMAR, QI QIL, '@Input@)), 
+	    output 		: nil, Atts >, 
+	    QIL']
+	else 
+	  [nil, 
+	    < O 		: X@Database | 
+	    input 		: nilTermList, 
+	    output 		: ('\r 'WARNING: '\o printSyntaxError(metaParse(TagGRAMMAR, QI QIL, '@Input@), QI QIL) '\n 
+	      'ERROR: 'No 'parse 'for 'input.), Atts >, 
+	    QIL' ]
+	fi .
+    
+    rl 	[output] : 	[QIL, < O : X@Database | 
+	  output 	: (QI QIL'), Atts >,
+	  QIL''] =>
+	[QIL, < O 	: X@Database | 
+	  output 	: nil, Atts >, (QI QIL' QIL'')] .
+endm
+
+set print conceal on .
+
+ print conceal mod_is_sorts_._____endm .
+ print conceal fmod_is_sorts_.____endfm .
+print conceal db .
+    
+loop init .
+    
