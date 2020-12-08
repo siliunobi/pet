@@ -45,7 +45,7 @@ mod OBJS is
 endm
 
   
----(
+
   *** P *** renaming: P-
 mod P-QUERY is
   inc OBJS .
@@ -65,7 +65,8 @@ mod P-QUERY is
   *** P *** new variables 
   var @T : Float .    var @OBJS : Objects .
   var @DMS : DMsgs .  var @C : Config .
-  var @M : Msg .      var @ML : MsgList .
+  var @M : Msg .      var @ML : MsgList .  
+  var @MSGS : Msgs .
 
 
   rl [req] :
@@ -73,19 +74,19 @@ mod P-QUERY is
      < O : Client | queries: QS, AS > 
   =>
      < O : Client | queries: (QS :: QS'), AS > .
-	
-	
+  
+  
   *** P ***
   rl [issue] :
      {
      < O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS > 
-	 @OBJS @DMS | @T }
+   @OBJS @DMS | @T }
   => 
      {
      < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, replicas: R, AS > 
-	 delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
+   delay-issue(O,K,QS,R,AS,sort(propagate read(K) to R[K] from O))
      @OBJS @DMS | @T } .  
-	 
+   
   *** P ***
   op delay-issue : Oid Key Queries Map{Key,Oids} Attributes MsgList -> DTask .
 
@@ -112,15 +113,15 @@ mod P-QUERY is
      {
      (to O from O' : read(K)) 
      < O : Server | database: DB, AS >
-	 @OBJS @DMS | @T }
+   @OBJS @DMS | @T }
   => 
      {
      < O : Server | database: DB, AS > 
-	 delay-reply(O,O',K,DB,AS,sort(to O' from O : DB[K]))
+   delay-reply(O,O',K,DB,AS,sort(to O' from O : DB[K]))
      @OBJS @DMS | @T } . 
 
-  *** P ***	 
-  op delay-reply : Oid Oid Key Map{Key,Data} Attributes MsgList -> DTask .	 
+  *** P ***  
+  op delay-reply : Oid Oid Key Map{Key,Data} Attributes MsgList -> DTask .   
 
   rl [delay-reply-1] :
      { delay-reply(O,O',K,DB,AS,(@M :: @ML)) @C | @T }
@@ -128,7 +129,7 @@ mod P-QUERY is
      { delay-reply(O,O',K,DB,AS,@ML) @C 
      [@T + (delta-reply(O,O',K,DB,AS)[sample(lognormal(mSize(DB[K]),0.1))[rand]]), @M] | @T } .
   
-  rl [delay-reply-2] : delay-reply(O,O',K,DB,AS,nil) => null .	 
+  rl [delay-reply-2] : delay-reply(O,O',K,DB,AS,nil) => null .   
 
 
   rl [update] :
@@ -136,7 +137,7 @@ mod P-QUERY is
      < O : Client | read: DAT, waiting: (O' ; OS), AS >
   => 
      < O : Client | read: latest(DAT,DAT'), waiting: OS, AS > .
-	 
+   
   op latest : Data Data -> Data .
   eq latest(< V,TS >,null) = < V,TS > .
   eq latest(null,< V,TS >) = < V,TS > .
@@ -147,13 +148,23 @@ mod P-QUERY is
   => 
      < O : Client | queries: QS, waiting: empty, read: null, AS > 
      if DAT =/= null .
-	 
-  *** P ***	 
+   
+  *** P ***  
   ceq objectEnabled(< O : Client | queries: (read(K) :: QS), waiting: empty, read: DAT, AS >)
     = true if DAT =/= null .
-endm)
+  
+  *** P ***
+  *** initial state
+  rl [delay-init-1] :
+     { delay-init(@OBJS,@MSGS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-init(@OBJS,@MSGS,@ML) @C
+     [@T + (sample(exponential(0.1))[rand]), @M] | @T } .
+     
+  rl [delay-init-2] : delay-init(@OBJS,@MSGS,nil) => null .
+endm
 
-
+---(
 mod P-QUERY is
   including BOOL .
   including OBJS .
@@ -236,4 +247,4 @@ mod P-QUERY is
 < O:Oid : Client | queries: QS:Queries,waiting: empty,read: null,AS:Attributes >
     if DAT:Data =/=(null).Data = true [label finish] .
 endm
-
+)

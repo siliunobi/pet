@@ -52,7 +52,7 @@ fmod TAG-BUILTINS is
 
     ceq tag(mod Q is IL sorts S .  SS O M E R endm,SM, SM1) = 
            mod tagID(Q)  is IL (including string2qidList("PI-" + string(Q)) .)(including 'SAMPLING-LIB .)  
-           sorts S . SS (O OPDS) M (E EqS) RS endm 
+           sorts S . SS (O OPDS) M (E EqS) RS genDelayInit(SM1) endm 
     if  < OPDS ; EqS ; RS > := bp(copeMsg(R, SM,SM1)) .
 
     vars T T' T2 T3 : Term .
@@ -69,6 +69,16 @@ fmod TAG-BUILTINS is
     var TP : Type .
     var LBL : Qid .
     vars TL TL' : TermList .
+
+
+    op genDelayInit : SModule -> RuleSet .
+    eq genDelayInit(SM) =  
+    (rl '`{_|_`}['__['C:Config,'delay-init['OBJS:Objects,'MSGS:Msgs,'_::_['M:Msg,'ML:MsgList]]],'T:Float] => 
+      '`{_|_`}['__['__['C:Config,'`[_`,_`]['_+_['T:Float,'_`[_`]['sample[get23TermsByID('init, SM)],'rand.Float]],'M:Msg]],
+      'delay-init['OBJS:Objects,'MSGS:Msgs,
+      'ML:MsgList]],'T:Float] [label('delay-init-1)] .
+      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) .
+
 
     op copeMsg : RuleSet SModule SModule -> OERTriple .
 

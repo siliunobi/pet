@@ -90,7 +90,16 @@ endfm)
   *** Attributes:
   op mt : -> Attributes .
   op _`,_ : Attributes Attributes -> Attributes [assoc comm id: mt] .
+
+
+
+  
+  
+
 endfm)
+
+
+
 
 (view Msg from TRIV to CONFIG is sort Elt to Msg . endv)
 
@@ -119,8 +128,22 @@ endfm)
   eq insert(M,nil) = M .  
 endfm)
 
-(mod SCHEDULING is
+(mod INIT-HANDLER is
   inc SORTING .
+  
+  var OBJS : Objects .  var MSGS : Msgs .
+  var T : Float .  var C : Config .  
+  var M : Msg .  var ML : MsgList .
+
+  op init : Config -> Config .
+  eq init(OBJS MSGS) = { OBJS delay-init(OBJS,MSGS,sort(MSGS)) | 0.0 } .
+  
+  op delay-init : Objects Msgs MsgList -> DTask .
+endm)
+
+
+(mod SCHEDULING is
+  inc INIT-HANDLER  .
   
   var OBJ : Object .  var OBJS : Objects .  
   var DMS : DMsgs .  vars T T' : Float .  
@@ -153,6 +176,8 @@ endm)
   op tick : Config -> Config .
   op getTime : Config -> Float .
   op limit : -> Float .
+
+
 
   var C : Config .  var T : Float .
 
