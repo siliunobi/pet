@@ -87,7 +87,7 @@ fmod TAG-BUILTINS is
     ceq copeMsg((crl T => T' if CD [ATR label(LBL)] .) R, SM,SM1) = 
        < OPDS genDelayOp(T,LBL) ; genEqs((crl T => T' if CD [ATR label(LBL)] .), SM) EqS  ; 
          genRls(T,LBL,SM1) RS  
-        (crl wrapLeft(T) => wrapRight(T,T',TL',LBL) if CD [ATR label(LBL)] .)  > 
+        (crl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) if CD [ATR label(LBL)] .)  > 
        if '__[TL] := T' /\ 
        TL' := getMessages(TL,SM) /\ 
        TL' =/= empty /\ 
@@ -109,7 +109,7 @@ fmod TAG-BUILTINS is
     ceq copeMsg((rl T => T' [ATR label(LBL)] .) R, SM,SM1) = 
        < OPDS genDelayOp(T,LBL) ; 
         genEqs((rl T => T' [ATR label(LBL)] .), SM) EqS  ; 
-        genRls(T,LBL,SM1) RS  (rl wrapLeft(T) => wrapRight(T,T',TL',LBL) [ATR label(LBL)] .)  > 
+        genRls(T,LBL,SM1) RS  (rl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) [ATR label(LBL)] .)  > 
        if '__[TL] := T' /\ 
        TL' := getMessages(TL,SM) /\ 
        TL' =/= empty /\ 
@@ -152,6 +152,19 @@ fmod TAG-BUILTINS is
 
 
     eq copeMsg(none,SM,SM1) = < none ; none ; none > .
+
+
+    op deleteTerm : TermList TermList -> Term .
+    ceq deleteTerm((T, TL), TL') = 
+      if is T subTermOf TL' then empty else T fi 
+    if deleteTerm(TL, TL') == empty .
+
+    ceq deleteTerm((T, TL), TL') = 
+      if is T subTermOf TL' then deleteTerm(TL, TL') else '__[T, deleteTerm(TL, TL')] fi 
+    if deleteTerm(TL, TL') =/= empty .
+
+    eq deleteTerm(empty, TL) = empty .
+
 
     op genDelayOp : Term Qid -> OpDecl .
 
