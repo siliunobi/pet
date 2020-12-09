@@ -50,6 +50,10 @@ fmod TAG-BUILTINS is
     var R : RuleSet .
     var DB : Database .
 
+    op removeRls : SModule -> SModule .
+
+    eq removeRls(mod Q is IL sorts S .  SS O M E R endm) = (mod Q is IL sorts S .  SS O M E none endm) .
+
     ceq tag(mod Q is IL sorts S .  SS O M E R endm,SM, SM1) = 
            mod tagID(Q)  is IL (including string2qidList("PI-" + string(Q)) .)(including 'SAMPLING-LIB .)  
            sorts S . SS (O OPDS) M (E EqS) RS genDelayInit(SM1) endm 
@@ -171,8 +175,7 @@ fmod TAG-BUILTINS is
     eq genDelayOp(T,LBL) = (op delayID(LBL) : getSorts(T) 'MsgList -> 'DTask [none] . ) .
 
     op genRls : Term Qid SModule -> RuleSet .
-    ceq genRls(T, LBL,SM) = (
-          rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
+    ceq genRls(T, LBL,SM) = (            rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
           rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
           '`{_|_`}['__['__['@C:Config,
           '`[_`,_`]['_+_['@T:Float,
@@ -289,7 +292,7 @@ mod TAG-DATABASE-HANDLING is
         < O         : X@Database | db : DB,
 				   input     : ('monitor_.[T]),
 				   output  : nil, Atts > => 
-        < O         : X@Database | db : DB'',
+        < O         : X@Database | db : insTermModule(Q,M',DB''),
 				   input     : nilTermList,
 				    output : ('New 'module '\g Q '\o 'with 'monitors 'generated!),
 				   Atts  >
@@ -297,7 +300,7 @@ mod TAG-DATABASE-HANDLING is
 	  M := getTopModule(ME', DB') /\ 
 	  M' := tag(M,getFlatModule(ME',DB'),getTopModule(string2qidList("PI-" + string(getName(M))),DB')) /\
 	  Q := getName(M') /\ 
-	  DB'' := insTermModule(Q,M',DB') .
+	  DB'' := insTermModule(getName(M),removeRls(M),DB') .
 endm 
 
 
