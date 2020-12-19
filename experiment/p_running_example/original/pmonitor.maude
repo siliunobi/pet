@@ -4,6 +4,8 @@ fmod TAG-COMMANDS is
     including COMMANDS .
 
     op monitor_. : @ModExp@ -> @Command@ .
+    op pmonitor_. : @ModExp@ -> @Command@ .
+    op show`pmodule_. : @ModExp@ -> @Command@ .
     
 endfm 
 
@@ -20,6 +22,7 @@ fmod TAG-BUILTINS is
     including UNIT .
     including DATABASE-DECLS  .
     including EXT-QID-LIST .
+    including DECL-META-PRETTY-PRINT .
     
     sort OERTriple .
     op <_;_;_> : OpDeclSet EquationSet RuleSet -> OERTriple [ctor] .
@@ -31,7 +34,7 @@ fmod TAG-BUILTINS is
     eq getEqs(< OPDS ; EqS ; R >) = EqS .
     eq getRls(< OPDS ; EqS ; R >) = R .
     
-    op tag : SModule SModule SModule -> SModule .
+    op tag : SModule SModule SModule Bool -> SModule .
     op tagID : Qid -> Qid .
     op delayID : Qid -> Qid .    
     op deltaID : Qid -> Qid .  
@@ -50,14 +53,46 @@ fmod TAG-BUILTINS is
     var R : RuleSet .
     var DB : Database .
 
+    op removePRls : SModule -> SModule .
+    op removePRules : Rule -> Rule .
+    eq removePRls(mod Q is IL sorts S .  SS O M E R endm) = 
+       (mod Q is IL sorts S .  SS O M E removePRules(R) endm) .
+
+    eq removePRules(((rl T => T' with probability V := T2 [none] .) R)) = 
+        removePRules(R) .
+    eq removePRules(Rl R) = Rl removePRules(R) [owise] .
+    eq removePRules(none) = none .
+
+    ---- the new rule with probability .
+    op rl_=>_with`probability_:=_[_]. : Term Term Variable Term AttrSet -> Rule .
+
+
+
+    eq eMetaPrettyPrint(SM, ((rl T => T' with probability V := T2 [none] .) R))
+        = ('\s '\s '\b 'rl '\s '\o eMetaPrettyPrint(SM, T) '\n  
+       '\s '\s '\s '\s '\b '=> '\o '\s eMetaPrettyPrint(SM, T') '\n
+        '\s '\b string2qidList(" with probability") '\s '\o  eMetaPrettyPrint(SM, V) ':= '\s 
+       eMetaPrettyPrint(SM,T2) '. '\o '\n 
+       eMetaPrettyPrint(SM, R)) .
+
+
+    eq eMetaPrettyPrint(SM, ((rl T => T' with probability V := T2 [AtS] .) R))
+    = ('\s '\s '\b 'rl '\s '\o eMetaPrettyPrint(SM, T) '\n  
+       '\s '\s '\s '\s '\b '=> '\o '\s eMetaPrettyPrint(SM, T') '\n '\s '\b 
+       string2qidList(" with probability") '\s '\o eMetaPrettyPrint(SM, V) ':= '\s 
+       eMetaPrettyPrint(SM,T2) 
+           '\s '\b '`[ '\o eMetaPrettyPrint(SM, AtS) '\b '`] '\s '. '\o '\n 
+       eMetaPrettyPrint(SM, R)) [owise] . 
+
     op removeRls : SModule -> SModule .
 
     eq removeRls(mod Q is IL sorts S .  SS O M E R endm) = (mod Q is IL sorts S .  SS O M E none endm) .
 
-    ceq tag(mod Q is IL sorts S .  SS O M E R endm,SM, SM1) = 
+    ceq tag(mod Q is IL sorts S .  SS O M E R endm,SM, SM1,B) = 
            mod tagID(Q)  is IL (including string2qidList("PI-" + string(Q)) .)(including 'SAMPLING-LIB .)  
            sorts S . SS (O OPDS) M (E EqS) RS genDelayInit(SM1) endm 
-    if  < OPDS ; EqS ; RS > := bp(copeMsg(R, SM,SM1)) .
+    if  < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,B) .
+
 
     vars T T' T2 T3 : Term .
     var ATS : AttrSet .
@@ -84,53 +119,85 @@ fmod TAG-BUILTINS is
       rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) .
 
 
-    op copeMsg : RuleSet SModule SModule -> OERTriple .
+    --- generate delay initial with probability
+
+        op genPDelayInit : SModule -> RuleSet .
+    eq genPDelayInit(SM) =  
+    (crl '`{_|_`}['__['C:Config,'delay-init['OBJS:Objects,'MSGS:Msgs,'_::_['M:Msg,'ML:MsgList]]],'T:Float] => 
+      '`{_|_`}['__['__['C:Config,'`[_`,_`]['_+_['T:Float,'D:Float],'M:Msg]],
+      'delay-init['OBJS:Objects,'MSGS:Msgs,
+      'ML:MsgList]],'T:Float] if 'D:Float := get23TermsByID('init, SM) [label('delay-init-1)]  .
+      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) .
+
+
+
+    --- Bool indicates whether it generates rules with probability 
+    op copeMsg : RuleSet SModule SModule Bool -> OERTriple .
 
 
         --- if a msg appears at RHL of a rule 
-    ceq copeMsg((crl T => T' if CD [ATR label(LBL)] .) R, SM,SM1) = 
+    ceq copeMsg((crl T => T' if CD [ATR label(LBL)] .) R, SM,SM1, false) = 
        < OPDS genDelayOp(T,LBL) ; genEqs((crl T => T' if CD [ATR label(LBL)] .), SM) EqS  ; 
          genRls(T,LBL,SM1) RS  
         (crl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) if CD [ATR label(LBL)] .)  > 
        if '__[TL] := T' /\ 
        TL' := getMessages(TL,SM) /\ 
        TL' =/= empty /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .  
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,false) .  
 
-    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1) = 
+    ceq copeMsg((crl T => T' if CD [ATR label(LBL)] .) R, SM,SM1, true) = 
+       < OPDS genDelayOp(T,LBL) ; genEqs((crl T => T' if CD [ATR label(LBL)] .), SM) EqS  ; 
+         genPRls(T,LBL,SM1) RS  
+        (crl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) if CD [ATR label(LBL)] .)  > 
+       if '__[TL] := T' /\ 
+       TL' := getMessages(TL,SM) /\ 
+       TL' =/= empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,true) .  
+
+
+    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1,B) = 
         < OPDS ; genEqs((crl T => T' if CD [ATR] .), SM) EqS ; RS (crl T => T' if CD [ATR] .) > 
     if Q[TL] := T' /\ 
        Q =/= '__ /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .    
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,B) .    
 
-    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1) = 
+    ceq copeMsg((crl T => T' if CD [ATR] .) R, SM,SM1,B) = 
         < OPDS ; genEqs((crl T => T' if CD [ATR] .), SM) EqS ; RS (crl T => T' if CD [ATR] .) > 
     if '__[TL] := T' /\ 
        getMessages(TL,SM) == empty /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .   
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,B) .   
     
     --- if a msg appears at RHL of a rule 
-    ceq copeMsg((rl T => T' [ATR label(LBL)] .) R, SM,SM1) = 
+    ceq copeMsg((rl T => T' [ATR label(LBL)] .) R, SM,SM1,false) = 
        < OPDS genDelayOp(T,LBL) ; 
         genEqs((rl T => T' [ATR label(LBL)] .), SM) EqS  ; 
         genRls(T,LBL,SM1) RS  (rl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) [ATR label(LBL)] .)  > 
        if '__[TL] := T' /\ 
        TL' := getMessages(TL,SM) /\ 
        TL' =/= empty /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .    
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,false) .    
+
+    ceq copeMsg((rl T => T' [ATR label(LBL)] .) R, SM,SM1,true) = 
+       < OPDS genDelayOp(T,LBL) ; 
+        genEqs((rl T => T' [ATR label(LBL)] .), SM) EqS  ; 
+        genPRls(T,LBL,SM1) RS  (rl wrapLeft(T) => wrapRight(T,deleteTerm(TL,TL'),TL',LBL) [ATR label(LBL)] .)  > 
+       if '__[TL] := T' /\ 
+       TL' := getMessages(TL,SM) /\ 
+       TL' =/= empty /\ 
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,true) .  
 
           --- if no msg appears at RHL, skip it. 
-    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1) = 
+    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1,B) = 
         < OPDS ; genEqs((rl T => T' [ATR] .), SM) EqS ; RS (rl T => T' [ATR] .) > 
     if '__[TL] := T' /\ 
        getMessages(TL,SM) == empty /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,B) .
 
-    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1) = 
+    ceq copeMsg((rl T => T' [ATR] .) R, SM,SM1,B) = 
         < OPDS ; genEqs((rl T => T' [ATR] .), SM) EqS ; RS (rl T => T' [ATR] .) > 
     if Q[TL] := T' /\ 
        Q =/= '__ /\ 
-       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1) .
+       < OPDS ; EqS ; RS > := copeMsg(R, SM,SM1,B) .
 
 
     op genEqs : Rule SModule -> EquationSet .
@@ -155,7 +222,7 @@ fmod TAG-BUILTINS is
      if '__[TL] := T /\ getMessages(TL,SM) == empty .      
 
 
-    eq copeMsg(none,SM,SM1) = < none ; none ; none > .
+    eq copeMsg(none,SM,SM1,B) = < none ; none ; none > .
 
 
     op deleteTerm : TermList TermList -> Term .
@@ -190,6 +257,46 @@ fmod TAG-BUILTINS is
           '`[_`,_`]['_+_['@T:Float,'_`[_`]['sample[T2],'rand.Float]],'@M:Msg]],
           delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] [label(delayID(LBL))] . ) 
     if T2 := get23TermsByID(LBL, SM) .
+
+
+
+    --- generate rules that take probability 
+    op genPRls : Term Qid SModule -> RuleSet .
+
+    ***(
+    ceq genPRls(T, LBL,SM) = (            rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
+          crl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,'_`[_`][T3,'D:Float]],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] if 'D:Float := T2 [label(delayID(LBL))] . ) 
+    if T2,T3 := get23TermsByID(LBL, SM) .
+
+    ceq genPRls(T, LBL,SM) = (
+          crl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,'D:Float],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] if 'D:Float := T2 [label(delayID(LBL))] . ) 
+    if T2 := get23TermsByID(LBL, SM) .)
+
+    ceq genPRls(T, LBL,SM) = (rl delayID(LBL)[getVars(T),'nil.MsgList] => 'null.DMsgs [label(delayID(LBL))] .
+          rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,'_`[_`][T3,'D:Float]],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] with probability 'D:Float := T2 
+          [nonexec] . ) 
+    if T2,T3 := get23TermsByID(LBL, SM) .
+
+    ceq genPRls(T, LBL,SM) = (
+          rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
+          '`{_|_`}['__['__['@C:Config,
+          '`[_`,_`]['_+_['@T:Float,'D:Float],'@M:Msg]],
+          delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] with probability 'D:Float := T2 
+          [nonexec] . ) 
+    if T2 := get23TermsByID(LBL, SM) .
+
+
+
+    --- end here 
 
 
     op get23TermsByID : Qid SModule -> TermList .
@@ -250,8 +357,9 @@ fmod TAG-BUILTINS is
      eq getMessages(empty,SM) = empty .
 
      var OER : OERTriple .
-     op bp : OERTriple  -> OERTriple .
-     eq bp(OER) = OER .
+     op bp : QidList  ~> QidList .
+    var QLL : [QidList] .
+     eq bp(QLL) = QLL .
 
     op wrapLeft : Term -> Term .
     --- LHS, RHS, Msgs, Label 
@@ -298,9 +406,38 @@ mod TAG-DATABASE-HANDLING is
 				   Atts  >
       if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
 	  M := getTopModule(ME', DB') /\ 
-	  M' := tag(M,getFlatModule(ME',DB'),getTopModule(string2qidList("PI-" + string(getName(M))),DB')) /\
+	  M' := tag(M,getFlatModule(ME',DB'),getTopModule(string2qidList("PI-" + string(getName(M))),DB'),false) /\
 	  Q := getName(M') /\ 
 	  DB'' := insTermModule(getName(M),removeRls(M),DB') .
+
+
+    crl [handle-tag-func] : 
+        < O         : X@Database | db : DB,
+           input     : ('pmonitor_.[T]),
+           output  : nil, Atts > => 
+        < O         : X@Database | db : insTermModule(Q,M',DB''),
+           input     : nilTermList,
+            output : ('New 'module '\g Q '\o 'with 'monitors 'generated!),
+           Atts  >
+      if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
+    M := getTopModule(ME', DB') /\ 
+    M' := tag(M,getFlatModule(ME',DB'),getTopModule(string2qidList("PI-" + string(getName(M))),DB'),true) /\
+    Q := getName(M') /\ 
+    DB'' := insTermModule(getName(M),removeRls(M),DB') .
+
+
+    var QL : [QidList]  .
+
+    crl [show-pmodule] :
+    < O : X@Database | db : DB, input : ('show`pmodule_.[T]), output : nil, default : ME,   Atts >
+    => < O : X@Database | 
+          db : DB', input : nilTermList, 
+          output : QL,
+          default : ME, Atts > 
+    if < DB' ; ME'' > := evalModExp(parseModExp(T), DB) /\ 
+       QL := bp(eMetaPrettyPrint(removeRls(getFlatModule(ME'', DB')), getTopModule(ME'', DB'))) .
+
+
 endm 
 
 
@@ -360,7 +497,9 @@ mod MONITORING is
 	  output 	: nil, Atts >, (QI QIL' QIL'')] .
 endm
 
-set print conceal on .
+set print conceal off .
+break select bp .
+set break off .
 
  print conceal mod_is_sorts_._____endm .
  print conceal fmod_is_sorts_.____endfm .
