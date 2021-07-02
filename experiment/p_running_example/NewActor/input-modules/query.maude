@@ -61,12 +61,19 @@ endm)
   var RS : Map{Id,Data} .
   
 
+
+
   rl [req] :
      (to O : QS')
      < O : Client | queries: QS, AS > 
   =>
      < O : Client | queries: (QS :: QS'), AS > .
   
+
+
+
+
+
 
  crl [issue] :
      < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
@@ -77,9 +84,16 @@ endm)
      (propagate read(ID,K) to R[K] from O)
 	 if not $hasMapping(RS,ID) .
 
+
+
+
+
   op propagate_to_from_ : Payload Oids Oid -> Msgs . 
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
+
+
+
    
   rl [reply] :
      (to O from O' : read(ID,K)) 
@@ -87,6 +101,10 @@ endm)
   => 
      < O : Server | database: DB, AS > 
      (to O' from O : reply(ID,DB[K])) .
+
+
+
+
    
 
   rl [update] :
