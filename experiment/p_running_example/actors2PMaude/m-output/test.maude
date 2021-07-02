@@ -33,3 +33,9 @@ mod TEST is
 endm
 
 set clear rules off .
+
+---rew initState .
+
+---q
+
+---maude -no-banner test.maude >> output.maude
