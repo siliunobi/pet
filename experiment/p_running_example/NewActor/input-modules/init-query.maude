@@ -1,6 +1,6 @@
 load query
 
-mod INIT-QUERY is
+(mod INIT-QUERY is
   inc QUERY .
   
   ops c1 c2 s1 s2 s3 : -> Oid [ctor] . 
@@ -16,4 +16,7 @@ mod INIT-QUERY is
      < s1 : Server | database: (k1 |-> < 23, 1 >, k3 |-> < 8, 4 >) >
      < s2 : Server | database: (k1 |-> < 10, 5 >, k2 |-> < 7, 3 >) >
      < s3 : Server | database: (k2 |-> < 14, 2 >, k3 |-> < 3, 6 >) > .
-endm
+endm)
+
+
+

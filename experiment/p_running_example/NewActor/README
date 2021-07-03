@@ -1,0 +1,39 @@
+
+The pmonitor v2 is extended to support p and m transformation. 
+
+Usage:
+
+For p transformation:
+
+1. load pminitorV2-20210703.maude 
+
+2. load input-modules/pi-query.maude 
+
+3. (p-trans QUERY .)
+Advisory: Module QUERY redefined.
+New module P-QUERY generated!
+
+4. load input-modules/init-query.maude 
+
+5. (p-init QUERY .)
+Advisory: Module INIT-QUERY redefined.
+New module INIT-QUERY generated!
+
+6. (show module INIT-QUERY .)
+
+
+For m transformation with p 
+
+1. load input-modules/events-query.maude 
+
+2. (pm-trans QUERY .)
+Advisory: Module QUERY redefined.
+New module M-P-QUERY generated!
+
+3. load input-modules/init-query.maude 
+
+4. (m-p-init QUERY .)
+Advisory: Module INIT-QUERY redefined.
+New module INIT-QUERY generated!
+
+5. (show module INIT-QUERY .)

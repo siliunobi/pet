@@ -67,6 +67,44 @@ endm)
   vars TS TS' : Timestamp .  var ID : Id .
   var RS : Map{Id,Data} .
   
+  rl [req] :
+     (to O : QS')
+     < O : Client | queries: QS, AS > 
+  =>
+     < O : Client | queries: (QS :: QS'), AS > .
+  
+
+   
+  rl [finish] :
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
+  => 
+     < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS > .
+
+
+  rl [reply] :
+     (to O from O' : read(ID,K)) 
+     < O : Server | database: DB, AS >
+  => 
+     < O : Server | database: DB, AS > 
+     (to O' from O : reply(ID,DB[K])) .
+
+
+ crl [issue] :
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
+                   replicas: R, results: RS, AS > 
+  => 
+     < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]),
+                   replicas: R, results: insert(ID,null,RS), AS > 
+     (propagate read(ID,K) to R[K] from O)
+    if not $hasMapping(RS,ID) .
+
+
+  
+
+
+  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
 
 
 
@@ -82,49 +120,20 @@ endm)
   eq latest(null,< V,TS >) = < V,TS > .
   eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
 
-
- crl [issue] :
-     < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
-                   replicas: R, results: RS, AS > 
-  => 
-     < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]),
-                   replicas: R, results: insert(ID,null,RS), AS > 
-     (propagate read(ID,K) to R[K] from O)
-    if not $hasMapping(RS,ID) .
+    
+endm)
+eof 
 
 
 
-  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
-  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
-  eq propagate P to empty from O' = null .
 
 
 
-  rl [req] :
-     (to O : QS')
-     < O : Client | queries: QS, AS > 
-  =>
-     < O : Client | queries: (QS :: QS'), AS > .
-  
 
 
 
-   
-  rl [reply] :
-     (to O from O' : read(ID,K)) 
-     < O : Server | database: DB, AS >
-  => 
-     < O : Server | database: DB, AS > 
-     (to O' from O : reply(ID,DB[K])) .
 
 
-   
 
-
-   
-  rl [finish] :
-     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
-  => 
-     < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS > .
 endm)
 

@@ -1,0 +1,161 @@
+mod 'M-P-QUERY is
+  including 'BOOL .
+  including 'OBJS .
+  including 'PI-QUERY .
+  including 'SAMPLING-LIB .
+  including 'EVENTS-QUERY .
+  sorts none .
+  none
+  op 'delay-issue : 'Oid 'Id 'Key 'Queries 'Map`{Key`,Oids`} 'Map`{Id`,Data`} 'Attributes 'MsgList -> 'DTask [none] .
+  op 'delay-reply : 'Oid 'Oid 'Id 'Key 'Map`{Key`,Data`} 'Attributes 'MsgList -> 'DTask [none] .
+  op 'latest : 'Data 'Data -> 'Data [none] .
+  op 'propagate_to_from_ : 'Payload 'Oids 'Oid -> 'Msgs [none] .
+  none
+  eq 'latest['null.Data,'<_`,_>['V:Value,'TS:Timestamp]] = '<_`,_>['V:Value,'TS:Timestamp] [none] .
+  eq 'latest['<_`,_>['V:Value,'TS:Timestamp],'null.Data] = '<_`,_>['V:Value,'TS:Timestamp] [none] .
+  eq 'latest['<_`,_>['V:Value,'TS:Timestamp],'<_`,_>['V':Value,'TS':Timestamp]] = 'if_then_else_fi['_>=_['TS:Timestamp,'TS':Timestamp],'<_`,_>['V:Value,
+    'TS:Timestamp],'<_`,_>['V':Value,'TS':Timestamp]] [none] .
+  eq 'objectEnabled['<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'waiting:_['empty.Oids],'results:_['_`,_[
+    'RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]]]]] = 'true.Bool [none] .
+  eq 'propagate_to_from_['P:Payload,'empty.Oids,'O':Oid] = 'null.DMsgs [none] .
+  eq 'propagate_to_from_['P:Payload,'_;_['O:Oid,'OS:Oids],'O':Oid] = '__['to_from_:_['O:Oid,'O':Oid,'P:Payload],'propagate_to_from_['P:Payload,'OS:Oids,'O':Oid]] [
+    none] .
+  ceq 'objectEnabled['<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'waiting:_['empty.Oids],'replicas:_[
+    'R:Map`{Key`,Oids`}],'results:_['RS:Map`{Id`,Data`}]]]] = 'true.Bool if 'not_['$hasMapping['RS:Map`{Id`,Data`},'ID:Id]] = 'true.Bool [none] .
+  rl '`{_|_`}['__['@C:Config,'delay-init['@OBJS:Objects,'@MSGS:Msgs,'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => '`{_|_`}['__['__['@C:Config,'`[_`,_`]['_+_['@T:Float,
+    '_`[_`]['sample['exponential['1.0000000000000001e-1.FiniteFloat]],'rand.Float]],'@M:Msg]],'delay-init['@OBJS:Objects,'@MSGS:Msgs,'@ML:MsgList]],'@T:Float] [label(
+    'delay-init-1)] .
+  rl '`{_|_`}['__['@C:Config,'delay-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'_::_['@M:Msg,'@ML:MsgList]]],
+    '@T:Float] => '`{_|_`}['__['__['@C:Config,'`[_`,_`]['_+_['@T:Float,'_`[_`]['delta-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},
+    'AS:Attributes],'_`[_`]['sample['lognormal['mSize['K:Key],'1.0000000000000001e-1.FiniteFloat]],'rand.Float]]],'@M:Msg]],'delay-issue['O:Oid,'ID:Id,'K:Key,
+    'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'@ML:MsgList]],'@T:Float] [label('delay-issue-1)] .
+  rl '`{_|_`}['__['@C:Config,'delay-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,'DB:Map`{Key`,Data`},'AS:Attributes,'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => '`{_|_`}['__[
+    '__['@C:Config,'`[_`,_`]['_+_['@T:Float,'_`[_`]['delta-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,'DB:Map`{Key`,Data`},'AS:Attributes],'_`[_`]['sample['lognormal['mSize[
+    '_`[_`]['DB:Map`{Key`,Data`},'K:Key]],'1.0000000000000001e-1.FiniteFloat]],'rand.Float]]],'@M:Msg]],'delay-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,
+    'DB:Map`{Key`,Data`},'AS:Attributes,'@ML:MsgList]],'@T:Float] [label('delay-reply-1)] .
+
+
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['TES:TimedEvents]],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,
+    'queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'waiting:_['empty.Oids],'results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]]]]],'@T:Float] =>
+    '`{_|_`}['__['__['__['@OBJS:Objects,'@DMS:DMsgs],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['QS:Queries],'_`,_['waiting:_['empty.Oids],'_`,_['AS:Attributes,
+    'results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]]]]]]],'<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['_;_['TES:TimedEvents,'_@_['endQuery['ID:Id],
+    '@T:Float]]]]],'@T:Float] [label('finish)] .
+
+
+
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'to_:_['O:Oid,'QS':Queries],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'queries:_['QS:Queries]]]],'@T:Float] =>
+    '`{_|_`}['__['__['@OBJS:Objects,'@DMS:DMsgs],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'queries:_['_::_['QS:Queries,'QS':Queries]]]]],'@T:Float] [
+    label('req)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'to_from_:_['O:Oid,'O':Oid,'read['ID:Id,'K:Key]],'<_:_|_>['O:Oid,'Server.ObjType,'_`,_['AS:Attributes,'database:_[
+    'DB:Map`{Key`,Data`}]]]],'@T:Float] => '`{_|_`}['__['__['__['@OBJS:Objects,'@DMS:DMsgs],'delay-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,'DB:Map`{Key`,Data`},
+    'AS:Attributes,'sort['to_from_:_['O':Oid,'O:Oid,'reply['ID:Id,'_`[_`]['DB:Map`{Key`,Data`},'K:Key]]]]]],'<_:_|_>['O:Oid,'Server.ObjType,'_`,_['AS:Attributes,
+    'database:_['DB:Map`{Key`,Data`}]]]],'@T:Float] [label('reply)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'to_from_:_['O:Oid,'O':Oid,'reply['ID:Id,'DAT':Data]],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'waiting:_[
+    '_;_['O':Oid,'OS:Oids]],'results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]]]]],'@T:Float] => '`{_|_`}['__['__['@OBJS:Objects,'@DMS:DMsgs],'<_:_|_>[
+    'O:Oid,'Client.ObjType,'_`,_['waiting:_['OS:Oids],'_`,_['AS:Attributes,'results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'latest['DAT:Data,'DAT':Data]]]]]]]],
+    '@T:Float] [label('update)] .
+  rl 'delay-init['@OBJS:Objects,'@MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .
+  rl 'delay-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'nil.MsgList] => 'null.DMsgs [label('delay-issue-2)] .
+  rl 'delay-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,'DB:Map`{Key`,Data`},'AS:Attributes,'nil.MsgList] => 'null.DMsgs [label('delay-reply-2)] .
+
+
+
+
+  crl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,
+
+      '<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['TES:TimedEvents]],
+
+  '<_:_|_>['O:Oid,'Client.ObjType,'_`,_['AS:Attributes,'queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'waiting:_['empty.Oids],'replicas:_['R:Map`{Key`,Oids`}],'results:_['RS:Map`{Id`,Data`}]]]],'@T:Float] =>
+    '`{_|_`}['__['__['__['__['@OBJS:Objects,'@DMS:DMsgs],'delay-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'sort[
+    'propagate_to_from_['read['ID:Id,'K:Key],'_`[_`]['R:Map`{Key`,Oids`},'K:Key],'O:Oid]]]],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,
+    'K:Key],'QS:Queries]],'_`,_['waiting:_['_`[_`]['R:Map`{Key`,Oids`},'K:Key]],'_`,_['replicas:_['R:Map`{Key`,Oids`}],'_`,_['AS:Attributes,'results:_['insert['ID:Id,
+    'null.Data,'RS:Map`{Id`,Data`}]]]]]]]],
+
+    '<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['_;_['TES:TimedEvents,'_@_['startQuery['ID:Id],'@T:Float]]]]
+
+    ],'@T:Float] if
+    'not_['$hasMapping['RS:Map`{Id`,Data`},'ID:Id]] = 'true.Bool [label('issue)] .
+
+endm
+
+
+
+red getEventTerm(mod 'EVENTS-QUERY is
+  including 'BOOL .
+  including 'EVENTS + 'QUERY .
+  sorts none .
+  none
+  op 'endQuery : 'Id -> 'Event [ctor] .
+  op 'startQuery : 'Id -> 'Event [ctor] .
+  none
+  eq 'eventMap.EventMap = 
+      '_;;_['`[_`,_`][''finish.Sort,'endQuery['ID:Id]],'`[_`,_`][''issue.Sort,'startQuery['ID:Id]]] [nonexec] .
+  none
+endm, 'finisha) .
+
+
+mod 'P-QUERY is
+  including 'BOOL .
+  including 'OBJS .
+  including 'PI-QUERY .
+  including 'SAMPLING-LIB .
+  sorts none .
+  none
+  op 'delay-issue : 'Oid 'Id 'Key 'Queries 'Map`{Key`,Oids`} 'Map`{Id`,Data`} 'Attributes 'MsgList -> 'DTask [none] .
+  op 'delay-reply : 'Oid 'Id 'Key 'Oid 'Map`{Key`,Data`} 'Attributes 'MsgList -> 'DTask [none] .
+  op 'latest : 'Data 'Data -> 'Data [none] .
+  op 'propagate_to_from_ : 'Payload 'Oids 'Oid -> 'Msgs [none] .
+  none
+  eq 'latest['null.Data,'<_`,_>['V:Value,'TS:Timestamp]] = '<_`,_>['V:Value,'TS:Timestamp] [none] .
+  eq 'latest['<_`,_>['V:Value,'TS:Timestamp],'null.Data] = '<_`,_>['V:Value,'TS:Timestamp] [none] .
+  eq 'latest['<_`,_>['V:Value,'TS:Timestamp],'<_`,_>['V':Value,'TS':Timestamp]] = 'if_then_else_fi['_>=_['TS:Timestamp,'TS':Timestamp],'<_`,_>['V:Value,
+    'TS:Timestamp],'<_`,_>['V':Value,'TS':Timestamp]] [none] .
+  eq 'objectEnabled['<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'_`,_['waiting:_['empty.Oids],'_`,_['results:_['_`,_[
+    'RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]],'AS:Attributes]]]]] = 'true.Bool [none] .
+  eq 'propagate_to_from_['P:Payload,'empty.Oids,'O':Oid] = 'null.DMsgs [none] .
+  eq 'propagate_to_from_['P:Payload,'_;_['O:Oid,'OS:Oids],'O':Oid] = '__['propagate_to_from_['P:Payload,'OS:Oids,'O':Oid],'to_from_:_['O:Oid,'O':Oid,'P:Payload]] [
+    none] .
+  ceq 'objectEnabled['<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'_`,_['waiting:_['empty.Oids],'_`,_['replicas:_[
+    'R:Map`{Key`,Oids`}],'_`,_['results:_['RS:Map`{Id`,Data`}],'AS:Attributes]]]]]] = 'true.Bool if 'not_['$hasMapping['RS:Map`{Id`,Data`},'ID:Id]] = 'true.Bool [
+    none] .
+  rl '`{_|_`}['__['@C:Config,'delay-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'_::_['@M:Msg,'@ML:MsgList]]],
+    '@T:Float] => '`{_|_`}['__['__['@C:Config,'`[_`,_`]['_+_['@T:Float,'_`[_`]['delta-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},
+    'AS:Attributes],'_`[_`]['sample['lognormal['mSize['K:Key],'1.0000000000000001e-1.FiniteFloat]],'rand.Float]]],'@M:Msg]],'delay-issue['O:Oid,'ID:Id,'K:Key,
+    'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'@ML:MsgList]],'@T:Float] [none] .
+  rl '`{_|_`}['__['@C:Config,'delay-reply['O':Oid,'ID:Id,'K:Key,'O:Oid,'DB:Map`{Key`,Data`},'AS:Attributes,'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => '`{_|_`}['__[
+    '__['@C:Config,'`[_`,_`]['_+_['@T:Float,'_`[_`]['delta-reply['O:Oid,'O':Oid,'ID:Id,'K:Key,'DB:Map`{Key`,Data`},'AS:Attributes],'_`[_`]['sample['lognormal['mSize[
+    '_`[_`]['DB:Map`{Key`,Data`},'K:Key]],'1.0000000000000001e-1.FiniteFloat]],'rand.Float]]],'@M:Msg]],'delay-reply['O':Oid,'ID:Id,'K:Key,'O:Oid,
+    'DB:Map`{Key`,Data`},'AS:Attributes,'@ML:MsgList]],'@T:Float] [none] .
+  rl '`{_|_`}['__['C:Config,'delay-init['OBJS:Objects,'MSGS:Msgs,'_::_['M:Msg,'ML:MsgList]]],'T:Float] => '`{_|_`}['__['__['C:Config,'`[_`,_`]['_+_['T:Float,'_`[_`][
+    'sample['exponential['1.0000000000000001e-1.FiniteFloat]],'rand.Float]],'M:Msg]],'delay-init['OBJS:Objects,'MSGS:Msgs,'ML:MsgList]],'T:Float] [label(
+    'delay-init-1)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'_`,_['waiting:_['empty.Oids],
+    '_`,_['results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]],'AS:Attributes]]]]],'@T:Float] => '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['O:Oid,
+    'Client.ObjType,'_`,_['queries:_['QS:Queries],'_`,_['waiting:_['empty.Oids],'_`,_['results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]],
+    'AS:Attributes]]]]],'@T:Float] [label('finish.p)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'__['to_:_['O:Oid,'QS':Queries],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['QS:Queries],'AS:Attributes]]]],
+    '@T:Float] => '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['QS:Queries,'QS':Queries]],'AS:Attributes]]],
+    '@T:Float] [label('req.p)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'__['to_from_:_['O:Oid,'O':Oid,'read['ID:Id,'K:Key]],'<_:_|_>['O:Oid,'Server.ObjType,'_`,_['database:_[
+    'DB:Map`{Key`,Data`}],'AS:Attributes]]]],'@T:Float] => '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['O:Oid,'Server.ObjType,'_`,_['database:_[
+    'DB:Map`{Key`,Data`}],'AS:Attributes]],'delay-reply['O':Oid,'ID:Id,'K:Key,'O:Oid,'DB:Map`{Key`,Data`},'AS:Attributes,'sort['to_from_:_['O':Oid,'O:Oid,'reply[
+    'ID:Id,'_`[_`]['DB:Map`{Key`,Data`},'K:Key]]]]]],'@T:Float] [label('reply.p)] .
+  rl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'__['to_from_:_['O:Oid,'O':Oid,'reply['ID:Id,'DAT':Data]],'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['waiting:_['_;_['O':Oid,
+    'OS:Oids]],'_`,_['results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'DAT:Data]]],'AS:Attributes]]]]],'@T:Float] => '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,
+    '<_:_|_>['O:Oid,'Client.ObjType,'_`,_['waiting:_['OS:Oids],'_`,_['results:_['_`,_['RS:Map`{Id`,Data`},'_|->_['ID:Id,'latest['DAT:Data,'DAT':Data]]]],
+    'AS:Attributes]]]],'@T:Float] [label('update.p)] .
+  rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .
+  rl 'delay-issue['O:Oid,'ID:Id,'K:Key,'QS:Queries,'R:Map`{Key`,Oids`},'RS:Map`{Id`,Data`},'AS:Attributes,'nil.MsgList] => 'null.DMsgs [label('delay-issue)] .
+  rl 'delay-reply['O':Oid,'ID:Id,'K:Key,'O:Oid,'DB:Map`{Key`,Data`},'AS:Attributes,'nil.MsgList] => 'null.DMsgs [label('delay-reply)] .
+  crl '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>['O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'_`,_['waiting:_['empty.Oids],
+    '_`,_['replicas:_['R:Map`{Key`,Oids`}],'_`,_['results:_['RS:Map`{Id`,Data`}],'AS:Attributes]]]]]],'@T:Float] => '`{_|_`}['__['@OBJS:Objects,'@DMS:DMsgs,'<_:_|_>[
+    'O:Oid,'Client.ObjType,'_`,_['queries:_['_::_['read['ID:Id,'K:Key],'QS:Queries]],'_`,_['waiting:_['_`[_`]['R:Map`{Key`,Oids`},'K:Key]],'_`,_['replicas:_[
+    'R:Map`{Key`,Oids`}],'_`,_['results:_['insert['ID:Id,'null.Data,'RS:Map`{Id`,Data`}]],'AS:Attributes]]]]],'delay-issue['QS:Queries,'RS:Map`{Id`,Data`},
+    'AS:Attributes,'ID:Id,'R:Map`{Key`,Oids`},'K:Key,'O:Oid,'sort['propagate_to_from_['read['ID:Id,'K:Key],'_`[_`]['R:Map`{Key`,Oids`},'K:Key],'O:Oid]]]],'@T:Float]
+    if 'not_['$hasMapping['RS:Map`{Id`,Data`},'ID:Id]] = 'true.Bool [label('issue.p)] .
+endm
+
+
+
+
+

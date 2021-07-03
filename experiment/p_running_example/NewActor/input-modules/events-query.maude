@@ -1,7 +1,7 @@
-load ../events
-load query
+ load ../events
+ load pi-query
 
-mod EVENTS-QUERY is 
+(mod EVENTS-QUERY is 
   inc EVENTS + QUERY .
   
   *** user-specified interesting events 
@@ -11,4 +11,5 @@ mod EVENTS-QUERY is
   
   *** rule-specific mapping
   eq eventMap = ['issue, startQuery(ID)] ;; ['finish, endQuery(ID)] [nonexec] .
-endm
+endm)
+
