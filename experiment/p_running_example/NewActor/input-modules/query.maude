@@ -1,5 +1,10 @@
 load ../apmaude
 
+  *** P *** file name format: fixed
+load ../sampling-lib
+
+
+
 (mod SORTS is
   inc SCHEDULING .
   pr NAT .
@@ -24,6 +29,8 @@ load ../apmaude
   op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
   
   op reply : Id Data -> Payload .
+
+  op undefined : -> Qid .
 endm)
 
 
@@ -63,34 +70,42 @@ endm)
 
 
 
-  rl [req] :
-     (to O : QS')
-     < O : Client | queries: QS, AS > 
-  =>
-     < O : Client | queries: (QS :: QS'), AS > .
-  
+  rl [update] :
+     (to O from O' : reply(ID,DAT')) 
+     < O : Client | waiting: (O' ; OS), results: (RS, ID |-> DAT), AS >
+  => 
+     < O : Client | waiting: OS, results: (RS, ID |-> latest(DAT,DAT')), AS > .
 
-
-
-
+    
+  op latest : Data Data -> Data .
+  eq latest(< V,TS >,null) = < V,TS > .
+  eq latest(null,< V,TS >) = < V,TS > .
+  eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
 
 
  crl [issue] :
      < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
-	                replicas: R, results: RS, AS > 
+                   replicas: R, results: RS, AS > 
   => 
      < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]),
-	                replicas: R, results: insert(ID,null,RS), AS > 
+                   replicas: R, results: insert(ID,null,RS), AS > 
      (propagate read(ID,K) to R[K] from O)
-	 if not $hasMapping(RS,ID) .
-
-
+    if not $hasMapping(RS,ID) .
 
 
 
   op propagate_to_from_ : Payload Oids Oid -> Msgs . 
   eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
   eq propagate P to empty from O' = null .
+
+
+
+  rl [req] :
+     (to O : QS')
+     < O : Client | queries: QS, AS > 
+  =>
+     < O : Client | queries: (QS :: QS'), AS > .
+  
 
 
 
@@ -103,20 +118,9 @@ endm)
      (to O' from O : reply(ID,DB[K])) .
 
 
-
-
    
 
-  rl [update] :
-     (to O from O' : reply(ID,DAT')) 
-     < O : Client | waiting: (O' ; OS), results: (RS, ID |-> DAT), AS >
-  => 
-     < O : Client | waiting: OS, results: (RS, ID |-> latest(DAT,DAT')), AS > .
-	 
-  op latest : Data Data -> Data .
-  eq latest(< V,TS >,null) = < V,TS > .
-  eq latest(null,< V,TS >) = < V,TS > .
-  eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
+
    
   rl [finish] :
      < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >

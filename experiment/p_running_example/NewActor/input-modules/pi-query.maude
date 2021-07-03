@@ -1,7 +1,7 @@
 load ../distr-lib
 load query
 
-mod PI-QUERY is 
+(mod PI-QUERY is 
   inc DISTR-LIB + QUERY .
  	
   *** user-defined distributions
@@ -38,4 +38,5 @@ mod PI-QUERY is
   eq tpls = ['reply,lognormal(mSize(DB[K]),0.1),delta-reply(O,O',ID,K,DB,AS)] ;; 
             ['init,exponential(0.1)] ;; 
 			['issue,lognormal(mSize(K),0.1),delta-issue(O,ID,K,QS,R,RS,AS)] [nonexec] .
-endm
+endm)
+

@@ -68,9 +68,11 @@ endm)
 
 
   rl [issue] :
-     < O : Client | queries: (read(K) :: QS), waiting: empty, read: null, replicas: R, AS > 
+     < O : Client | queries: (read(K) :: QS), waiting: empty, read: null, 
+         replicas: R, AS > 
   => 
-     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, replicas: R, AS > 
+     < O : Client | queries: (read(K) :: QS), waiting: (R[K]), read: null, 
+      replicas: R, AS > 
      (propagate read(K) to R[K] from O) .
 
 

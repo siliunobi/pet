@@ -1,13 +1,13 @@
 load distr-lib
 
-mod SAMPLE-UNIFORM is
+(mod SAMPLE-UNIFORM is
   pr RANDOM + COUNTER + CONVERSION .
 
   op rand : -> [Float] .
   rl [rnd] : rand => float(random(counter) / 4294967296) .
-endm
+endm)
 
-mod SAMPLING-LIB is
+(mod SAMPLING-LIB is
   inc DISTR-LIB + SAMPLE-UNIFORM .
   
   *** unified operator for defining sampling functions  
@@ -25,4 +25,5 @@ mod SAMPLING-LIB is
    = SCALE * exp((1.0 / SHAPE) * log(- log(RAND))) . 
    
   *** zipf to be added
-endm
+endm)
+

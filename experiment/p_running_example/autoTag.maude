@@ -77,7 +77,7 @@ endom) = omod tagID(Q)  is
           E
           R
       endm) = mod tagID(Q)  is
-      (IL including 'SAMPLING-EXT .)
+      (IL including 'SAMPLING-LIB .)
       sorts S .
       SS
       O

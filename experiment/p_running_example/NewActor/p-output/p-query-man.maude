@@ -1,0 +1,69 @@
+mod P-QUERY is
+  inc OBJS .
+  inc PI-QUERY .
+  inc SAMPLING-LIB .
+  vars O O' TB : Oid .
+  vars QS QS' : Queries .
+  var OS : Oids .
+  var R : Map{Key,Oids} .
+  vars AS AS' : Attributes .
+  var K : Key .
+  var DB : Map{Key,Data} .
+  vars V V' : Value .
+  var P : Payload .
+  vars DAT DAT' : Data .
+  vars TS TS' : Timestamp .
+  var ID : Id .
+  var RS : Map{Id,Data} .
+  var @T : Float .
+  var @OBJS : Objects .
+  var @DMS : DMsgs .
+  var @C : Config .
+  var @M : Msg .
+  var @ML : MsgList .
+  var @MSGS : Msgs .
+  op delay-issue : Oid Id Key Queries Map{Key,Oids} Map{Id,Data} Attributes MsgList -> DTask .
+  op propagate_to_from_ : Payload Oids Oid -> Msgs .
+  op delay-reply : Oid Oid Id Key Map{Key,Data} Attributes MsgList -> DTask .
+  op latest : Data Data -> Data .
+  rl [req] : {(to O : QS') < O : Client | queries: QS, AS > @OBJS @DMS | @T} => {< O : Client | queries: (QS :: QS'), AS > @OBJS @DMS | @T} .
+  
+
+  crl [issue] : 
+  {< O : Client | queries: (read (ID, K) :: QS), waiting: empty, replicas: R, results: RS, AS > @OBJS @DMS | @T} => 
+  {< O : Client | queries: (read (ID, K) :: QS), waiting: (R [K]), replicas: R, results: insert (ID, null, RS), AS > 
+    delay-issue (O, ID, K, QS, R, RS, AS, sort (propagate read (ID,K) to R [K] from O)) @OBJS @DMS | @T} 
+  if not $hasMapping (RS, ID) .
+  
+
+
+  rl [delay-issue-1] : {delay-issue (O, ID, K, QS, R, RS, AS, (@M :: @ML)) @C | @T} => 
+  {delay-issue (O, ID, K, QS, R, RS, AS, @ML)
+    @C[@T + (delta-issue (O,ID, K, QS, R, RS, AS) 
+      [sample (lognormal (mSize (K), 0.1)) [rand]]), @M] | @T} .
+  rl [delay-issue-2] : delay-issue (O, ID, K, QS, R, RS, AS, nil) => null .
+
+
+
+  ceq objectEnabled (< O : Client | queries: (read (ID, K) :: QS), waiting: empty, replicas: R, results: RS, AS >) = true if not $hasMapping (RS, ID) .
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+  rl [reply] : {(to O from O' : read (ID, K)) < O : Server | database: DB, AS > @OBJS @DMS | @T} => {< O : Server | database: DB, AS > delay-reply (O, O', ID,
+    K, DB, AS, sort (to O' from O : reply (ID, DB [K]))) @OBJS @DMS | @T} .
+  
+  rl [delay-reply-1] : {delay-reply (O, O', ID, K, DB, AS, (@M :: @ML)) @C | @T} => {delay-reply (O, O', ID, K, DB, AS, @ML) @C [@T + (delta-reply (O, O', ID,
+    K, DB, AS) [sample (lognormal (mSize (DB [K]), 0.1)) [rand]]), @M] | @T} .
+  rl [delay-reply-2] : delay-reply (O, O', ID, K, DB, AS, nil) => null .
+  
+  rl [update] : {(to O from O' : reply (ID, DAT')) < O : Client | waiting: (O' ; OS), results: (RS, ID |-> DAT), AS > @OBJS @DMS | @T} => {< O : Client |
+    waiting: OS, results: (RS, ID |-> latest (DAT, DAT')), AS > @OBJS @DMS | @T} .
+  eq latest (< V, TS >, null) = < V, TS > .
+  eq latest (null, < V, TS >) = < V, TS > .
+  eq latest (< V, TS >, < V', TS' >) = if TS >= TS' then < V, TS > else < V', TS' > fi .
+  rl [finish] : {< O : Client | queries: (read (ID, K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS > @OBJS @DMS | @T} => {< O : Client | queries:
+    QS, waiting: empty, results: (RS, ID |-> DAT), AS > @OBJS @DMS | @T} .
+  eq objectEnabled (< O : Client | queries: (read (ID, K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >) = true .
+  rl [delay-init-1] : {delay-init (@OBJS, @MSGS, (@M :: @ML)) @C | @T} => {delay-init (@OBJS, @MSGS, @ML) @C [@T + (sample (exponential (0.1)) [rand]), @M] |
+    @T} .
+  rl [delay-init-2] : delay-init (@OBJS, @MSGS, nil) => null .
+endm

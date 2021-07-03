@@ -1,10 +1,10 @@
-load ../apmaude
+*** load ../apmaude
 
   *** P *** file name format: pi-"system spec file"
-load ../input-modules/pi-query
+*** load ../input-modules/pi-query
 
   *** P *** file name format: fixed
-load ../sampling-lib
+*** load ../sampling-lib
 
 mod SORTS is
   inc SCHEDULING .
