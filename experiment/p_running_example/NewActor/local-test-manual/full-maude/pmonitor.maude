@@ -738,4 +738,14 @@ load input-modules-full-maude/init-query.maude
 
 (show module P-INIT-QUERY .)
 
+load input-modules-full-maude/events-query.maude 
+ 
+(pm-trans QUERY .)
+
+(show module M-P-QUERY .)
+
+(pm-init INIT-QUERY .)
+
+(show module M-P-INIT-QUERY .)
+
 q
