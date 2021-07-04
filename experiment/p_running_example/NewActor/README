@@ -16,10 +16,9 @@ New module P-QUERY generated!
 4. load input-modules/init-query.maude 
 
 5. (p-init INIT-QUERY .)
-Advisory: Module INIT-QUERY redefined.
-New module INIT-QUERY generated!
+New module P-INIT-QUERY generated!
 
-6. (show module INIT-QUERY .)
+6. (show module P-INIT-QUERY .)
 
 
 For m transformation with p 
@@ -33,7 +32,6 @@ New module M-P-QUERY generated!
 3. load input-modules/init-query.maude 
 
 4. (pm-init INIT-QUERY .)
-Advisory: Module INIT-QUERY redefined.
-New module INIT-QUERY generated!
+New module M-P-INIT-QUERY generated!
 
-5. (show module INIT-QUERY .)
+5. (show module M-P-INIT-QUERY .)
