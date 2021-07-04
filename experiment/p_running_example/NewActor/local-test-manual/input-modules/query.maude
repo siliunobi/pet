@@ -1,4 +1,4 @@
-load ../framework/apmaude
+load ../apmaude
 
 mod SORTS is
   inc SCHEDULING .
@@ -44,6 +44,7 @@ mod OBJS is
   op results:_ : Map{Id,Data} -> Attribute .
   op database:_ : Map{Key,Data} -> Attribute .
 endm
+
 
 mod QUERY is
   inc OBJS .

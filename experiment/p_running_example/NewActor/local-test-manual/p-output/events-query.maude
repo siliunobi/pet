@@ -1,4 +1,4 @@
-load ../framework/events
+load ../events
 load query
 
 mod EVENTS-QUERY is 
