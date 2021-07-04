@@ -721,4 +721,21 @@ break select renameIncModule .
 print conceal db .
     
 loop init .
-    
+
+*** scripts start here
+
+load sampling-lib.maude 
+
+load input-modules-full-maude/pi-query.maude 
+
+(p-trans QUERY .) 
+
+(show module P-QUERY .) 
+
+load input-modules-full-maude/init-query.maude
+
+(p-init INIT-QUERY .)
+
+(show module P-INIT-QUERY .)
+
+q

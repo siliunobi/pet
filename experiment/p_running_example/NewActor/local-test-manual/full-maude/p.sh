@@ -1,0 +1,1 @@
+maude pmonitor.maude > output

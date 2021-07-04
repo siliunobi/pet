@@ -1,0 +1,252 @@
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	   Maude 2.7.1 built: Jun 27 2016 16:43:23
+	    Copyright 1997-2016 SRI International
+		   Sun Jul  4 15:27:01 2021
+
+	    Full Maude 2.7.1 June 30th 2016
+
+     Welcome to Actors2PMaude!
+Introduced module DISTR-LIB
+
+Introduced module SAMPLE-UNIFORM
+
+Introduced module SAMPLING-LIB
+
+Advisory: Module DISTR-LIB redefined.
+Introduced module DISTR-LIB
+
+Introduced module MAP
+
+Introduced module TERM-ORDER
+
+Introduced module CONFIG
+
+Introduced view Msg
+
+Introduced module SORTING
+
+Introduced module INIT-HANDLER
+
+Introduced module SCHEDULING
+
+Introduced module INTERFACE
+
+Introduced module SORTS
+
+Introduced view Key
+
+Introduced view Data
+
+Introduced view Oids
+
+Introduced view Id
+
+Introduced module OBJS
+
+Introduced module QUERY
+
+Introduced module PI-QUERY
+
+Advisory: Module QUERY redefined.
+New module P-QUERY generated!
+mod P-QUERY is
+  including BOOL .
+  including OBJS .
+  including PI-QUERY .
+  including SAMPLING-LIB .
+  op delay-issue : Oid Id Key Queries Map{Key,Oids}Map{Id,Data}Attributes
+    MsgList -> DTask .
+  op delay-reply : Oid Id Key Oid Map{Key,Data}Attributes MsgList -> DTask .
+  op latest : Data Data -> Data .
+  op propagate_to_from_ : Payload Oids Oid -> Msgs .
+  eq latest(null,< V:Value,TS:Timestamp >)
+    = < V:Value,TS:Timestamp > .
+  eq latest(< V:Value,TS:Timestamp >,null)
+    = < V:Value,TS:Timestamp > .
+  eq latest(< V:Value,TS:Timestamp >,< V':Value,TS':Timestamp >)
+    = if TS:Timestamp >= TS':Timestamp then < V:Value,TS:Timestamp > else <
+    V':Value,TS':Timestamp > fi .
+  eq objectEnabled(
+< O:Oid : Client | queries:(read(ID:Id,K:Key):: QS:Queries),waiting: empty,
+    results:(RS:Map{Id,Data}, ID:Id |-> DAT:Data),AS:Attributes >)
+    = true .
+  eq propagate P:Payload to empty from O':Oid
+    = (null).DMsgs .
+  eq propagate P:Payload to O:Oid ; OS:Oids from O':Oid
+    = (propagate P:Payload to OS:Oids from O':Oid)to O:Oid from O':Oid :
+    P:Payload .
+  ceq objectEnabled(
+< O:Oid : Client | queries:(read(ID:Id,K:Key):: QS:Queries),waiting: empty,
+    replicas: R:Map{Key,Oids},results: RS:Map{Id,Data},AS:Attributes >)
+    = true
+    if not $hasMapping(RS:Map{Id,Data},ID:Id)= true .
+  rl 
+{@C:Config delay-issue(O:Oid,ID:Id,K:Key,QS:Queries,R:Map{Key,Oids},RS:Map{Id,
+    Data},AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-issue(O:Oid,ID:Id,K:Key,QS:Queries,R:Map{Key,
+    Oids},RS:Map{Id,Data},AS:Attributes)[sample(lognormal(mSize(K:Key),
+    1.0000000000000001e-1))[rand]]),@M:Msg])delay-issue(O:Oid,ID:Id,K:Key,
+    QS:Queries,R:Map{Key,Oids},RS:Map{Id,Data},AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-reply(O':Oid,ID:Id,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,
+    @M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-reply(O:Oid,O':Oid,ID:Id,K:Key,DB:Map{Key,Data},
+    AS:Attributes)[sample(lognormal(mSize(DB:Map{Key,Data}[K:Key]),
+    1.0000000000000001e-1))[rand]]),@M:Msg])delay-reply(O':Oid,ID:Id,K:Key,
+    O:Oid,DB:Map{Key,Data},AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0000000000000001e-1))[rand]),
+    M:Msg])delay-init(OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries:(read(ID:Id,K:Key):: QS:Queries),waiting: empty,
+    results:(RS:Map{Id,Data}, ID:Id |-> DAT:Data),AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries: QS:Queries,waiting: empty,results:(RS:Map{Id,Data},
+    ID:Id |-> DAT:Data),AS:Attributes > |
+@T:Float} [label finish.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid : QS':Queries)
+< O:Oid : Client | queries: QS:Queries,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries:(QS:Queries :: QS':Queries),AS:Attributes > |
+@T:Float} [label req.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O':Oid : read(ID:Id,K:Key))
+< O:Oid : Server | database: DB:Map{Key,Data},AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Server | database: DB:Map{Key,Data},AS:Attributes > delay-reply(
+    O':Oid,ID:Id,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,sort(to O':Oid from
+    O:Oid : reply(ID:Id,DB:Map{Key,Data}[K:Key])))|
+@T:Float} [label reply.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O':Oid : reply(ID:Id,DAT':Data))
+< O:Oid : Client | waiting:(O':Oid ; OS:Oids),results:(RS:Map{Id,Data}, ID:Id
+    |-> DAT:Data),AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | waiting: OS:Oids,results:(RS:Map{Id,Data}, ID:Id |-> latest(
+    DAT:Data,DAT':Data)),AS:Attributes > |
+@T:Float} [label update.p] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => (null).DMsgs [label delay-init-2] .
+  rl delay-issue(O:Oid,ID:Id,K:Key,QS:Queries,R:Map{Key,Oids},RS:Map{Id,Data},
+    AS:Attributes,nil)
+    => (null).DMsgs [label delay-issue] .
+  rl delay-reply(O':Oid,ID:Id,K:Key,O:Oid,DB:Map{Key,Data},AS:Attributes,nil)
+    => (null).DMsgs [label delay-reply] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries:(read(ID:Id,K:Key):: QS:Queries),waiting: empty,
+    replicas: R:Map{Key,Oids},results: RS:Map{Id,Data},AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Client | queries:(read(ID:Id,K:Key):: QS:Queries),waiting:(R:Map{Key,
+    Oids}[K:Key]),replicas: R:Map{Key,Oids},results: insert(ID:Id,null,RS:Map{
+    Id,Data}),AS:Attributes > delay-issue(O:Oid,ID:Id,K:Key,QS:Queries,R:Map{
+    Key,Oids},RS:Map{Id,Data},AS:Attributes,sort(propagate read(ID:Id,K:Key)to
+    R:Map{Key,Oids}[K:Key]from O:Oid))|
+@T:Float}
+    if not $hasMapping(RS:Map{Id,Data},ID:Id)= true [label issue.p] .
+endm
+
+Advisory: Module MAP redefined.
+Introduced module MAP
+
+Advisory: Module TERM-ORDER redefined.
+Introduced module TERM-ORDER
+
+Advisory: Module CONFIG redefined.
+Introduced module CONFIG
+
+Advisory: View Msg redefined.
+Introduced view Msg
+
+Advisory: Module SORTING redefined.
+Introduced module SORTING
+
+Advisory: Module INIT-HANDLER redefined.
+Introduced module INIT-HANDLER
+
+Advisory: Module SCHEDULING redefined.
+Introduced module SCHEDULING
+
+Advisory: Module INTERFACE redefined.
+Introduced module INTERFACE
+
+Advisory: Module SORTS redefined.
+Introduced module SORTS
+
+Advisory: View Key redefined.
+Introduced view Key
+
+Advisory: View Data redefined.
+Introduced view Data
+
+Advisory: View Oids redefined.
+Introduced view Oids
+
+Advisory: View Id redefined.
+Introduced view Id
+
+Advisory: Module OBJS redefined.
+Introduced module OBJS
+
+Advisory: Module QUERY redefined.
+Introduced module QUERY
+
+Introduced module INIT-QUERY
+
+New module P-INIT-QUERY generated!
+mod P-INIT-QUERY is
+  including BOOL .
+  including P-QUERY .
+  op initconf : -> Config .
+  op c1 : -> Oid
+    [ctor] .
+  op c2 : -> Oid
+    [ctor] .
+  op k1 : -> Key
+    [ctor] .
+  op k2 : -> Key
+    [ctor] .
+  op k3 : -> Key
+    [ctor] .
+  op s1 : -> Oid
+    [ctor] .
+  op s2 : -> Oid
+    [ctor] .
+  op s3 : -> Oid
+    [ctor] .
+  eq initconf
+    = (to c1 : read(1,k1):: read(2,k3))(to c2 : read(3,k2))
+< c1 : Client | queries: ept,waiting: empty,results: empty,replicas:(k1 |-> s1
+    ; s2, k2 |-> s2 ; s3, k3 |-> s1 ; s3)>
+< c2 : Client | queries: ept,waiting: empty,results: empty,replicas:(k1 |-> s1
+    ; s2, k2 |-> s2 ; s3, k3 |-> s1 ; s3)>
+< s1 : Server | database:(k1 |-> < 23,1 >, k3 |-> < 8,4 >)>
+< s2 : Server | database:(k1 |-> < 10,5 >, k2 |-> < 7,3 >)>
+< s3 : Server | database:(k2 |-> < 14,2 >, k3 |-> < 3,6 >)> .
+endm
+
+Bye.
