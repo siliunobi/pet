@@ -728,13 +728,13 @@ loop init .
     
 *** scripts start here
 
-load sampling-lib.maude 
+load sampling-lib.maude
 
-load input-modules-full-maude/pi-query.maude 
+load input-modules-full-maude/pi-query.maude
 
-(p-trans QUERY .) 
+(p-trans QUERY .)
 
-(show module P-QUERY .) 
+(show module P-QUERY .)
 
 load input-modules-full-maude/init-query.maude
 
@@ -742,25 +742,6 @@ load input-modules-full-maude/init-query.maude
 
 (show module P-INIT-QUERY .)
 
-load input-modules-full-maude/events-query.maude 
- 
-(pm-trans QUERY .)
-
-(show module M-P-QUERY .)
-
-(pm-init INIT-QUERY .)
-
-(show module M-P-INIT-QUERY .)
-
-q
-load input-modules-full-maude/events-query.maude
-
-(pm-trans QUERY .)
-
-(show module M-P-QUERY .)
-
-(pm-init INIT-QUERY .)
-
-(show module M-P-INIT-QUERY .)
+*** scripts end here
 
 q

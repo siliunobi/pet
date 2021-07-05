@@ -106,7 +106,7 @@ if __name__ == "__main__":
 			src = os.path.join(INPUT_FOLDER, args[i])
 			dst = os.path.join(output_dir, args[i])
 			copy_with_module_process(src, dst)
-			if i == len(args)-1:
+			if args[i].startswith("events-"):
 				replace_str(dst, "load %s" % app_name, "***load %s" % app_name)
 
 		process_pmonitor_file(args)
