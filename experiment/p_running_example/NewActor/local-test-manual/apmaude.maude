@@ -1,6 +1,6 @@
 set show advisories off .
-set show stats off .
-set show command off .
+---set show stats off .
+---set show command off .
 
 fmod TERM-ORDER{X :: TRIV} is
   pr EXT-BOOL + CONVERSION + META-LEVEL .

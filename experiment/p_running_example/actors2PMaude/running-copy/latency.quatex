@@ -1,2 +1,0 @@
-LatestV() = { s.rval(0) } ;
-eval E[ # LatestV() ] ; 
