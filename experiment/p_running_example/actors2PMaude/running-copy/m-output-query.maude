@@ -1,0 +1,209 @@
+load apmaude
+
+  *** P *** file name format: pi-"system spec file"
+load pi-query
+
+  *** P *** file name format: fixed
+load sampling-lib
+
+  --- M ---
+load events-query
+
+
+mod SORTS is
+  inc SCHEDULING .
+  pr NAT .
+  
+  sorts Query Queries Key Value Timestamp Data Oids Id .
+  subsort Data < Payload .
+  subsort Nat < Timestamp .
+  subsort Nat < Value .
+  subsort Query < Queries < Payload .
+  subsort Oid < Oids .
+  subsort Nat < Id .
+
+  op <_,_> : Value Timestamp -> Data [ctor] .
+  op null : -> Data .
+  
+  op read : Id Key -> Query .
+  
+  op ept : -> Queries .
+  op _::_ : Queries Queries -> Queries [assoc id: ept] .
+
+  op empty : -> Oids .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
+  
+  op reply : Id Data -> Payload .  
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv
+view Data from TRIV to SORTS is sort Elt to Data . endv
+view Oids from TRIV to SORTS is sort Elt to Oids . endv
+view Id from TRIV to SORTS is sort Elt to Id . endv
+
+mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Data} .
+  pr MAP{Key,Oids} .
+  pr MAP{Id,Data} .
+   
+  ops Client Server : -> ObjType .
+  
+  op queries:_ : Queries -> Attribute .
+  op waiting:_ : Oids  -> Attribute .
+  op replicas:_ : Map{Key,Oids} -> Attribute .  
+  op results:_ : Map{Id,Data} -> Attribute .
+  op database:_ : Map{Key,Data} -> Attribute .
+endm
+
+  *** P *** renaming: P-
+  
+  --- M --- renaming: M-...
+mod M-P-QUERY is
+  inc OBJS .
+  
+  *** P *** module name format: PI-"system spec module"
+  inc PI-QUERY .
+  
+  *** P *** file name format: fixed
+  inc SAMPLING-LIB .
+  
+  --- M ---
+  inc EVENTS-QUERY .
+  
+  
+  vars O O' TB : Oid .  vars QS QS' : Queries .
+  var OS : Oids .  var R : Map{Key,Oids} .
+  vars AS AS' : Attributes .  var K : Key .
+  var DB : Map{Key,Data} .  vars V V' : Value .
+  var P : Payload .  vars DAT DAT' : Data .  
+  vars TS TS' : Timestamp .  var ID : Id .
+  var RS : Map{Id,Data} .
+  
+  *** P *** new variables 
+  var @T : Float .    var @OBJS : Objects .
+  var @DMS : DMsgs .  var @C : Config .
+  var @M : Msg .      var @ML : MsgList .  
+  var @MSGS : Msgs .
+  
+  --- M --- new variables 
+  var TES : TimedEvents .
+
+
+  rl [req] :
+     {
+     (to O : QS')
+     < O : Client | queries: QS, AS > 
+	 @OBJS @DMS | @T } 
+  =>
+     {
+     < O : Client | queries: (QS :: QS'), AS > 
+	 @OBJS @DMS | @T } .
+  
+  
+  *** P ***
+  --- M ---
+  
+ crl [issue] :
+     {
+	 < log : Monitor | events: TES >
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, 
+	                replicas: R, results: RS, AS > 
+   @OBJS @DMS | @T }
+  => 
+     {
+	 < log : Monitor | events: (TES ; (startQuery(ID) @ @T)) >
+     < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]), 
+	                replicas: R, results: insert(ID,null,RS), AS > 
+   delay-issue(O,ID,K,QS,R,RS,AS,sort(propagate read(ID,K) to R[K] from O))
+     @OBJS @DMS | @T }
+	 if not $hasMapping(RS,ID) .  
+   
+  *** P ***
+  op delay-issue : Oid Id Key Queries Map{Key,Oids} Map{Id,Data} Attributes MsgList -> DTask .
+
+  rl [delay-issue-1] :
+     { delay-issue(O,ID,K,QS,R,RS,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-issue(O,ID,K,QS,R,RS,AS,@ML) @C 
+     [@T + (delta-issue(O,ID,K,QS,R,RS,AS)[sample(lognormal(mSize(K),0.1))[rand]]), @M] | @T } .
+
+  rl [delay-issue-2] : delay-issue(O,ID,K,QS,R,RS,AS,nil) => null .
+  
+  
+ ceq objectEnabled(< O : Client | queries: (read(ID,K) :: QS), waiting: empty, 
+                                  replicas: R, results: RS, AS >)
+   = true if not $hasMapping(RS,ID) .
+
+
+  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+
+
+  *** P ***
+  rl [reply] :
+     {
+     (to O from O' : read(ID,K)) 
+     < O : Server | database: DB, AS >
+   @OBJS @DMS | @T }
+  => 
+     {
+     < O : Server | database: DB, AS > 
+   delay-reply(O,O',ID,K,DB,AS,sort(to O' from O : reply(ID,DB[K])))
+     @OBJS @DMS | @T } . 
+
+  *** P ***  
+  op delay-reply : Oid Oid Id Key Map{Key,Data} Attributes MsgList -> DTask .   
+
+  rl [delay-reply-1] :
+     { delay-reply(O,O',ID,K,DB,AS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-reply(O,O',ID,K,DB,AS,@ML) @C 
+     [@T + (delta-reply(O,O',ID,K,DB,AS)[sample(lognormal(mSize(DB[K]),0.1))[rand]]), @M] | @T } .
+  
+  rl [delay-reply-2] : delay-reply(O,O',ID,K,DB,AS,nil) => null .   
+
+
+  *** P ***
+  rl [update] :
+     {
+     (to O from O' : reply(ID,DAT')) 
+     < O : Client | waiting: (O' ; OS), results: (RS, ID |-> DAT), AS >
+	 @OBJS @DMS | @T }
+  => 
+     {
+     < O : Client | waiting: OS, results: (RS, ID |-> latest(DAT,DAT')), AS > 
+	 @OBJS @DMS | @T } .
+   
+  op latest : Data Data -> Data .
+  eq latest(< V,TS >,null) = < V,TS > .
+  eq latest(null,< V,TS >) = < V,TS > .
+  eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
+   
+  --- M ---
+  
+  rl [finish] :
+     {
+	 < log : Monitor | events: TES >
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
+	 @OBJS @DMS | @T }
+  => 
+     {
+	 < log : Monitor | events: (TES ; (endQuery(ID) @ @T)) >
+     < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS >
+	 @OBJS @DMS | @T } .
+   
+  *** P ***  
+  eq objectEnabled(< O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >)
+   = true .
+  
+  *** P ***
+  *** initial state
+  rl [delay-init-1] :
+     { delay-init(@OBJS,@MSGS,(@M :: @ML)) @C | @T }
+  =>
+     { delay-init(@OBJS,@MSGS,@ML) @C
+     [@T + (sample(exponential(0.1))[rand]), @M] | @T } .
+     
+  rl [delay-init-2] : delay-init(@OBJS,@MSGS,nil) => null .
+endm
