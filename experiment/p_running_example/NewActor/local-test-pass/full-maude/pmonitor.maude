@@ -118,7 +118,11 @@ fmod TAG-BUILTINS is
         (mod string2qidList("P-" + string(Q)) is IL (including string2qidList("P-" + string(ME)) .) sorts S .  SS O M E R endm) .
 
     eq renameIncModule(mod Q is IL (including ME .) sorts S .  SS O M E R endm, ME, false) = 
-        (mod string2qidList("M-P-" + string(Q)) is IL (including string2qidList("M-P-" + string(ME)) .) sorts S .  SS O M E R endm) .
+        (mod string2qidList("M-P-" + string(Q)) is IL (including string2qidList("M-P-" + string(ME)) .) sorts S .  SS O M initMinitor(E) R endm) .
+
+    op initMinitor : EquationSet -> EquationSet .
+    eq initMinitor((eq T = T' [AtS].)) = (eq T = '__['<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['empty.TimedEvents]],T'] [AtS] .) .
+
 
 
     vars T T' T2 T3 : Term .
@@ -724,13 +728,13 @@ loop init .
     
 *** scripts start here
 
-load sampling-lib.maude
+load sampling-lib.maude 
 
-load input-modules-full-maude/pi-query.maude
+load input-modules-full-maude/pi-query.maude 
 
-(p-trans QUERY .)
+(p-trans QUERY .) 
 
-(show module P-QUERY .)
+(show module P-QUERY .) 
 
 load input-modules-full-maude/init-query.maude
 
@@ -738,7 +742,17 @@ load input-modules-full-maude/init-query.maude
 
 (show module P-INIT-QUERY .)
 
-*** scripts end here
+load input-modules-full-maude/events-query.maude 
+ 
+(pm-trans QUERY .)
+
+(show module M-P-QUERY .)
+
+(pm-init INIT-QUERY .)
+
+(show module M-P-INIT-QUERY .)
+
+q
 load input-modules-full-maude/events-query.maude
 
 (pm-trans QUERY .)
