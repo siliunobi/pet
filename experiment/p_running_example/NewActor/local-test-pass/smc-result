@@ -1,0 +1,24 @@
+Server addresses: 
+localhost:49046
+
+Verification Parameters: 
+model: 		test.maude
+formula: 		latency.quatex
+alpha: 		0.05
+beta: 		0.01
+delta1: 		0.01
+delta2: 		0.01
+pstop: 		0.05
+bias: 		1.0
+caching: 		0
+max: 		10000000
+kfactor: 		1
+model arguments:	
+ModelChecker preparing to model check quatex formula
+Thread for localhost:49046 is ready.
+Running the simulations... Please wait.
+samples generated = 60
+Result: 1.0
+Running time: 0.547 seconds
+
+done.

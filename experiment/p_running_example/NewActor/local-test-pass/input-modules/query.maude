@@ -12,7 +12,7 @@ mod SORTS is
   subsort Oid < Oids .
   subsort Nat < Id .
 
-  op <_,_> : Value Timestamp -> Data [ctor] .
+  op <_`,_> : Value Timestamp -> Data [ctor] .
   op null : -> Data .
   
   op read : Id Key -> Query .
