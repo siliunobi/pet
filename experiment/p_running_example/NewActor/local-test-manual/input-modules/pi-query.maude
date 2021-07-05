@@ -1,4 +1,4 @@
-load ../framework/distr-lib
+load ../distr-lib
 load query
 
 mod PI-QUERY is 

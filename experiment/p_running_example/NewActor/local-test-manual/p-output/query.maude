@@ -45,7 +45,6 @@ mod OBJS is
   op database:_ : Map{Key,Data} -> Attribute .
 endm
 
-
 mod QUERY is
   inc OBJS .
   

@@ -1,10 +1,10 @@
-load ../p-output/init-query
+***load ../p-output/p-init-query
+load ../m-output/m-p-init-query
 
 mod TEST is
   inc INTERFACE .
-  *** P ***
-  inc INIT-QUERY .
-  inc P-QUERY .
+  ***inc P-INIT-QUERY .
+  inc M-P-INIT-QUERY .
 
   *** PVeStA interface
   eq initState = init(initconf) .  

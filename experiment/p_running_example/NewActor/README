@@ -7,6 +7,8 @@ For p transformation:
 
 1. load pminitorV2-20210703.maude 
 
+1.5 load sampling-lib.maude
+
 2. load input-modules/pi-query.maude 
 
 3. (p-trans QUERY .)

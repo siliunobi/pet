@@ -1,11 +1,6 @@
 load ../apmaude
 
-  *** P *** file name format: fixed
-load ../sampling-lib
-
-
-
-(mod SORTS is
+mod SORTS is
   inc SCHEDULING .
   pr NAT .
   
@@ -17,7 +12,7 @@ load ../sampling-lib
   subsort Oid < Oids .
   subsort Nat < Id .
 
-  op <_`,_> : Value Timestamp -> Data [ctor] .
+  op <_,_> : Value Timestamp -> Data [ctor] .
   op null : -> Data .
   
   op read : Id Key -> Query .
@@ -29,18 +24,13 @@ load ../sampling-lib
   op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
   
   op reply : Id Data -> Payload .
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv
+view Data from TRIV to SORTS is sort Elt to Data . endv
+view Oids from TRIV to SORTS is sort Elt to Oids . endv
+view Id from TRIV to SORTS is sort Elt to Id . endv
 
-  op undefined : -> Qid .
-endm)
-
-
-
-(view Key from TRIV to SORTS is sort Elt to Key . endv)
-(view Data from TRIV to SORTS is sort Elt to Data . endv)
-(view Oids from TRIV to SORTS is sort Elt to Oids . endv)
-(view Id from TRIV to SORTS is sort Elt to Id . endv)
-
-(mod OBJS is
+mod OBJS is
   inc SORTS .
   pr MAP{Key,Data} .
   pr MAP{Key,Oids} .
@@ -53,10 +43,10 @@ endm)
   op replicas:_ : Map{Key,Oids} -> Attribute .  
   op results:_ : Map{Id,Data} -> Attribute .
   op database:_ : Map{Key,Data} -> Attribute .
-endm)
+endm
 
 
-(mod QUERY is
+mod QUERY is
   inc OBJS .
   
   vars O O' TB : Oid .  vars QS QS' : Queries .
@@ -67,6 +57,7 @@ endm)
   vars TS TS' : Timestamp .  var ID : Id .
   var RS : Map{Id,Data} .
   
+
   rl [req] :
      (to O : QS')
      < O : Client | queries: QS, AS > 
@@ -74,53 +65,40 @@ endm)
      < O : Client | queries: (QS :: QS'), AS > .
   
 
-   
-  rl [finish] :
-     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
+ crl [issue] :
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
+	                replicas: R, results: RS, AS > 
   => 
-     < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS > .
+     < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]),
+	                replicas: R, results: insert(ID,null,RS), AS > 
+     (propagate read(ID,K) to R[K] from O)
+	 if not $hasMapping(RS,ID) .
 
-
+  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
+  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
+  eq propagate P to empty from O' = null .
+   
   rl [reply] :
      (to O from O' : read(ID,K)) 
      < O : Server | database: DB, AS >
   => 
      < O : Server | database: DB, AS > 
      (to O' from O : reply(ID,DB[K])) .
-
-
- crl [issue] :
-     < O : Client | queries: (read(ID,K) :: QS), waiting: empty,
-                   replicas: R, results: RS, AS > 
-  => 
-     < O : Client | queries: (read(ID,K) :: QS), waiting: (R[K]),
-                   replicas: R, results: insert(ID,null,RS), AS > 
-     (propagate read(ID,K) to R[K] from O)
-    if not $hasMapping(RS,ID) .
-
-
-  
-
-
-  op propagate_to_from_ : Payload Oids Oid -> Msgs . 
-  eq propagate P to (O ; OS) from O' = (propagate P to OS from O') (to O from O' : P) .
-  eq propagate P to empty from O' = null .
-
-
+   
 
   rl [update] :
      (to O from O' : reply(ID,DAT')) 
      < O : Client | waiting: (O' ; OS), results: (RS, ID |-> DAT), AS >
   => 
      < O : Client | waiting: OS, results: (RS, ID |-> latest(DAT,DAT')), AS > .
-
-    
+	 
   op latest : Data Data -> Data .
   eq latest(< V,TS >,null) = < V,TS > .
   eq latest(null,< V,TS >) = < V,TS > .
   eq latest(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .
-
-    
-endm)
-eof 
-
+   
+  rl [finish] :
+     < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
+  => 
+     < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS > .
+endm

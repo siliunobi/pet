@@ -1,5 +1,5 @@
  load ../events
- load pi-query
+ ***load query
 
 (mod EVENTS-QUERY is 
   inc EVENTS + QUERY .

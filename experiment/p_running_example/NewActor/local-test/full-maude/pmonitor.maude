@@ -115,10 +115,10 @@ fmod TAG-BUILTINS is
 
 
     eq renameIncModule(mod Q is IL (including ME .) sorts S .  SS O M E R endm, ME, true) = 
-        (mod Q is IL (including string2qidList("P-" + string(ME)) .) sorts S .  SS O M E R endm) .
+        (mod string2qidList("P-" + string(Q)) is IL (including string2qidList("P-" + string(ME)) .) sorts S .  SS O M E R endm) .
 
     eq renameIncModule(mod Q is IL (including ME .) sorts S .  SS O M E R endm, ME, false) = 
-        (mod Q is IL (including string2qidList("M-P-" + string(ME)) .) sorts S .  SS O M E R endm) .
+        (mod string2qidList("M-P-" + string(Q)) is IL (including string2qidList("M-P-" + string(ME)) .) sorts S .  SS O M E R endm) .
 
 
     vars T T' T2 T3 : Term .
@@ -531,7 +531,7 @@ mod TAG-DATABASE-HANDLING is
     vars QIL QIL' QIL''	        : QidList .
     vars T T' T''		        : Term .
     vars H H'			        : Header .
-    var Q 				: Qid .
+    var Q 	 Q'			: Qid .
     vars DB DB' DB''           	: Database .
     var F					: Qid .
     vars MD M	M'	M''	M1 M2	: Module .
@@ -617,9 +617,10 @@ mod TAG-DATABASE-HANDLING is
            input     : nilTermList,
             output : ('New 'module '\g Q '\o 'generated!),
            Atts  >
-      if  < DB' ; ME' > := evalModExp(string2qidList("INIT-" + string(parseModExp(T))), DB) /\
-            M := getTopModule(ME', DB') /\ 
-            M' := renameIncModule(M,parseModExp(T),true) /\
+      if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
+            M := getTopModule(ME', DB') /\
+            ME :=  string2qidList(substr(string(parseModExp(T)),5,sd(length(string(ME')),5))) /\  
+            M' := renameIncModule(M,ME,true) /\
             Q := getName(M') .
 
     *** PM INIT 
@@ -631,9 +632,10 @@ mod TAG-DATABASE-HANDLING is
            input     : nilTermList,
             output : ('New 'module '\g Q '\o 'generated!),
            Atts  >
-      if  < DB' ; ME' > := evalModExp(string2qidList("INIT-" + string(parseModExp(T))), DB) /\
-            M := getTopModule(ME', DB') /\ 
-            M' := renameIncModule(M,parseModExp(T),false) /\
+      if  < DB' ; ME' > := evalModExp(parseModExp(T), DB) /\
+            M := getTopModule(ME', DB') /\
+            ME :=  string2qidList(substr(string(parseModExp(T)),5,sd(length(string(ME')),5))) /\  
+            M' := renameIncModule(M,ME,false) /\
             Q := getName(M') .
 
     *** Exception handling when module not exist 
@@ -710,7 +712,7 @@ mod MONITORING is
 endm
 
 set print conceal off .
-break select bp .
+*** break select bp .
 set break off .
 break select renameIncModule .
 
