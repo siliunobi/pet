@@ -1,0 +1,32 @@
+load real-time-maude
+
+(tomod EVENTS is
+  inc QID .
+  
+  sorts Event TimedEvent TimedEvents .    subsort TimedEvent < TimedEvents .
+  op empty : -> TimedEvents [ctor] .
+  op _;_ : TimedEvents TimedEvents -> TimedEvents [ctor assoc id: empty] .
+*** Time
+  op _@_ : Event Time -> TimedEvent [ctor] .
+
+  class Monitor | events : TimedEvents .
+  op log : -> Oid [ctor] .    *** the monitor's identifier
+  
+  sorts Pair EventMap .  subsort Pair < EventMap .
+  op `[_`,_`] : Qid Event -> Pair [ctor] .
+
+  op none : -> EventMap [ctor] .
+  op _;;_ : EventMap EventMap -> EventMap [ctor comm assoc id: none] .  
+  
+  op eventMap : -> EventMap .  *** to be defined by user
+  
+***( 
+  sort Events .
+  subsort Event < Events .
+  
+  op ept : -> Events [ctor] .
+  op _;_ : Events Events -> Events [ctor assoc id: ept] .
+
+  class Monitor | events : Events .
+  )
+endtom)

@@ -1,0 +1,188 @@
+set show advisories off .
+
+load ../real-time-maude
+
+(omod SORTS is
+  pr NAT .
+
+  sort Payload .
+  op startQuery : -> Payload .
+  
+  sorts Query Queries Key Value Timestamp Data Oids Id .
+  subsort Data < Payload .
+  subsort Nat < Timestamp .
+  subsort Nat < Value .
+  subsort Query < Queries < Payload .
+  subsort Oid < Oids .
+  subsort Nat < Id .
+
+  op <_`,_> : Value Timestamp -> Data [ctor] .
+  op null : -> Data .
+  
+  op query : Id Key -> Query .
+  op read : Id Key -> Query .
+  
+  op ept : -> Queries .
+  op _::_ : Queries Queries -> Queries [assoc id: ept] .
+
+  op empty : -> Oids .
+  op _;_ : Oids Oids -> Oids [assoc comm id: empty] .  
+  
+  op reply : Id Data -> Payload .
+endom)
+(view Key from TRIV to SORTS is sort Elt to Key . endv)
+(view Data from TRIV to SORTS is sort Elt to Data . endv)
+(view Oids from TRIV to SORTS is sort Elt to Oids . endv)
+(view Id from TRIV to SORTS is sort Elt to Id . endv)
+
+
+(omod OBJS is
+  inc SORTS .
+  pr MAP{Key,Data} .
+  pr MAP{Key,Oids} .
+  pr MAP{Id,Data} .
+  pr MAP{Id,Oids} .
+
+  class Client | queries : Queries,
+                 servers : Oids .
+
+  class Server | waiting : Map{Id,Oids},
+                 replicas : Map{Key,Oids},
+                 results : Map{Id,Data},
+                 database : Map{Key,Data},
+                 clients : Map{Id,Oids},
+                 executing : Queries .
+
+  msg to_from_:_ : Oid Oid Payload -> Msg .
+  msg to_:_      : Oid Payload     -> Msg .
+endom)
+
+(tomod DELAY is
+  pr NAT-TIME-DOMAIN-WITH-INF .
+  inc OBJS .
+
+  op md : -> Nat .
+
+  vars O O' : Oid .
+  vars C REST : Configuration .
+  var TI : TimeInf .  
+  vars T T'  : Time .
+  var MSG : Msg .
+  var MC : Payload .
+
+  *** dly
+  op dly : Msg TimeInf -> Msg [ctor right id: 0] .
+
+
+  *** mte
+  op mte : Configuration -> TimeInf [frozen(1)] .
+
+  eq mte(none) = INF .
+  eq mte(NEC:NEConfiguration NEC':NEConfiguration) 
+   = min(mte(NEC:NEConfiguration), mte(NEC':NEConfiguration)) .
+  eq mte(< O : Client | >) = INF . 
+  eq mte(< O : Server | >) = INF . 
+  ---eq mte(REST) = INF [owise] .
+  eq mte(dly(MSG,TI)) = TI .
+
+
+  *** delta
+  op delta : Configuration Time -> Configuration [frozen (1)] .
+
+  eq delta(none, T) = none . 
+  eq delta(NEC:NEConfiguration NEC':NEConfiguration, T) = 
+       delta(NEC:NEConfiguration, T) delta(NEC':NEConfiguration, T) . 
+  ---eq delta(REST, T) = REST [owise] .
+  eq delta(< O : Client | >, T) = < O : Client | > .
+  eq delta(< O : Server | >, T) = < O : Server | > .
+  eq delta(dly(MSG,TI),T) = dly(MSG, TI monus T) .
+
+
+  *** tick rule
+ crl [tick] : 
+     {C} 
+   => 
+     {delta(C,T)} in time T 
+     if T <= mte(C) [nonexec] .
+endtom)
+
+(tomod QUERY is
+  inc DELAY .
+  
+  vars O O' TB : Oid .  vars QS QS' : Queries .
+  var OS : Oids .  var R : Map{Key,Oids} .
+  var K : Key .
+  var DB : Map{Key,Data} .  vars V V' : Value .
+  var P : Payload .  vars DAT DAT' : Data .  
+  vars TS TS' : Timestamp .  var ID : Id .
+  var RS : Map{Id,Data} .  
+  var Q : Query .
+  vars CLS SS : Map{Id,Oids} .
+  
+
+  rl [delegate] : 
+     (to O : startQuery)
+     < O : Client | queries : (query(ID,K) :: QS), servers : (O' ; OS) >
+   =>
+     < O : Client | queries : QS, servers : (O' ; OS) >  
+	 dly((to O' from O : query(ID,K)),md) .
+	 
+
+  rl [propagate] :
+     (to O from O' : query(ID,K))
+     < O : Server | executing : QS, waiting : SS,
+	                replicas : R, clients : CLS >   
+   =>
+     < O : Server | executing : (QS :: query(ID,K)), waiting : insert(ID,R[K],SS), 
+	                replicas : R, clients : insert(ID,O',CLS) >
+     (propagate read(ID,K) to R[K] from O) .  
+ 
+ 
+  op propagate_to_from_ : Query Oids Oid -> Configuration .
+  eq propagate Q to (O ; OS) from O'
+   = (propagate Q to OS from O') 
+     dly((to O from O' : Q),md) .
+  eq propagate Q to empty from O' = none . 
+
+
+  rl [reply] :
+     (to O from O' : read(ID,K)) 
+     < O : Server | database : DB >
+  => 
+     < O : Server | database : DB > 
+     dly(to O' from O : reply(ID,DB[K]),md) .  
+ 
+
+  rl [update] :
+     (to O from O' : reply(ID,DAT')) 
+     < O : Server | waiting : (SS, ID |-> (O' ; OS)), results : RS >
+  => 
+     < O : Server | waiting : (SS, ID |-> OS), results : latest(ID,DAT',RS) > .
+	 
+
+  op latest : Id Data Map{Id,Data} -> Map{Id,Data} .
+  eq latest(ID,DAT',(RS, ID |-> DAT)) 
+   = RS, ID |-> fresher(DAT,DAT') .
+  eq latest(ID,DAT',RS) = insert(ID,DAT',RS) [owise] .
+  
+  op fresher : Data Data -> Data .
+  eq fresher(< V,TS >,null) = < V,TS > .
+  eq fresher(null,< V,TS >) = < V,TS > .
+  eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
+	 
+
+  rl [ack] :
+     < O : Server | executing : (QS :: query(ID,K) :: QS'), waiting : (SS, ID |-> empty), 
+	                clients : (CLS, ID |-> O'), results : (RS, ID |-> DAT) >
+  => 
+     < O : Server | executing : (QS :: QS'), waiting : SS,
+	                clients : CLS, results : RS > 
+     dly(to O' : startQuery,md) .
+	 
+  rl [finish] :
+     (to O : startQuery)
+     < O : Client | queries : ept >
+   =>
+     < O : Client | queries : ept > .
+
+endtom)
