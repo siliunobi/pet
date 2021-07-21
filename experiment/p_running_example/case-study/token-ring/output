@@ -1,0 +1,197 @@
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	   Maude 2.7.1 built: Jun 27 2016 16:43:23
+	    Copyright 1997-2016 SRI International
+		   Tue Jul  6 12:47:29 2021
+
+	    Full Maude 2.7.1 June 30th 2016
+
+     Welcome to Actors2PMaude!
+Introduced module DISTR-LIB
+
+Introduced module SAMPLE-UNIFORM
+
+Introduced module SAMPLING-LIB
+
+Advisory: Module DISTR-LIB redefined.
+Introduced module DISTR-LIB
+
+Introduced module MAP
+
+Introduced module TERM-ORDER
+
+Introduced module CONFIG
+
+Introduced view Msg
+
+Introduced module SORTING
+
+Introduced module INIT-HANDLER
+
+Introduced module SCHEDULING
+
+Introduced module INTERFACE
+
+Introduced module SORTS
+
+Introduced module OBJS
+
+Introduced module TOKENRING
+
+Introduced module PI-TOKENRING
+
+Advisory: Module TOKENRING redefined.
+New module P-TOKENRING generated!
+mod P-TOKENRING is
+  including BOOL .
+  including OBJS .
+  including PI-TOKENRING .
+  including SAMPLING-LIB .
+  op delay-exitCS : Oid Oid Attributes MsgList -> DTask .
+  op delay-getToken1 : Oid Oid Oid Attributes MsgList -> DTask .
+  eq objectEnabled(
+< O:Oid : Node | state: insideCS,next: O':Oid,AS:Attributes >)
+    = true .
+  rl 
+{@C:Config delay-exitCS(O:Oid,O':Oid,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-exitCS(O:Oid,O':Oid,AS:Attributes)[sample(uniform(
+    1.0,5.0))[rand]]),@M:Msg])delay-exitCS(O:Oid,O':Oid,AS:Attributes,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-getToken1(O:Oid,O':Oid,O'':Oid,AS:Attributes,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-getToken1(O':Oid,O:Oid,O'':Oid,AS:Attributes)[
+    sample(uniform(1.0,5.0))[rand]]),@M:Msg])delay-getToken1(O:Oid,O':Oid,
+    O'':Oid,AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0000000000000001e-1))[rand]),
+    M:Msg])delay-init(OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | state: insideCS,next: O':Oid,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | state: outsideCS,next: O':Oid,AS:Attributes > delay-exitCS(
+    O:Oid,O':Oid,AS:Attributes,sort(to O':Oid from O:Oid : token))|
+@T:Float} [label exitCS.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid : start)
+< O:Oid : Node | state: outsideCS,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | state: waitForCS,AS:Attributes > |
+@T:Float} [label wantToEnterCS.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O':Oid from O:Oid : token)
+< O':Oid : Node | state: outsideCS,next: O'':Oid,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O':Oid : Node | state: outsideCS,next: O'':Oid,AS:Attributes >
+    delay-getToken1(O:Oid,O':Oid,O'':Oid,AS:Attributes,sort(to O'':Oid from
+    O':Oid : token))|
+@T:Float} [label getToken1.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O':Oid from O:Oid : token)
+< O':Oid : Node | state: waitForCS,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O':Oid : Node | state: insideCS,AS:Attributes > |
+@T:Float} [label getToken2.p] .
+  rl delay-exitCS(O:Oid,O':Oid,AS:Attributes,nil)
+    => null [label delay-exitCS] .
+  rl delay-getToken1(O:Oid,O':Oid,O'':Oid,AS:Attributes,nil)
+    => null [label delay-getToken1] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => null [label delay-init-2] .
+endm
+
+Advisory: Module MAP redefined.
+Introduced module MAP
+
+Advisory: Module TERM-ORDER redefined.
+Introduced module TERM-ORDER
+
+Advisory: Module CONFIG redefined.
+Introduced module CONFIG
+
+Advisory: View Msg redefined.
+Introduced view Msg
+
+Advisory: Module SORTING redefined.
+Introduced module SORTING
+
+Advisory: Module INIT-HANDLER redefined.
+Introduced module INIT-HANDLER
+
+Advisory: Module SCHEDULING redefined.
+Introduced module SCHEDULING
+
+Advisory: Module INTERFACE redefined.
+Introduced module INTERFACE
+
+Advisory: Module SORTS redefined.
+Introduced module SORTS
+
+Advisory: Module OBJS redefined.
+Introduced module OBJS
+
+Advisory: Module TOKENRING redefined.
+Introduced module TOKENRING
+
+Introduced module INIT-TOKENRING
+
+New module P-INIT-TOKENRING generated!
+mod P-INIT-TOKENRING is
+  including BOOL .
+  including P-TOKENRING .
+  op initconf : -> Config .
+  op n1 : -> Oid
+    [ctor] .
+  op n10 : -> Oid
+    [ctor] .
+  op n2 : -> Oid
+    [ctor] .
+  op n3 : -> Oid
+    [ctor] .
+  op n4 : -> Oid
+    [ctor] .
+  op n5 : -> Oid
+    [ctor] .
+  op n6 : -> Oid
+    [ctor] .
+  op n7 : -> Oid
+    [ctor] .
+  op n8 : -> Oid
+    [ctor] .
+  op n9 : -> Oid
+    [ctor] .
+  eq initconf
+    = (to n1 : start)(to n5 : start)(to n9 : start)
+< n1 : Node | state: outsideCS,next: n2 >
+< n2 : Node | state: outsideCS,next: n3 >
+< n3 : Node | state: outsideCS,next: n4 >
+< n4 : Node | state: outsideCS,next: n5 >
+< n5 : Node | state: outsideCS,next: n6 >
+< n6 : Node | state: outsideCS,next: n7 >
+< n7 : Node | state: outsideCS,next: n8 >
+< n8 : Node | state: outsideCS,next: n9 >
+< n9 : Node | state: outsideCS,next: n10 >
+< n10 : Node | state: outsideCS,next: n1 > .
+endm
+
+Bye.

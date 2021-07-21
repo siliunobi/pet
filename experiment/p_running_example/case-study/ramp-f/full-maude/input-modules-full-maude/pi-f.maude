@@ -1,0 +1,86 @@
+load ../distr-lib
+load f
+
+(mod PI-F is 
+  inc DISTR-LIB + F + MSG-STRING-CONVERSION .
+  
+  vars RID TID RID' TABLE M : Oid .
+  var RIDS : OidSet .
+  vars AS AS' : Attributes .
+  vars TXNS TXNS' : ConfigList .
+  var K : Key .
+  var X : LocalVar .
+  var REPLICA-TABLE : ReplicaTable .
+  vars OPS OPS' OPS'' : OperationList .
+  vars V V' : Value .
+  var WS : WriteSet .
+  vars VARS VARS' : LocalVars .
+  vars RS DS RS' WRITES WRITES' READS : Versions .
+  vars LC VL VL' : KeyTimestamps .
+  var VERSION : Version .
+  vars TS TS' : Timestamp .
+  vars MD MD' KS : KeySet .
+  var VS : Versions .
+  vars SQN SQN' TXNSQN : Int .
+  var EXPR : Expression .
+  var RT : KeyReplicas .
+  vars 1STGETS 1STGETS' : 1stGets .
+  vars 2NDGETS 2NDGETS' : 2ndGets .
+  vars VSTS CMTS VSTS' CMTS' : VoteSites .
+  vars T T1 : Float .
+  var FLAG : Bool .
+  vars RECORD RECORD' : Record .
+  var D : Float .
+
+  *** delta function and its application for rule reply 
+  op delta-start-ro-or-rw-txn : Oid Oid ReplicaTable Oid OperationList Attributes ConfigList 1stGets Attributes -> RFun .
+  eq delta-start-ro-or-rw-txn(RID,TABLE,REPLICA-TABLE,TID,OPS,AS,TXNS,1STGETS,AS')[D] = D .
+  
+  op delta-start-wo-txn : Oid Oid ReplicaTable Oid OperationList LocalVars Attributes ConfigList Int VoteSites Attributes -> RFun .
+  eq delta-start-wo-txn(RID,TABLE,REPLICA-TABLE,TID,OPS,VARS,AS,TXNS,SQN,VSTS,AS')[D] = D .
+  
+  op delta-receive-prepare : Oid Versions Attributes Oid Oid Version -> RFun .
+  eq delta-receive-prepare(RID,VS,AS',RID',TID,VERSION)[D] = D .   
+  
+  op delta-receive-prepare-reply-1 : Oid ReplicaTable Oid Oid OperationList Attributes VoteSites Int VoteSites Attributes Oid Bool -> RFun .
+  eq delta-receive-prepare-reply-1(TABLE,REPLICA-TABLE,RID,TID,OPS,AS,VSTS,SQN,CMTS,AS',RID',FLAG)[D] = D .    
+  
+  op delta-receive-commit : Oid Versions KeyTimestamps Attributes Oid Oid Int -> RFun .
+  eq delta-receive-commit(RID,VS,LC,AS',RID',TID,SQN)[D] = D .  	 
+
+  op delta-receive-committed-1 : Oid Oid Attributes ConfigList VoteSites Attributes Oid -> RFun .
+  eq delta-receive-committed-1(RID,TID,AS,TXNS,CMTS,AS',RID')[D] = D . 	 
+		
+  op delta-receive-get-1 : Oid Versions KeyTimestamps Attributes Oid Oid Key Timestamp -> RFun .
+  eq delta-receive-get-1(RID,VS,LC,AS',RID',TID,K,TS)[D] = D . 		
+
+  op delta-receive-get-2 : Oid Versions KeyTimestamps Attributes Oid Oid Key Timestamp -> RFun .
+  eq delta-receive-get-2(RID,VS,LC,AS',RID',TID,K,TS)[D] = D . 	
+
+  op delta-receive-response1-1 : Oid ReplicaTable Oid Oid OperationList LocalVar Key OperationList Versions LocalVars 
+                                 KeyTimestamps Attributes 1stGets 2ndGets Attributes Oid Value Timestamp KeySet -> RFun .
+  eq delta-receive-response1-1(TABLE,REPLICA-TABLE,RID,TID,OPS,X,K,OPS',RS,VARS,VL,AS,1STGETS,2NDGETS,AS',RID',V,TS,MD)[D] = D . 		 
+
+  op delta-commit-reads : Oid Oid Versions Attributes ConfigList 1stGets 2ndGets Attributes -> RFun .
+  eq delta-commit-reads(RID,TID,RS,AS,TXNS,1STGETS,2NDGETS,AS')[D] = D . 
+
+
+  *** auxiliary functions  
+  op size1 : -> Float .
+  eq size1 = float(length(msg2string(get(TID,K,eptTS,RID)))) [nonexec] .
+  
+ *** rule-specific tuples
+ eq tpls = ['start-ro-or-rw-txn,exponential(10.0),delta-start-ro-or-rw-txn(RID,TABLE,REPLICA-TABLE,TID,OPS,AS,TXNS,1STGETS,AS')] ;;
+           ['start-wo-txn,exponential(10.0),delta-start-wo-txn(RID,TABLE,REPLICA-TABLE,TID,OPS,VARS,AS,TXNS,SQN,VSTS,AS')] ;;
+		   ['receive-prepare,exponential(10.0),delta-receive-prepare(RID,VS,AS',RID',TID,VERSION)] ;;
+		   ['receive-prepare-reply-1,exponential(10.0),delta-receive-prepare-reply-1(TABLE,REPLICA-TABLE,RID,TID,OPS,AS,VSTS,SQN,CMTS,AS',RID',FLAG)] ;;
+		   ['receive-commit,exponential(10.0),delta-receive-commit(RID,VS,LC,AS',RID',TID,SQN)] ;;
+		   ['receive-committed-1,exponential(1000.0),delta-receive-committed-1(RID,TID,AS,TXNS,CMTS,AS',RID')] ;;
+		   ['receive-get-1,exponential(10.0),delta-receive-get-1(RID,VS,LC,AS',RID',TID,K,TS)] ;;
+		   ['receive-get-2,exponential(10.0),delta-receive-get-1(RID,VS,LC,AS',RID',TID,K,TS)] ;; 
+		   ['receive-response1-1,exponential(10.0),
+		        delta-receive-response1-1(TABLE,REPLICA-TABLE,RID,TID,OPS,X,K,OPS',RS,VARS,VL,AS,1STGETS,2NDGETS,AS',RID',V,TS,MD)] ;;
+		   ['commit-reads,exponential(1000.0),delta-commit-reads(RID,TID,RS,AS,TXNS,1STGETS,2NDGETS,AS')] ;; 
+		   ['init,exponential(1000.0)]  [nonexec] .
+ 
+endm)

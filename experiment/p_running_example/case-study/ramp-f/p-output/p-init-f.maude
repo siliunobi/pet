@@ -1,0 +1,38 @@
+load p-f
+
+mod P-INIT-F is
+  including BOOL .
+  including P-F .
+  op initconf : -> Config .
+  op r1 : -> Oid .
+  op r2 : -> Oid .
+  op r3 : -> Oid .
+  op t1 : -> Oid .
+  op t2 : -> Oid .
+  op t3 : -> Oid .
+  op t4 : -> Oid .
+  op tb : -> Oid .
+  op x : -> Key .
+  op xl : -> LocalVar .
+  op y : -> Key .
+  op yl : -> LocalVar .
+  op z : -> Key .
+  op zl : -> LocalVar .
+  op _._ : Oid Oid -> Oid
+    [assoc prec 10] .
+  eq initconf
+    = 
+< tb : Table | table:[replicatingSites(x,2);; replicatingSites(y,2)]>(to 1 :
+    start)(to 2 : start)
+< 1 : Replica | gotTxns:
+< 1 . 1 : Txn | operations:((xl :=read x)(yl :=read y)),readSet: empty,latest:
+    empty,localVars:(xl |->[0], yl |->[0])>,datastore: empty,sqn: 1,
+    latestCommit: empty,executing: none,committed: emptyTxnList,voteSites:
+    noVS,1stGetSites: no1st,2ndGetSites: no2nd,commitSites: noVS >
+< 2 : Replica | gotTxns:
+< 2 . 1 : Txn | operations:(write(x,1)write(y,1)),readSet: empty,latest: empty,
+    localVars:(xl |->[0], yl |->[0])>,datastore:(version(x,[0],eptTS,empty),
+    version(y,[0],eptTS,empty)),sqn: 1,latestCommit: empty,executing: none,
+    committed: emptyTxnList,voteSites: noVS,1stGetSites: no1st,2ndGetSites:
+    no2nd,commitSites: noVS > .
+endm

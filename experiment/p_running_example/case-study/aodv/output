@@ -1,0 +1,470 @@
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	   Maude 2.7.1 built: Jun 27 2016 16:43:23
+	    Copyright 1997-2016 SRI International
+		   Wed Jul  7 12:32:12 2021
+
+	    Full Maude 2.7.1 June 30th 2016
+
+     Welcome to Actors2PMaude!
+Introduced module DISTR-LIB
+
+Introduced module SAMPLE-UNIFORM
+
+Introduced module SAMPLING-LIB
+
+Advisory: Module DISTR-LIB redefined.
+Introduced module DISTR-LIB
+
+Introduced module MAP
+
+Introduced module TERM-ORDER
+
+Introduced module CONFIG
+
+Introduced view Msg
+
+Introduced view Oid
+
+Introduced module SORTING
+
+Introduced module INIT-HANDLER
+
+Introduced module SCHEDULING
+
+Introduced module INTERFACE
+
+Introduced module SORTS
+
+Introduced view Tuple6
+
+Introduced view Tuple4
+
+Introduced view Tuple2
+
+Introduced view RreqID
+
+Introduced module SORTS-AUX
+
+Introduced module OBJS
+
+Introduced module AODV
+
+Introduced module PI-AODV
+
+Advisory: Module AODV redefined.
+New module P-AODV generated!
+mod P-AODV is
+  including BOOL .
+  including OBJS .
+  including PI-AODV .
+  including SAMPLING-LIB .
+  op broadcast : Payload Oid OidSet -> Msgs .
+  op delay-on-receiving-rreq-5 : Sqn RouteTable RreqBuffer OidSet Attributes
+    Oid Oid Sqn Nat Oid Sqn Nat Oid MsgList -> DTask .
+  op testDIP : -> Oid .
+  op testOIP : -> Oid .
+  eq broadcast(CONT:Payload,O:Oid,emptyOidSet)
+    = (null).DMsgs .
+  eq broadcast(CONT:Payload,O:Oid,O':Oid ; OS:OidSet)
+    = broadcast(CONT:Payload,O:Oid,OS:OidSet)to O':Oid from O:Oid :
+    CONT:Payload .
+  rl 
+{@C:Config delay-on-receiving-rreq-5(SN:Sqn,RT:RouteTable,RB:RreqBuffer,
+    NBS:OidSet,AS:Attributes,O:Oid,OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,
+    HOPS:Nat,SIP:Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-on-receiving-rreq-5(O:Oid,SN:Sqn,RT:RouteTable,
+    RB:RreqBuffer,NBS:OidSet,AS:Attributes,SIP:Oid,OIP:Oid,OSN:Sqn,RREQID:Nat,
+    DIP:Oid,DSN:Sqn,HOPS:Nat)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-on-receiving-rreq-5(SN:Sqn,RT:RouteTable,RB:RreqBuffer,
+    NBS:OidSet,AS:Attributes,O:Oid,OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,
+    HOPS:Nat,SIP:Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0e+2))[rand]),M:Msg])delay-init(
+    OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | rreqID: RREQID:Nat,sequenceNumber: SN:Sqn,routingTable:
+    RT:RouteTable,requestBuffer: RB:RreqBuffer,neighbors: NBS:OidSet,
+    AS:Attributes > to O:Oid : bootstrap |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs if inRT(RT:RouteTable,testDIP)then
+< O:Oid : Node | rreqID: RREQID:Nat,sequenceNumber: SN:Sqn,routingTable:
+    RT:RouteTable,requestBuffer: RB:RreqBuffer,neighbors: NBS:OidSet,
+    AS:Attributes > to testDIP from O:Oid : pkt else
+< O:Oid : Node | rreqID:(RREQID:Nat + 1),sequenceNumber:(SN:Sqn + 1),
+    routingTable: RT:RouteTable,requestBuffer:(O:Oid ~ RREQID:Nat,
+    RB:RreqBuffer),neighbors: NBS:OidSet,AS:Attributes > broadcast(rreq(O:Oid,
+    SN:Sqn + 1,RREQID:Nat,testDIP,0,0,O:Oid),O:Oid,NBS:OidSet)fi |
+@T:Float} [label init-route-discovery.p] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => (null).DMsgs [label delay-init-2] .
+  rl delay-on-receiving-rreq-5(SN:Sqn,RT:RouteTable,RB:RreqBuffer,NBS:OidSet,
+    AS:Attributes,O:Oid,OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,
+    SIP:Oid,nil)
+    => (null).DMsgs [label delay-on-receiving-rreq-5] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > |
+@T:Float}
+    if OIP:Oid =/= O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    < localdsn(RT:RouteTable[DIP:Oid])= true [label on-receiving-rrep-10.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > |
+@T:Float}
+    if OIP:Oid == O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    < localdsn(RT:RouteTable[DIP:Oid])= true [label on-receiving-rrep-5.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > |
+@T:Float}
+    if OIP:Oid =/= O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    == localdsn(RT:RouteTable[DIP:Oid])= true /\ hops(RT:RouteTable[DIP:Oid])<=
+    HOPS:Nat + 1 = true [label on-receiving-rrep-9.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > |
+@T:Float}
+    if OIP:Oid == O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    == localdsn(RT:RouteTable[DIP:Oid])= true /\ hops(RT:RouteTable[DIP:Oid])<=
+    HOPS:Nat + 1 = true [label on-receiving-rrep-4.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > |
+@T:Float}
+    if OIP:Oid == O:Oid = true /\ not inRT(RT:RouteTable,DIP:Oid)= true [label
+    on-receiving-rrep-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > |
+@T:Float}
+    if OIP:Oid == O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    > localdsn(RT:RouteTable[DIP:Oid])= true [label on-receiving-rrep-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > |
+@T:Float}
+    if OIP:Oid == O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    == localdsn(RT:RouteTable[DIP:Oid])= true /\ hops(RT:RouteTable[DIP:Oid])>
+    HOPS:Nat + 1 = true [label on-receiving-rrep-3.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: addPrec(nexthop(addPrec(
+    nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable))[DIP:Oid]),OIP:Oid,addPrec(nexthop(update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(
+    DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))[DIP:Oid]),OIP:Oid,
+    addPrec(nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable)))[OIP:Oid])from O:Oid : rrep(OIP:Oid,DIP:Oid,DSN:Sqn,
+    HOPS:Nat + 1,O:Oid)|
+@T:Float}
+    if OIP:Oid =/= O:Oid = true /\ not inRT(RT:RouteTable,DIP:Oid)= true [label
+    on-receiving-rrep-6.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: addPrec(nexthop(addPrec(
+    nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable))[DIP:Oid]),OIP:Oid,addPrec(nexthop(update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(
+    DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))[DIP:Oid]),OIP:Oid,
+    addPrec(nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable)))[OIP:Oid])from O:Oid : rrep(OIP:Oid,DIP:Oid,DSN:Sqn,
+    HOPS:Nat + 1,O:Oid)|
+@T:Float}
+    if OIP:Oid =/= O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    > localdsn(RT:RouteTable[DIP:Oid])= true [label on-receiving-rrep-7.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rrep(
+    OIP:Oid,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: addPrec(nexthop(addPrec(
+    nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable))[DIP:Oid]),OIP:Oid,addPrec(nexthop(update(DIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))),requestBuffer: RB:RreqBuffer,
+    AS:Attributes > to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP:Oid,
+    SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[OIP:Oid]),DIP:Oid,update(
+    DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable))[DIP:Oid]),OIP:Oid,
+    addPrec(nexthop(update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,RT:RouteTable)[
+    OIP:Oid]),DIP:Oid,update(DIP:Oid,SIP:Oid,HOPS:Nat + 1,DSN:Sqn,
+    RT:RouteTable)))[OIP:Oid])from O:Oid : rrep(OIP:Oid,DIP:Oid,DSN:Sqn,
+    HOPS:Nat + 1,O:Oid)|
+@T:Float}
+    if OIP:Oid =/= O:Oid = true /\ inRT(RT:RouteTable,DIP:Oid)= true /\ DSN:Sqn
+    == localdsn(RT:RouteTable[DIP:Oid])= true /\ hops(RT:RouteTable[DIP:Oid])>
+    HOPS:Nat + 1 = true [label on-receiving-rrep-8.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rreq(
+    OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(SIP:Oid,SIP:Oid,1,
+    0,RT:RouteTable),requestBuffer: RB:RreqBuffer,AS:Attributes > |
+@T:Float}
+    if OIP:Oid ~ RREQID:Nat in RB:RreqBuffer = true [label
+    on-receiving-rreq-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rreq(
+    OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: addPrec(nexthop(addPrec(
+    nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,
+    1,0,RT:RouteTable))[OIP:Oid]),DIP:Oid,update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,
+    OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable)))[DIP:Oid]),OIP:Oid,
+    addPrec(nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,
+    SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),DIP:Oid,update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable)))),
+    requestBuffer:(OIP:Oid ~ RREQID:Nat, RB:RreqBuffer),AS:Attributes > to
+    nexthop(addPrec(nexthop(addPrec(nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat +
+    1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),DIP:Oid,
+    update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,
+    RT:RouteTable)))[DIP:Oid]),OIP:Oid,addPrec(nexthop(update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),
+    DIP:Oid,update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,
+    1,0,RT:RouteTable))))[OIP:Oid])from O:Oid : rrep(OIP:Oid,DIP:Oid,localdsn(
+    addPrec(nexthop(addPrec(nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,
+    OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),DIP:Oid,
+    update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,
+    RT:RouteTable)))[DIP:Oid]),OIP:Oid,addPrec(nexthop(update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),
+    DIP:Oid,update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,
+    1,0,RT:RouteTable))))[DIP:Oid]),hops(addPrec(nexthop(addPrec(nexthop(
+    update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,
+    RT:RouteTable))[OIP:Oid]),DIP:Oid,update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,
+    OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable)))[DIP:Oid]),OIP:Oid,
+    addPrec(nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,
+    SIP:Oid,1,0,RT:RouteTable))[OIP:Oid]),DIP:Oid,update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))))[
+    DIP:Oid]),O:Oid)|
+@T:Float}
+    if not OIP:Oid ~ RREQID:Nat in RB:RreqBuffer = true /\ DIP:Oid =/= O:Oid =
+    true /\ DSN:Sqn <= localdsn(RT:RouteTable[DIP:Oid])= true /\ inRT(
+    RT:RouteTable,DIP:Oid)= true [label on-receiving-rreq-3.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,AS:Attributes > to O:Oid from SIP:Oid : rreq(
+    OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: max(SN:Sqn,DSN:Sqn + 1),routingTable: update(
+    OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,
+    RT:RouteTable)),requestBuffer:(OIP:Oid ~ RREQID:Nat, RB:RreqBuffer),
+    AS:Attributes > to nexthop(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,
+    update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable))[OIP:Oid])from O:Oid : rrep(
+    OIP:Oid,DIP:Oid,max(SN:Sqn,DSN:Sqn + 1),0,O:Oid)|
+@T:Float}
+    if not OIP:Oid ~ RREQID:Nat in RB:RreqBuffer = true /\ DIP:Oid == O:Oid =
+    true [label on-receiving-rreq-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,neighbors: NBS:OidSet,AS:Attributes > to O:Oid
+    from SIP:Oid : rreq(OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,
+    SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable)),
+    requestBuffer:(OIP:Oid ~ RREQID:Nat, RB:RreqBuffer),neighbors: NBS:OidSet,
+    AS:Attributes > broadcast(rreq(OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,max(
+    localdsn(update(OIP:Oid,SIP:Oid,HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,
+    SIP:Oid,1,0,RT:RouteTable))[DIP:Oid]),DSN:Sqn),HOPS:Nat + 1,O:Oid),O:Oid,
+    NBS:OidSet)|
+@T:Float}
+    if not OIP:Oid ~ RREQID:Nat in RB:RreqBuffer = true /\ DIP:Oid =/= O:Oid =
+    true /\ DSN:Sqn > localdsn(RT:RouteTable[DIP:Oid])= true /\ inRT(
+    RT:RouteTable,DIP:Oid)= true [label on-receiving-rreq-4.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: RT:RouteTable,
+    requestBuffer: RB:RreqBuffer,neighbors: NBS:OidSet,AS:Attributes > to O:Oid
+    from SIP:Oid : rreq(OIP:Oid,OSN:Sqn,RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat,
+    SIP:Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | sequenceNumber: SN:Sqn,routingTable: update(OIP:Oid,SIP:Oid,
+    HOPS:Nat + 1,OSN:Sqn,update(SIP:Oid,SIP:Oid,1,0,RT:RouteTable)),
+    requestBuffer:(OIP:Oid ~ RREQID:Nat, RB:RreqBuffer),neighbors: NBS:OidSet,
+    AS:Attributes > delay-on-receiving-rreq-5(SN:Sqn,RT:RouteTable,
+    RB:RreqBuffer,NBS:OidSet,AS:Attributes,O:Oid,OIP:Oid,OSN:Sqn,RREQID:Nat,
+    DIP:Oid,DSN:Sqn,HOPS:Nat,SIP:Oid,sort(broadcast(rreq(OIP:Oid,OSN:Sqn,
+    RREQID:Nat,DIP:Oid,DSN:Sqn,HOPS:Nat + 1,O:Oid),O:Oid,NBS:OidSet)))|
+@T:Float}
+    if not OIP:Oid ~ RREQID:Nat in RB:RreqBuffer = true /\ DIP:Oid =/= O:Oid =
+    true /\ not inRT(RT:RouteTable,DIP:Oid)= true [label on-receiving-rreq-5.p]
+    .
+endm
+
+Advisory: Module MAP redefined.
+Introduced module MAP
+
+Advisory: Module TERM-ORDER redefined.
+Introduced module TERM-ORDER
+
+Advisory: Module CONFIG redefined.
+Introduced module CONFIG
+
+Advisory: View Msg redefined.
+Introduced view Msg
+
+Advisory: View Oid redefined.
+Introduced view Oid
+
+Advisory: Module SORTING redefined.
+Introduced module SORTING
+
+Advisory: Module INIT-HANDLER redefined.
+Introduced module INIT-HANDLER
+
+Advisory: Module SCHEDULING redefined.
+Introduced module SCHEDULING
+
+Advisory: Module INTERFACE redefined.
+Introduced module INTERFACE
+
+Advisory: Module SORTS redefined.
+Introduced module SORTS
+
+Advisory: View Tuple6 redefined.
+Introduced view Tuple6
+
+Advisory: View Tuple4 redefined.
+Introduced view Tuple4
+
+Advisory: View Tuple2 redefined.
+Introduced view Tuple2
+
+Advisory: View RreqID redefined.
+Introduced view RreqID
+
+Advisory: Module SORTS-AUX redefined.
+Introduced module SORTS-AUX
+
+Advisory: Module OBJS redefined.
+Introduced module OBJS
+
+Advisory: Module AODV redefined.
+Introduced module AODV
+
+Introduced module INIT-AODV
+
+New module P-INIT-AODV generated!
+mod P-INIT-AODV is
+  including BOOL .
+  including P-AODV .
+  op initconf : -> Config .
+  eq initconf
+    = 
+< 10 : Node | rreqID: 100,sequenceNumber: 1,routingTable: empty,requestBuffer:
+    empty,neighbors: 20 >
+< 20 : Node | rreqID: 100,sequenceNumber: 1,routingTable: empty,requestBuffer:
+    empty,neighbors:(10 ; 30)>
+< 30 : Node | rreqID: 100,sequenceNumber: 1,routingTable: empty,requestBuffer:
+    empty,neighbors: 20 > to testOIP : bootstrap .
+  eq testDIP
+    = 30 .
+  eq testOIP
+    = 10 .
+endm
+
+Bye.

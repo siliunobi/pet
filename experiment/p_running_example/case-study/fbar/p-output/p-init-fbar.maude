@@ -1,0 +1,34 @@
+load p-fbar
+
+mod P-INIT-FBAR is
+  including BOOL .
+  including P-FBAR .
+  op initconf : -> Config .
+  op n1 : -> Oid
+    [ctor] .
+  op n10 : -> Oid
+    [ctor] .
+  op n2 : -> Oid
+    [ctor] .
+  op n3 : -> Oid
+    [ctor] .
+  op n4 : -> Oid
+    [ctor] .
+  op n5 : -> Oid
+    [ctor] .
+  op n6 : -> Oid
+    [ctor] .
+  op n7 : -> Oid
+    [ctor] .
+  op n8 : -> Oid
+    [ctor] .
+  op n9 : -> Oid
+    [ctor] .
+  eq initconf
+    = (to 0 : start)
+< 0 : Node | neighbors:(1 ; 2),mem:(mmetric |-> 5),table: empty,buffer:(send
+    data0 from 0 to 3 of sid(0,1))>
+< 1 : Node | neighbors: 3,mem:(mmetric |-> 7),table: empty,buffer: ept >
+< 2 : Node | neighbors: 3,mem:(mmetric |-> 3),table: empty,buffer: ept >
+< 3 : Node | neighbors:(1 ; 2),mem:(mmetric |-> 2),table: empty,buffer: ept > .
+endm

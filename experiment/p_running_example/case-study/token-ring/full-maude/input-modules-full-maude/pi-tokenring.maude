@@ -1,0 +1,23 @@
+load ../distr-lib
+load tokenring
+
+(mod PI-TOKENRING is 
+  inc DISTR-LIB + TOKENRING .
+  
+  vars O O' O'' : Oid .
+  vars AS : Attributes .
+  var D : Float . 
+  
+  *** delta function and its application for rule reply  
+  op delta-getToken1 : Oid Oid Oid Attributes -> RFun .  
+  eq delta-getToken1(O',O,O'',AS)[D] = D .
+  
+  op delta-exitCS : Oid Oid Attributes -> RFun .
+  eq delta-exitCS(O,O',AS)[D] = D .
+  	 
+ 
+ *** rule-specific tuples
+ eq tpls = ['getToken1,uniform(1.0,5.0),delta-getToken1(O',O,O'',AS)] ;; 
+           ['init,exponential(0.1)] ;; 
+		   ['exitCS,uniform(1.0,5.0),delta-exitCS(O,O',AS)] [nonexec] .
+endm)

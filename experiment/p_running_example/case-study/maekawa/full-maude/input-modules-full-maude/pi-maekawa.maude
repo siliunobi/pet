@@ -1,0 +1,34 @@
+load ../distr-lib
+load maekawa
+
+(mod PI-MAEKAWA is 
+  inc DISTR-LIB + MAEKAWA .
+
+  vars O O1 : Oid .
+  vars OS : OidSet .
+  vars AS : Attributes .
+  var D : Float .
+  var OL : OidList .
+ 
+  
+  *** delta function and its application for rule reply  
+  op delta-requestCS : Oid OidSet Attributes -> RFun .  
+  eq delta-requestCS(O,OS,AS)[D] = D .  
+  
+  op delta-exitCS : Oid OidSet Attributes -> RFun .  
+  eq delta-exitCS(O,OS,AS)[D] = D .    
+  
+  op delta-vote : Oid Oid Attributes -> RFun .  
+  eq delta-vote(O,O1,AS)[D] = D .    
+
+  op delta-releaseQueue : Oid Oid OidList Attributes -> RFun .  
+  eq delta-releaseQueue(O,O1,OL,AS)[D] = D .    
+
+
+  *** rule-specific tuples
+  eq tpls = ['requestCS,lognormal(0.0,1.0),delta-requestCS(O,OS,AS)] ;; 
+            ['exitCS,lognormal(0.0,1.0),delta-exitCS(O,OS,AS)] ;; 
+            ['vote,lognormal(0.0,1.0),delta-vote(O,O1,AS)] ;;
+            ['releaseQueue,lognormal(0.0,1.0),delta-releaseQueue(O,O1,OL,AS)] ;;
+            ['init,exponential(100.0)] [nonexec] .
+endm)

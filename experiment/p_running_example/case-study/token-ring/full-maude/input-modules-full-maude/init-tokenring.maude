@@ -1,0 +1,21 @@
+load tokenring
+
+(mod INIT-TOKENRING is
+  inc TOKENRING .
+  
+  ops n1 n2 n3 n4 n5
+      n6 n7 n8 n9 n10 : -> Oid [ctor] . 
+  
+  op initconf : -> Config .
+  eq initconf = (to n1 : start) (to n5 : start) (to n9 : start)
+            < n1 : Node | state: outsideCS, next: n2 >
+            < n2 : Node | state: outsideCS, next: n3 >
+            < n3 : Node | state: outsideCS, next: n4 >
+            < n4 : Node | state: outsideCS, next: n5 >
+            < n5 : Node | state: outsideCS, next: n6 > 
+            < n6 : Node | state: outsideCS, next: n7 >
+            < n7 : Node | state: outsideCS, next: n8 >
+            < n8 : Node | state: outsideCS, next: n9 >
+            < n9 : Node | state: outsideCS, next: n10 >
+           < n10 : Node | state: outsideCS, next: n1 > .  
+endm)

@@ -1,0 +1,54 @@
+load ../distr-lib
+load aodv
+
+mod PI-AODV is 
+  inc DISTR-LIB + AODV .
+
+  vars O O' OIP DIP SIP         : Oid .
+  vars RREQID HOPS FLAG         : Nat .
+  vars OSN DSN SN SN'           : Sqn .
+  vars RT RT' RT'' RT''' RT'''' : RouteTable .
+  var RB                        : RreqBuffer .
+  vars AS                       : Attributes .  
+  vars NBS OS                   : OidSet .
+  var CONT                      : Payload .
+  var D                         : Float .
+  
+  *** delta function and its application for rule reply   
+  op delta-init-route-discovery : Oid Nat Sqn RouteTable RreqBuffer OidSet Attributes -> RFun .
+  eq delta-init-route-discovery(O,RREQID,SN,RT,RB,NBS,AS)[D] = D . 
+ 
+  op delta-on-receiving-rreq-2 : Oid Sqn RouteTable RreqBuffer Attributes Oid Oid Sqn Nat Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rreq-2(O,SN,RT,RB,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)[D] = D . 
+
+  op delta-on-receiving-rreq-3 : Oid Sqn RouteTable RreqBuffer Attributes Oid Oid Sqn Nat Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rreq-3(O,SN,RT,RB,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)[D] = D .  
+ 
+  op delta-on-receiving-rreq-4 : Oid Sqn RouteTable RreqBuffer OidSet Attributes Oid Oid Sqn Nat Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rreq-4(O,SN,RT,RB,NBS,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)[D] = D . 
+  
+  op delta-on-receiving-rreq-5 : Oid Sqn RouteTable RreqBuffer OidSet Attributes Oid Oid Sqn Nat Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rreq-5(O,SN,RT,RB,NBS,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)[D] = D . 	
+
+  op delta-on-receiving-rrep-6 : Oid Sqn RouteTable RreqBuffer Attributes Oid Oid Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rrep-6(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)[D] = D . 
+
+  op delta-on-receiving-rrep-7 : Oid Sqn RouteTable RreqBuffer Attributes Oid Oid Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rrep-7(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)[D] = D . 
+
+  op delta-on-receiving-rrep-8 : Oid Sqn RouteTable RreqBuffer Attributes Oid Oid Oid Sqn Nat -> RFun .
+  eq delta-on-receiving-rrep-8(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)[D] = D . 
+  	
+
+ *** rule-specific tuples
+ eq tpls = ['init-route-discovery,lognormal(0.0,1.0),delta-init-route-discovery(O,RREQID,SN,RT,RB,NBS,AS)] ;;
+           ['on-receiving-rreq-2,lognormal(0.0,1.0),delta-on-receiving-rreq-2(O,SN,RT,RB,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rreq-3,lognormal(0.0,1.0),delta-on-receiving-rreq-3(O,SN,RT,RB,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rreq-4,lognormal(0.0,1.0),delta-on-receiving-rreq-4(O,SN,RT,RB,NBS,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rreq-5,lognormal(0.0,1.0),delta-on-receiving-rreq-5(O,SN,RT,RB,NBS,AS,SIP,OIP,OSN,RREQID,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rrep-6,lognormal(0.0,1.0),delta-on-receiving-rrep-6(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rrep-7,lognormal(0.0,1.0),delta-on-receiving-rrep-7(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)] ;;
+		   ['on-receiving-rrep-8,lognormal(0.0,1.0),delta-on-receiving-rrep-8(O,SN,RT,RB,AS,SIP,OIP,DIP,DSN,HOPS)] ;;
+		   ['init,exponential(100.0)] [nonexec] .
+		   
+endm

@@ -1,0 +1,50 @@
+load ../distr-lib
+load fbar
+
+mod PI-FBAR is 
+  inc DISTR-LIB + FBAR .
+  
+  vars N N' M M' SRC DST O : Oid .
+  vars CS CS' : Payloads .  
+  vars AS : Attributes .
+  vars SID K : Key .
+  var L : PList . 
+  var DATA : Data .
+  vars S OS : OidSet .
+  vars DICT TB : Dict .
+  vars METRIC METRIC' V V' : Nat . 
+  var D : Float . 
+
+  *** delta function and its application for rule reply 
+  op delta-Start : Oid Payloads Attributes -> RFun .
+  eq delta-Start(N,CS,AS)[D] = D .
+  
+  op delta-RecScout-init : Oid OidSet Dict Attributes Key Oid Oid -> RFun .
+  eq delta-RecScout-init(N,S,DICT,AS,SID,M,M')[D] = D .
+
+  op delta-RecScout-1 : Oid OidSet Dict Attributes Oid Key Oid Oid Nat PList -> RFun .
+  eq delta-RecScout-1(N,S,DICT,AS,N',SID,M,M',METRIC,L)[D] = D .
+  
+  op delta-SendFlow : Oid Dict Attributes Oid Key Oid Nat PList -> RFun .
+  eq delta-SendFlow(N,DICT,AS,N',SID,M,METRIC,L)[D] = D .
+  
+  op delta-RecFlow-2 : Oid Dict Dict Attributes Oid Key Oid Nat Oid Nat PList -> RFun .
+  eq delta-RecFlow-2(N,DICT,TB,AS,N',SID,M,METRIC,M',METRIC',L)[D] = D .
+  
+  op delta-Send : Oid Key Oid Oid Nat Dict Payloads Data Attributes -> RFun .
+  eq delta-Send(N,K,M,M',METRIC,TB,CS,DATA,AS)[D] = D .
+
+  op delta-RecData : Oid Oid Data Key Oid Oid Nat Dict Attributes -> RFun .
+  eq delta-RecData(N,O,DATA,K,N',M,METRIC,TB,AS)[D] = D .
+
+ *** rule-specific tuples
+ eq tpls = ['Start,lognormal(0.0,1.0),delta-Start(N,CS,AS)] ;;
+           ['RecScout-init,lognormal(0.0,1.0),delta-RecScout-init(N,S,DICT,AS,SID,M,M')] ;;
+		   ['RecScout-1,lognormal(0.0,1.0),delta-RecScout-1(N,S,DICT,AS,N',SID,M,M',METRIC,L)] ;;
+		   ['SendFlow,lognormal(0.0,1.0),delta-SendFlow(N,DICT,AS,N',SID,M,METRIC,L)] ;;
+		   ['RecFlow-2,lognormal(0.0,1.0),delta-RecFlow-2(N,DICT,TB,AS,N',SID,M,METRIC,M',METRIC',L)] ;;
+		   ['Send,lognormal(0.0,1.0),delta-Send(N,K,M,M',METRIC,TB,CS,DATA,AS)] ;;
+		   ['RecData,lognormal(0.0,1.0),delta-RecData(N,O,DATA,K,N',M,METRIC,TB,AS)] ;;
+		   ['init,exponential(100.0)] [nonexec] .
+
+endm

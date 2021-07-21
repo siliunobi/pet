@@ -1,0 +1,211 @@
+load ../apmaude
+
+(mod SORTS is
+  inc SCHEDULING .
+
+  subsort Nat < Oid .
+  
+  sorts Key Data .
+
+  op mmetric : -> Key .
+  op map : Oid Oid Nat -> Nat .
+  ops data0 data1 : -> Data .
+  op sid : Oid Nat -> Key .
+
+  sorts Pair PList .
+  subsort Pair < PList .  
+  op pair : Oid Nat -> Pair .
+  op nil : -> PList [ctor] .
+  op _;;_ : PList PList -> PList [ctor assoc id: nil] .
+  
+  sort OidSet .
+  subsort Oid < OidSet .
+  op emptyOidSet : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor comm assoc id: emptyOidSet] .
+  
+  sort OidList .
+  subsort Oid < OidList .
+  op emptyOidList : -> OidList [ctor] .
+  op _;;_ : OidList OidList -> OidList [ctor assoc id: emptyOidList] .
+  
+  sort Payloads .
+  subsort Payload < Payloads .
+  op ept : -> Payloads [ctor] .
+  op _;_ : Payloads Payloads -> Payloads [ctor comm assoc id: ept] .
+  
+  sort PayloadList .
+  subsort Payload < PayloadList .
+  op nil : -> PayloadList [ctor] .
+  op _;;_ : PayloadList PayloadList -> PayloadList [ctor assoc id: nil] .
+endm)
+(view Key from TRIV to SORTS is sort Elt to Key . endv) 
+
+
+(mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Nat} * (sort Map{Key,Nat} to Dict,
+                     op undefined to udf) .
+    
+  *** Node ***
+  op Node  :                   -> ObjType .
+  op neighbors:_ :   OidSet    -> Attribute .
+  op mem:_ :         Dict      -> Attribute .
+  op table:_ :       Dict      -> Attribute .
+  op buffer:_ :      Payloads  -> Attribute .
+  
+  *** Msg ***
+  
+  *** pScout : sId loc  src  dst  pathmsg 
+  op pScout : Key Oid Oid Oid PList -> Payload .
+  *** pFlow : sId loc  dst  last pathmsg 
+  op pFlow : Key Oid Oid Oid PList -> Payload . 
+  *** pData : data sId loc  dstmsg 
+  op pData : Data Key Oid Oid -> Payload .
+  *** Wait : sId data srcmsg 
+  op Wait : Key Data Oid -> Payload .
+  
+  op send_from_to_of_ : Data Oid Oid Key -> Payload . 
+  op start : -> Payload .
+endm)
+
+
+(mod FBAR is
+  inc OBJS .
+
+  vars N N' M M' SRC DST O : Oid .
+  vars CS CS' : Payloads .  
+  vars AS : Attributes .
+  vars SID K : Key .
+  var L : PList . 
+  var DATA : Data .
+  vars S OS : OidSet .
+  vars DICT TB : Dict .
+  vars METRIC METRIC' V V' : Nat .
+    
+
+  eq (send DATA from SRC to DST of SID)
+   = pScout(SID, SRC, SRC, DST, nil) ; Wait(SID, DATA, SRC) .
+   	
+
+  rl [Start] :
+     (to N : start)
+	 < N : Node | buffer: CS, AS >
+   =>
+     < N : Node | buffer: wait(CS), AS >
+	 genScout(CS) .
+
+  op genScout : Payloads -> Msgs . 
+  eq genScout(pScout(SID, N, SRC, DST, L) ; CS)
+   = (to N from N : pScout(SID, N, SRC, DST, L))
+     genScout(CS) .
+  eq genScout(Wait(SID,DATA,SRC) ; CS) = genScout(CS) .
+  eq genScout(ept) = null .	 
+
+  op wait : Payloads -> Payloads .
+  eq wait(Wait(SID,DATA,SRC) ; CS) = Wait(SID,DATA,SRC) ; wait(CS) .
+  eq wait(pScout(SID, N, SRC, DST, L) ; CS) = wait(CS) .
+  eq wait(ept) = ept .
+  
+  
+  rl [RecScout-init] :
+     < N : Node | neighbors: S, mem: DICT, AS >
+	 (to N from N : pScout(SID, N, M, M', nil)) 
+   =>
+     < N : Node | neighbors: S, mem: DICT, AS >
+	 scoutNeighbors(SID,S,N,M,M',pair(N,DICT[mmetric])) .
+
+
+  op scoutNeighbors : Key OidSet Oid Oid Oid PList -> Msgs .
+  eq scoutNeighbors(SID,(O ; OS),N,M,M',L) 
+   = scoutNeighbors(SID,OS,N,M,M',L)
+     (to O from N : pScout(SID,O,M,M',L)) .
+  eq scoutNeighbors(SID,emptyOidSet,N,M,M',L) = null .
+  
+
+  crl [RecScout-1] :
+      < N : Node | neighbors: S, mem: DICT, AS >
+	  (to N from N' : pScout(SID, N, M, M', (pair(N', METRIC) ;; L)))
+	=>
+	  < N : Node | neighbors: S, mem: insert(SID,METRIC + DICT[mmetric], DICT), AS >
+	  scoutNeighbors(SID, S, N, M, M', (pair(N, METRIC + DICT[mmetric]) ;; pair(N', METRIC) ;; L))
+	  if (METRIC + DICT[mmetric] slt DICT[SID]) /\ (N =/= M') .
+
+
+  *** strictly less than
+  op _slt_ : Nat Nat -> Bool .
+  eq V slt udf = true .
+  eq V slt V' = V < V' [owise] .
+  
+  crl [RecScout-2] :
+      < N : Node | mem: DICT, AS >
+	  (to N from N' : pScout(SID,N, M, M', (pair(N', METRIC) ;; L))) 
+	=>
+	  < N : Node | mem: DICT, AS >
+	  if (not (METRIC + DICT[mmetric] slt DICT[SID])) /\ (N =/= M') .
+	  
+	  
+  *** error?? ***
+  *** Last write wins, but may not be the optimal
+  rl [SendFlow] :
+     < N : Node | mem: DICT, AS >
+	 (to N from N' : pScout(SID,N, M, N, (pair(N',METRIC) ;; L)))
+   =>
+     < N : Node | mem: insert(SID, METRIC, DICT), AS >
+	 (to N' from N : pFlow(SID,N', N, N, (pair(N', METRIC) ;; L))) .
+
+
+  *** Error!! 
+  crl [RecFlow-1] :
+      < N : Node | mem: DICT, AS >
+	  (to N from N' : pFlow(SID, N, M, N', (pair(N, METRIC) ;; L ;; pair(SRC,METRIC'))))
+	=>
+	  < N : Node | mem: DICT, AS >
+	  if DICT[SID] =/= METRIC /\ N =/= SRC .	 
+
+  crl [RecFlow-2] :
+      < N : Node | mem: DICT, table: TB, AS >
+	  (to N from N' : pFlow(SID, N, M, N', (pair(N, METRIC) ;; pair(M', METRIC') ;; L)))
+	=>
+	  < N : Node | mem: DICT, table: insert(SID, map(M, N', METRIC), TB), AS >
+	  (to M' from N : pFlow(SID, M', M, N,(pair(M', METRIC') ;; L)))
+	  if DICT[SID] == METRIC .	
+	  
+  rl [EndFlow] :
+     < N : Node | table: TB, AS >
+	 (to N from N' : pFlow(SID, N, M, N', pair(N, METRIC))) 
+   =>
+     < N : Node | table: insert(SID, map(M, N', METRIC), TB), AS > . 
+	 
+
+  rl [Send] :
+	 < N : Node | table: (K |-> map(M, M', METRIC), TB), 
+	              buffer: (CS ; Wait(K, DATA, N)), AS >
+   =>
+	 < N : Node | table: (K |-> map(M, M', METRIC), TB),
+	              buffer: CS, AS >
+	 (to M' from N : pData(DATA, K, M', M)) .
+	 
+	 
+  crl [RecData] :
+	  (to N from O : pData(DATA, K, N, N')) 
+      < N : Node | table: (K |-> map(N', M, METRIC), TB), AS >
+	=>
+	  < N : Node | table: (K |-> map(N', M, METRIC), TB), AS >
+	  (to M from N : pData(DATA, K, M, N')) 
+	  if N =/= N' .
+	  
+	  
+  crl [RecData-1] :
+      (to N from O : pData(DATA,SID,N,N'))
+	  < N : Node | table: TB, AS >
+	=>
+	  < N : Node | table: TB, AS >
+	  if (not $hasMapping(TB,SID)) /\ (N =/= N') .
+	  
+
+   rl [RecData-2] :
+      (to N from O : pData(DATA,SID,N,N))
+	  < N : Node | AS >
+	=>
+	  < N : Node | AS > .
+endm)

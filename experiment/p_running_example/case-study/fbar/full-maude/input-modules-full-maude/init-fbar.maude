@@ -1,0 +1,25 @@
+load fbar
+
+(mod INIT-FBAR is 
+  inc FBAR .
+  
+  ops n1 n2 n3 n4 n5
+      n6 n7 n8 n9 n10 : -> Oid [ctor] . 
+  
+  op initconf : -> Config .
+  eq initconf =  (to 0 : start)	 
+                 < 0 : Node | neighbors: (1 ; 2), 
+				              mem: (mmetric |-> 5), 
+							  table: empty, 
+							  buffer: ((send data0 from 0 to 3 of sid(0,1)) ) >
+				 < 1 : Node | neighbors: 3, 
+				              mem: (mmetric |-> 7), 
+							  table: empty, buffer: ept >
+				 < 2 : Node | neighbors: 3, 
+				              mem: (mmetric |-> 3), 
+							  table: empty, buffer: ept >
+				 < 3 : Node | neighbors: (1 ; 2), 
+				              mem: (mmetric |-> 2), 
+							  table: empty, buffer: ept > .
+							  
+endm)

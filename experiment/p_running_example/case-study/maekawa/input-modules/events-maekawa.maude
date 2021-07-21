@@ -1,0 +1,11 @@
+load ../events
+load maekawa
+
+mod EVENTS-MAEKAWA is 
+  inc EVENTS + MAEKAWA .
+  
+  *** user-specified interesting events 
+  
+  *** rule-specific mapping
+  eq eventMap = none [nonexec] .  *** currently [nonexec] has to be here
+endm

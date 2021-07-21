@@ -1,0 +1,39 @@
+load p-tokenring
+
+mod P-INIT-TOKENRING is
+  including BOOL .
+  including P-TOKENRING .
+  op initconf : -> Config .
+  op n1 : -> Oid
+    [ctor] .
+  op n10 : -> Oid
+    [ctor] .
+  op n2 : -> Oid
+    [ctor] .
+  op n3 : -> Oid
+    [ctor] .
+  op n4 : -> Oid
+    [ctor] .
+  op n5 : -> Oid
+    [ctor] .
+  op n6 : -> Oid
+    [ctor] .
+  op n7 : -> Oid
+    [ctor] .
+  op n8 : -> Oid
+    [ctor] .
+  op n9 : -> Oid
+    [ctor] .
+  eq initconf
+    = (to n1 : start)(to n5 : start)(to n9 : start)
+< n1 : Node | state: outsideCS,next: n2 >
+< n2 : Node | state: outsideCS,next: n3 >
+< n3 : Node | state: outsideCS,next: n4 >
+< n4 : Node | state: outsideCS,next: n5 >
+< n5 : Node | state: outsideCS,next: n6 >
+< n6 : Node | state: outsideCS,next: n7 >
+< n7 : Node | state: outsideCS,next: n8 >
+< n8 : Node | state: outsideCS,next: n9 >
+< n9 : Node | state: outsideCS,next: n10 >
+< n10 : Node | state: outsideCS,next: n1 > .
+endm

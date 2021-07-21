@@ -1,0 +1,472 @@
+load ../apmaude
+
+(mod SORTS is
+  inc SCHEDULING .
+  
+  subsort Nat < Oid .
+  
+  sorts Sqn Tuple6 Tuple4 Tuple2 RreqID .
+  subsort Nat < Sqn .
+  
+  vars X Y X' Y'  : Nat .
+  vars Z Z'       : Sqn .
+  var B           : Bool .
+  vars O NB NB'   : Oid .
+  var NBS         : OidSet .
+    
+  --- OIP ~ RREQID uniquely identifies a RREQ 
+  op _~_ : Oid Nat -> RreqID [ctor] .
+  op null : -> RreqID .
+  op pr1 : RreqID -> Oid .
+  op pr2 : RreqID -> Int .
+  eq pr1(O ~ X) = O .
+  eq pr2(O ~ X) = X .
+  
+  sort OidSet .
+  subsort Oid < OidSet .
+  op emptyOidSet : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor comm assoc id: emptyOidSet] .
+  
+  op tuple4    : Nat Nat Sqn OidSet Bool -> Tuple4 [ctor] .
+  op nexthop   : Tuple4 -> Nat .
+  op hops      : Tuple4 -> Nat .
+  op localdsn  : Tuple4 -> Sqn .
+  op neighbors : Tuple4 -> OidSet .  *** NeighborSet
+  op rtflag    : Tuple4 -> Bool .
+ 
+  eq nexthop(tuple4(X,Y,Z,NBS,B))   = X .
+  eq hops(tuple4(X,Y,Z,NBS,B))      = Y .
+  eq localdsn(tuple4(X,Y,Z,NBS,B))  = Z .
+  eq neighbors(tuple4(X,Y,Z,NBS,B)) = NBS .
+  eq rtflag(tuple4(X,Y,Z,NBS,B))    = B .
+  
+
+  --- No Neighbors
+  op tuple4    : Nat Nat Sqn -> Tuple4 [ctor] .
+  eq nexthop(tuple4(X,Y,Z))   = X .
+  eq hops(tuple4(X,Y,Z))      = Y .
+  eq localdsn(tuple4(X,Y,Z))  = Z .
+endm)
+(view Tuple6   from TRIV to SORTS is sort Elt to Tuple6   . endv)
+(view Tuple4   from TRIV to SORTS is sort Elt to Tuple4   . endv)
+(view Tuple2   from TRIV to SORTS is sort Elt to Tuple2   . endv)
+(view RreqID   from TRIV to SORTS is sort Elt to RreqID   . endv)
+
+(mod SORTS-AUX is
+  protecting SET{Nat} .
+  protecting MAP{Oid, Tuple4} * (sort Map{Oid, Tuple4} to RouteTable,
+                                 sort Entry{Oid, Tuple4} to RtEntry,
+                                 op $hasMapping to inRT) .
+  protecting SET{RreqID} * (sort Set{RreqID} to RreqBuffer) .
+  protecting SET{Tuple2} * (sort Set{Tuple2} to DestSet) .
+	
+  var RT : RouteTable .	
+  vars O O' O'' NB NB' : Oid .
+  var TP : Tuple4 .	
+  vars X Y X' Y'  : Nat .
+  vars Z Z'       : Sqn .
+  var B           : Bool .
+  var NBS         : OidSet .
+  vars DS DS'     : DestSet .  
+  	
+  op update : Oid Nat Nat Sqn RouteTable -> RouteTable .
+  eq update(O,X',Y',Z',(RT, O |-> tuple4(X,Y,Z,NBS,B))) =
+         if inRT(RT,O)
+           then update(O,X',Y',Z',RT)
+           else (RT, O |-> tuple4(X',Y',Z',NBS,true))
+         fi .
+  eq update(O,X',Y',Z',RT) = 
+         (RT, O |-> tuple4(X',Y',Z',empty,true)) [owise] .	
+
+
+  op addPrec : Oid Oid RouteTable -> RouteTable .
+  eq addPrec(NB,O,(RT, O |-> tuple4(X,Y,Z,NBS,B))) = 
+         if inRT(RT,O)
+           then addPrec(NB,O,RT)
+           else (RT, O |-> tuple4(X,Y,Z,(NB,NBS),B))
+         fi . 
+  eq addPrec(NB,O,RT) = RT [owise] .  	
+  
+  
+  --- This is for generating multiMsg
+  op destPair : Oid Sqn -> Tuple2 [ctor] .
+
+  op dests  : Oid RouteTable -> DestSet . 
+  op $dests : Oid RouteTable DestSet -> DestSet .
+
+  eq dests(O,RT) = $dests(O,RT,empty) .
+  eq $dests(O,empty,DS) = DS .
+  eq $dests(O,(RT, O' |-> tuple4(O'',Y,Z,NBS,B)),DS) = 
+         $dests(O,RT, if O == O'' 
+                        then (DS, destPair(O',Z + 1))
+                        else DS
+                      fi ) .
+
+  --- Generate precursors
+  op prec  : DestSet RouteTable -> OidSet .
+  op $prec : DestSet RouteTable OidSet -> OidSet .
+
+  eq prec(DS,RT) = $prec(DS,RT,empty) .
+  eq $prec(empty,RT,NBS) = NBS .
+  eq $prec((DS, destPair(O,Z)),RT,NBS) =
+         if inRT(RT,O)
+           then $prec(DS,RT,(NBS,neighbors(RT[O]))) 
+           else $prec(DS,RT,NBS)
+         fi .
+
+  op precurs : Oid RouteTable -> OidSet .
+  eq precurs(O,RT) = prec(dests(O,RT),RT) .
+  
+  
+  --- Invalidate a Route Entry
+  op invalRT : DestSet RouteTable -> RouteTable .    
+  eq invalRT((destPair(O,Z),DS),RT) = invalRT(DS,$invalRT(O,RT)) .
+  eq invalRT(empty,RT) = RT . 
+
+  op $invalRT : Oid RouteTable -> RouteTable .
+  eq $invalRT(O,(RT, O |-> tuple4(X,Y,Z,NBS,B))) =
+         if inRT(RT,O)
+           then $invalRT(O,RT)
+           else (RT, O |-> tuple4(X,Y,Z,NBS,false))
+         fi .
+  eq $invalRT(O,RT) = RT [owise] .
+    
+  op inval : Oid RouteTable -> RouteTable .
+  eq inval(O,RT) = invalRT(dests(O,RT),RT) .
+  
+  
+  --- When receiving RERR, the node updates DestSet to forward
+  --- according to its own routing table
+  op destFilter  : DestSet Oid RouteTable -> DestSet .
+  op $destFilter : DestSet Oid RouteTable DestSet -> DestSet .
+ 
+  eq destFilter(DS,O',RT) = $destFilter(DS,O',RT,empty) .
+  eq $destFilter((destPair(O,Z),DS),O',RT,DS') =
+         if inRT(RT,O) and nexthop(RT[O]) == O' and Z > localdsn(RT[O])
+           then $destFilter(DS,O',RT,(destPair(O,Z),DS'))
+           else $destFilter(DS,O',RT,DS')
+         fi .
+  eq $destFilter(empty,O',RT,DS') = DS' .
+endm)
+
+(mod OBJS is
+  inc SORTS-AUX .
+
+  *** Node ***
+  op Node  :                   -> ObjType .
+  op neighbors:_ : OidSet -> Attribute .    
+  op rreqID:_ : Nat -> Attribute .
+  op sequenceNumber:_ : Sqn -> Attribute .
+  op routingTable:_ : RouteTable -> Attribute .
+  op requestBuffer:_ : RreqBuffer -> Attribute .
+
+  *** Msg ***
+  --- rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP)
+  --- rrep(OIP,DIP,DSN,HOPS,LIFETIME,SIP)
+  --- rerr(DESTCOUNT,UNRDIP,UNRDSN)
+  op rreq  : Oid Sqn Nat Oid Sqn Nat Oid -> Payload [ctor] .
+  op rrep  : Oid Oid Sqn Nat Oid -> Payload [ctor] .
+  op rerr  : DestSet -> Payload [ctor] .
+  op error : Oid -> Payload [ctor] .
+  op mserror : Oid -> Payload [ctor] . 
+  op mrerror : Oid -> Payload [ctor] .    
+  op serror : Oid -> Payload [ctor] .
+  op rerror : Oid -> Payload [ctor] .   --- 1 for multicast, 2 for unicast
+
+  op bootstrap : -> Payload .
+  op pkt   : -> Payload [ctor] .
+endm)
+
+
+(mod AODV is
+  inc OBJS .
+
+  --- Constants for test
+  op testDIP   : -> Oid .
+  op testOIP   : -> Oid .
+
+
+  vars O O' OIP DIP SIP         : Oid .
+  vars RREQID HOPS FLAG         : Nat .
+  vars OSN DSN SN SN'           : Sqn .
+  vars RT RT' RT'' RT''' RT'''' : RouteTable .
+  var RB                        : RreqBuffer .
+  vars AS                       : Attributes .  
+  vars NBS OS                   : OidSet .
+  var CONT                      : Payload .
+
+
+  rl [init-route-discovery] :
+     < O : Node | rreqID: RREQID,
+                  sequenceNumber: SN, 
+                  routingTable: RT, 
+                  requestBuffer: RB,
+				  neighbors: NBS, AS >
+     (to O : bootstrap)
+   =>
+     if inRT(RT,testDIP)
+       then < O : Node | rreqID: RREQID,
+                         sequenceNumber: SN, 
+                         routingTable: RT,
+                         requestBuffer: RB,
+		     			 neighbors: NBS, AS >
+            (to testDIP from O : pkt)
+       else < O : Node | rreqID: (RREQID + 1),
+                         sequenceNumber: (SN + 1), 
+                         routingTable: RT,
+                         requestBuffer: (O ~ RREQID, RB),
+     					 neighbors: NBS, AS >
+			broadcast(rreq(O,SN + 1,RREQID,testDIP,0,0,O),O,NBS)	
+     fi .
+
+  op broadcast : Payload Oid OidSet -> Msgs .
+  eq broadcast(CONT,O,(O' ; OS)) = broadcast(CONT,O,OS) (to O' from O : CONT) .
+  eq broadcast(CONT,O,emptyOidSet) = null .
+
+
+   --- RREQ handling
+
+   --- 0 in tuple4 means unknown
+   crl [on-receiving-rreq-1] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: update(SIP,SIP,1,0,RT), 
+                    requestBuffer: RB, AS >
+     if (OIP ~ RREQID) in RB .
+
+
+   --- 0 in rrep(OIP,DIP,SN',0,O) means the distance to DIP
+   crl [on-receiving-rreq-2] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: max(SN,DSN + 1),
+                    routingTable: update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)),
+                    requestBuffer: (OIP ~ RREQID, RB), AS >
+       (to nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]) from O : rrep(OIP,DIP,max(SN,DSN + 1),0,O))
+     if not (OIP ~ RREQID) in RB /\ 
+        DIP == O .			   
+		
+		
+   crl [on-receiving-rreq-3] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: addPrec(nexthop(addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)))[DIP]),OIP,addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)))), 
+                    requestBuffer: (OIP ~ RREQID, RB), AS > 
+       (to nexthop(addPrec(nexthop(addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)))[DIP]),OIP,addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))))[OIP]) 
+	    from O : 
+		rrep(OIP,DIP,localdsn(addPrec(nexthop(addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)))[DIP]),OIP,addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))))[DIP]),hops(addPrec(nexthop(addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)))[DIP]),OIP,addPrec(nexthop(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[OIP]),DIP,update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))))[DIP]),O))
+	   
+     if not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        DSN <= localdsn(RT[DIP]) /\
+        inRT(RT,DIP) .		
+	
+
+    --- rreq-4 and -5 response the same 
+   crl [on-receiving-rreq-4] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB,
+		     		neighbors: NBS, AS >
+       (to O from SIP : rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)), 
+                    requestBuffer: (OIP ~ RREQID, RB),
+					neighbors: NBS, AS >
+       broadcast(rreq(OIP,OSN,RREQID,DIP,max(localdsn(update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT))[DIP]),DSN),HOPS + 1,O),O,NBS)
+
+     if not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        DSN > localdsn(RT[DIP]) /\
+        inRT(RT,DIP) .	
+
+
+   crl [on-receiving-rreq-5] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB,
+		    		neighbors: NBS, AS >
+       (to O from SIP : rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: update(OIP,SIP,HOPS + 1,OSN,update(SIP,SIP,1,0,RT)), 
+                    requestBuffer: (OIP ~ RREQID, RB),
+					neighbors: NBS, AS >
+       broadcast(rreq(OIP,OSN,RREQID,DIP,DSN,HOPS + 1,O),O,NBS)
+
+     if not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        not inRT(RT,DIP) .
+		
+		
+    --- RREP handling
+
+    crl [on-receiving-rrep-1] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: update(DIP,SIP,HOPS + 1,DSN,RT), 
+                    requestBuffer: RB, AS >
+
+     if OIP == O /\
+        not inRT(RT,DIP) .
+
+
+   crl [on-receiving-rrep-2] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: update(DIP,SIP,HOPS + 1,DSN,RT), 
+                    requestBuffer: RB, AS >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN > localdsn(RT[DIP]) .		
+
+
+    crl [on-receiving-rrep-3] :
+       < O : Node | sequenceNumber: SN, 
+                        routingTable: RT, 
+                        requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: update(DIP,SIP,HOPS + 1,DSN,RT), 
+                    requestBuffer: RB, AS >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) > HOPS + 1 .
+		
+		
+    crl [on-receiving-rrep-4] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) <= HOPS + 1 .		
+
+
+    crl [on-receiving-rrep-5] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN < localdsn(RT[DIP]) .
+		
+		
+   crl [on-receiving-rrep-6] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))), 
+                    requestBuffer: RB, AS >
+       (to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT)))[OIP]) 
+	    from O : rrep(OIP,DIP,DSN,HOPS + 1,O))
+
+     if OIP =/= O /\
+        not inRT(RT,DIP) .
+		
+		
+   crl [on-receiving-rrep-7] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))), 
+                    requestBuffer: RB, AS >
+       (to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT)))[OIP]) 
+	    from O : rrep(OIP,DIP,DSN,HOPS + 1,O))
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN > localdsn(RT[DIP]) .
+		
+
+   crl [on-receiving-rrep-8] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))), 
+                    requestBuffer: RB, AS >
+       (to nexthop(addPrec(nexthop(addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT))[DIP]),OIP,addPrec(nexthop(update(DIP,SIP,HOPS + 1,DSN,RT)[OIP]),DIP,update(DIP,SIP,HOPS + 1,DSN,RT)))[OIP]) 
+	    from O : rrep(OIP,DIP,DSN,HOPS + 1,O))
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) > HOPS + 1 .
+		
+		
+   crl [on-receiving-rrep-9] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) <= HOPS + 1 .
+		
+
+   crl [on-receiving-rrep-10] :
+       < O : Node | sequenceNumber: SN, 
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+       (to O from SIP : rrep(OIP,DIP,DSN,HOPS,SIP))
+     =>
+       < O : Node | sequenceNumber: SN,
+                    routingTable: RT, 
+                    requestBuffer: RB, AS >
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN < localdsn(RT[DIP]) .
+endm)

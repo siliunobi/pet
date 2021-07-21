@@ -1,0 +1,38 @@
+load p-output/p-init-query
+***load m-output/m-p-init-query
+
+mod TEST is
+  inc INTERFACE .
+  inc P-INIT-QUERY .
+  ***inc M-P-INIT-QUERY .
+
+  *** PVeStA interface
+  eq initState = init(initconf) .  
+
+  ---(
+  vars T T' : Float .  var C : Config .  
+  vars TES TES1 TES2 TES3 : TimedEvents .  var ID : Id .
+  
+  *** Quatex
+  op prop : Config -> Float .
+  eq prop({ C | T }) = T / 3.0 .
+  
+  op avgLatency : Config -> Float .
+  eq avgLatency({< log : Monitor | events: TES > C | T }) = totalLatency(TES) / numberOfQueries(TES) .
+
+  op totalLatency : TimedEvents -> Float .
+  eq totalLatency(TES1 ; (startQuery(ID) @ T) ; TES2 ; (endQuery(ID) @ T') ; TES3) 
+   = totalLatency(TES1 ; TES2 ; TES3) + T' - T .
+  eq totalLatency(TES) = 0.0 [owise] .
+  
+  op numberOfQueries : TimedEvents -> Float .
+  eq numberOfQueries(TES1 ; (startQuery(ID) @ T) ; TES2 ; (endQuery(ID) @ T') ; TES3)
+   = numberOfQueries(TES1 ; TES2 ; TES3) + 1.0 .
+  eq numberOfQueries(TES) = 0.0 [owise] .
+  
+  eq val(0,C) = prop(C) .
+  eq val(1,C) = avgLatency(C) .
+  )
+endm
+
+set clear rules off .

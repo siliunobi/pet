@@ -1,0 +1,195 @@
+load ../apmaude
+
+mod SORTS is
+  inc SCHEDULING .
+  
+  subsort Nat < Oid .
+  
+  sort OidList .
+  subsort Oid < OidList .
+  op emptyOidList : -> OidList [ctor] .
+  op _;;_ : OidList OidList -> OidList [ctor assoc id: emptyOidList] .
+  
+  sort OidSet .
+  subsort Oid < OidSet .
+  op emptyOidSet : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor comm assoc id: emptyOidSet] .
+  
+  sort ExecutionState .
+  ops outsideCS insideCS : -> ExecutionState [ctor] .
+  op waitForCS : OidSet -> ExecutionState [ctor] .
+  
+  sorts WaitTime WaitTimes .
+  subsort WaitTime < WaitTimes .
+  op <_`,_> : Oid Float -> WaitTime .
+  op empty : -> WaitTimes [ctor] .
+  op _;_ : WaitTimes WaitTimes -> WaitTimes [ctor comm assoc id: empty] .    
+endm
+
+mod OBJS is
+  inc SORTS .
+  
+  op Node  :              -> ObjType .
+  op state:_ : ExecutionState -> Attribute .  
+  op queue:_ : OidList -> Attribute .
+  op votingSet:_ : OidSet -> Attribute .
+  op accessGranted:_ : Bool -> Attribute .
+  
+  *** Msgs ***
+  op start : -> Payload .
+  ops requestCS ok releaseCS : -> Payload .
+endm
+
+load pi-maekawa
+load ../sampling-lib
+load events-maekawa
+mod M-P-MAEKAWA is
+  including BOOL .
+  including OBJS .
+  including PI-MAEKAWA .
+  including EVENTS-MAEKAWA .
+  including SAMPLING-LIB .
+  op delay-exitCS : Oid OidSet Attributes MsgList -> DTask .
+  op delay-releaseQueue : Oid Oid OidList Attributes MsgList -> DTask .
+  op delay-requestCS : Oid OidSet Attributes MsgList -> DTask .
+  op delay-vote : Oid Oid Attributes MsgList -> DTask .
+  op multicast : Payload Oid OidSet -> Msgs .
+  eq multicast(CONT:Payload,O:Oid,emptyOidSet)
+    = null .
+  eq multicast(CONT:Payload,O:Oid,O':Oid ; OS:OidSet)
+    = multicast(CONT:Payload,O:Oid,OS:OidSet)to O':Oid from O:Oid :
+    CONT:Payload .
+  eq objectEnabled(
+< O:Oid : Node | accessGranted: false,queue:(O1:Oid ;; OL:OidList),
+    AS:Attributes >)
+    = true .
+  eq objectEnabled(
+< O:Oid : Node | votingSet: OS:OidSet,state: insideCS,AS:Attributes >)
+    = true .
+  rl 
+{@C:Config delay-exitCS(O:Oid,OS:OidSet,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-exitCS(O:Oid,OS:OidSet,AS:Attributes)[sample(
+    lognormal(0.0,1.0))[rand]]),@M:Msg])delay-exitCS(O:Oid,OS:OidSet,
+    AS:Attributes,@ML:MsgList)|
+@T:Float} [label delay-exitCS] .
+  rl 
+{@C:Config delay-releaseQueue(O:Oid,O1:Oid,OL:OidList,AS:Attributes,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-releaseQueue(O:Oid,O1:Oid,OL:OidList,
+    AS:Attributes)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-releaseQueue(O:Oid,O1:Oid,OL:OidList,AS:Attributes,
+    @ML:MsgList)|
+@T:Float} [label delay-releaseQueue] .
+  rl 
+{@C:Config delay-requestCS(O:Oid,OS:OidSet,AS:Attributes,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-requestCS(O:Oid,OS:OidSet,AS:Attributes)[sample(
+    lognormal(0.0,1.0))[rand]]),@M:Msg])delay-requestCS(O:Oid,OS:OidSet,
+    AS:Attributes,@ML:MsgList)|
+@T:Float} [label delay-requestCS] .
+  rl 
+{@C:Config delay-vote(O1:Oid,O:Oid,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-vote(O:Oid,O1:Oid,AS:Attributes)[sample(lognormal(
+    0.0,1.0))[rand]]),@M:Msg])delay-vote(O1:Oid,O:Oid,AS:Attributes,
+    @ML:MsgList)|
+@T:Float} [label delay-vote] .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0e+2))[rand]),M:Msg])delay-init(
+    OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | accessGranted: false,queue:(O1:Oid ;; OL:OidList),
+    AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | accessGranted: true,queue: OL:OidList,AS:Attributes >
+    delay-releaseQueue(O:Oid,O1:Oid,OL:OidList,AS:Attributes,sort(to O1:Oid
+    from O:Oid : ok))|
+@T:Float} [label releaseQueue.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | votingSet: OS:OidSet,state: insideCS,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | votingSet: OS:OidSet,state: outsideCS,AS:Attributes >
+    delay-exitCS(O:Oid,OS:OidSet,AS:Attributes,sort(multicast(releaseCS,O:Oid,
+    OS:OidSet)))|
+@T:Float} [label exitCS.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid : start)
+< O:Oid : Node | votingSet: OS:OidSet,state: outsideCS,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | votingSet: OS:OidSet,state: waitForCS(OS:OidSet),AS:Attributes
+    > delay-requestCS(O:Oid,OS:OidSet,AS:Attributes,sort(multicast(requestCS,
+    O:Oid,OS:OidSet)))|
+@T:Float} [label requestCS.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O1:Oid : ok)
+< O:Oid : Node | state: waitForCS(O1:Oid),AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | state: insideCS,AS:Attributes > |
+@T:Float} [label receiveVote2.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O1:Oid : ok)
+< O:Oid : Node | state: waitForCS(O1:Oid ; O2:Oid ; OS:OidSet),AS:Attributes >
+    |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | state: waitForCS(O2:Oid ; OS:OidSet),AS:Attributes > |
+@T:Float} [label receiveVote1.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O1:Oid : releaseCS)
+< O:Oid : Node | accessGranted: true,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | accessGranted: false,AS:Attributes > |
+@T:Float} [label receiveRelease.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O1:Oid : requestCS)
+< O:Oid : Node | accessGranted: false,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | accessGranted: true,AS:Attributes > delay-vote(O1:Oid,O:Oid,
+    AS:Attributes,sort(to O1:Oid from O:Oid : ok))|
+@T:Float} [label vote.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to O:Oid from O1:Oid : requestCS)
+< O:Oid : Node | accessGranted: true,queue: OL:OidList,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< O:Oid : Node | accessGranted: true,queue:(OL:OidList ;; O1:Oid),AS:Attributes
+    > |
+@T:Float} [label voteQueue.p] .
+  rl delay-exitCS(O:Oid,OS:OidSet,AS:Attributes,nil)
+    => null [label delay-exitCS] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => null [label delay-init-2] .
+  rl delay-releaseQueue(O:Oid,O1:Oid,OL:OidList,AS:Attributes,nil)
+    => null [label delay-releaseQueue] .
+  rl delay-requestCS(O:Oid,OS:OidSet,AS:Attributes,nil)
+    => null [label delay-requestCS] .
+  rl delay-vote(O1:Oid,O:Oid,AS:Attributes,nil)
+    => null [label delay-vote] .
+endm

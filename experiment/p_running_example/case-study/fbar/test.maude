@@ -1,0 +1,14 @@
+load p-output/p-init-fbar
+***load m-output/m-p-init-fbar
+
+mod TEST is
+  inc INTERFACE .
+  inc P-INIT-FBAR .
+  ***inc M-P-INIT-FBAR .
+
+  *** PVeStA interface
+  eq initState = init(initconf) .  
+  
+endm
+
+set clear rules off .

@@ -1,0 +1,13 @@
+load p-output/p-init-aodv
+***load m-output/m-p-init-aodv
+
+mod TEST is
+  inc INTERFACE .
+  inc P-INIT-AODV .
+  ***inc M-P-INIT-AODV .
+
+  *** PVeStA interface
+  eq initState = init(initconf) .  
+endm
+
+set clear rules off .

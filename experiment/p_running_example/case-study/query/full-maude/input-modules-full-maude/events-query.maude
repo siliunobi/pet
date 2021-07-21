@@ -1,0 +1,14 @@
+load ../events
+***load query
+
+(mod EVENTS-QUERY is 
+  inc EVENTS + QUERY .
+  
+  *** user-specified interesting events 
+  ops startQuery endQuery : Id -> Event [ctor] .
+
+  var ID : Id .
+  
+  *** rule-specific mapping
+  eq eventMap = ['issue, startQuery(ID)] ;; ['finish, endQuery(ID)] [nonexec] .
+endm)

@@ -1,0 +1,63 @@
+load ../apmaude
+
+(mod SORTS is
+  inc SCHEDULING .
+  
+  sort MutexState .
+  ops outsideCS waitForCS insideCS : -> MutexState [ctor] .
+  
+  sort OidList .
+  subsort Oid < OidList .
+  op emptyOidList : -> OidList [ctor] .
+  op _;;_ : OidList OidList -> OidList [ctor assoc id: emptyOidList] .
+  
+  sorts WaitTime WaitTimes .
+  subsort WaitTime < WaitTimes .
+  op <_`,_> : Oid Float -> WaitTime .
+  op empty : -> WaitTimes [ctor] .
+  op _;_ : WaitTimes WaitTimes -> WaitTimes [ctor comm assoc id: empty] .    
+endm)
+
+(mod OBJS is
+  inc SORTS .
+  
+  op Node  :              -> ObjType .
+  op state:_ : MutexState -> Attribute .
+  op next:_  : Oid        -> Attribute .
+  
+  *** Msgs ***
+  op start : -> Payload .
+  op token : -> Payload .
+endm)
+
+(mod TOKENRING is
+  inc OBJS .
+  
+  vars O O' O'' : Oid .
+  vars AS : Attributes .
+
+  rl [wantToEnterCS] :
+     (to O : start)
+     < O : Node | state: outsideCS, AS >
+    =>
+	 < O : Node | state: waitForCS, AS > .
+
+  rl [getToken1] :
+     (to O' from O : token)  
+     < O' : Node | state: outsideCS, next: O'', AS >
+    =>
+	 < O' : Node | state: outsideCS, next: O'', AS >
+	 (to O'' from O' : token) .
+  
+  rl [getToken2] :
+     (to O' from O : token)
+     < O' : Node | state: waitForCS, AS >
+    =>
+     < O' : Node | state: insideCS, AS > .  
+
+  rl [exitCS] :
+     < O : Node | state: insideCS, next: O', AS >
+    =>
+     < O : Node | state: outsideCS, next: O', AS >
+	 (to O' from O : token) .
+endm)

@@ -1,0 +1,75 @@
+load maekawa
+
+(mod INIT-MAEKAWA is
+  inc MAEKAWA .
+  
+  *** 3 nodes
+  op initconf : -> Config .
+  eq initconf = 
+            (to 1 : start) (to 2 : start) (to 3 : start) 
+            < 1 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (1 ; 2), accessGranted: false >
+            < 2 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (2 ; 3), accessGranted: false >
+            < 3 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (1 ; 3), accessGranted: false > .
+	
+  ---(					 
+  *** 7 nodes
+  op initconf : -> Config .
+  eq initconf = 
+            (to 1 : start) (to 2 : start) (to 3 : start) 
+			(to 4 : start) (to 5 : start) (to 6 : start)
+			(to 7 : start) 
+            < 1 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (1 ; 2 ; 3), accessGranted: false >
+            < 2 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (2 ; 4 ; 6), accessGranted: false >
+            < 3 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (3 ; 5 ; 6), accessGranted: false > 
+            < 4 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (1 ; 4 ; 5), accessGranted: false >
+            < 5 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (2 ; 5 ; 7), accessGranted: false >
+            < 6 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (1 ; 6 ; 7), accessGranted: false > 
+            < 7 : Node | state: outsideCS, queue: emptyOidList,
+	                     votingSet: (3 ; 4 ; 7), accessGranted: false > .
+
+
+  *** 13 nodes
+  op initconf : -> Config .
+  eq initconf = 
+            (to 1 : start) (to 2 : start) (to 3 : start) 
+			(to 4 : start) (to 5 : start) (to 6 : start)
+			(to 7 : start) (to 8 : start) (to 9 : start)
+			(to 10 : start) (to 11 : start) (to 12 : start)
+			(to 13 : start) 
+            < 1 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (1 ; 2 ; 3 ; 4), accessGranted: false >
+            < 2 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (2 ; 5 ; 8 ; 11), accessGranted: false >
+            < 3 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (3 ; 6 ; 8 ; 13), accessGranted: false > 
+            < 4 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (4 ; 6 ; 10 ; 11), accessGranted: false >
+            < 5 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (1 ; 5 ; 6 ; 7), accessGranted: false >
+            < 6 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (2 ; 6 ; 9 ; 12), accessGranted: false > 
+            < 7 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (2 ; 7 ; 10 ; 13), accessGranted: false > 
+            < 8 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (1 ; 8 ; 9 ; 10), accessGranted: false >
+            < 9 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (3 ; 7 ; 9 ; 11), accessGranted: false >
+            < 10 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (3 ; 5 ; 10 ; 12), accessGranted: false > 
+            < 11 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (1 ; 11 ; 12 ; 13), accessGranted: false >
+            < 12 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (4 ; 7 ; 8 ; 12), accessGranted: false >
+            < 13 : Node | state: outsideCS, queue: emptyAddrList,
+	                     votingSet: (4 ; 5 ; 9 ; 13), accessGranted: false > .		
+  ) 
+endm)

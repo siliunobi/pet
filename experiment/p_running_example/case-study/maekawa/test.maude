@@ -1,0 +1,28 @@
+***load p-output/p-init-maekawa
+load m-output/m-p-init-maekawa
+
+mod TEST is
+  inc INTERFACE .
+  ***inc P-INIT-MAEKAWA .
+  inc M-P-INIT-MAEKAWA .
+
+  *** PVeStA interface
+  eq initState = init(initconf) .  
+ 
+ 
+  vars O O' : Oid .
+  var OS : OidSet .
+  var C : Config .
+  var AS : Attributes .
+  var T : Float .
+ 
+ *** Quatex  
+  op deadlock : Config -> Float .
+  eq deadlock({< O : Node | state: waitForCS(O' ; OS), AS > C | T}) = 1.0 .
+  eq deadlock(C) = 0.0 [owise] .
+  
+ 
+  eq val(0,C) = deadlock(C) .
+endm
+
+set clear rules off .

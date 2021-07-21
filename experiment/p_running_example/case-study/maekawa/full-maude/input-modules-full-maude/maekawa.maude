@@ -1,0 +1,120 @@
+load ../apmaude
+
+(mod SORTS is
+  inc SCHEDULING .
+  
+  subsort Nat < Oid .
+  
+  sort OidList .
+  subsort Oid < OidList .
+  op emptyOidList : -> OidList [ctor] .
+  op _;;_ : OidList OidList -> OidList [ctor assoc id: emptyOidList] .
+  
+  sort OidSet .
+  subsort Oid < OidSet .
+  op emptyOidSet : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor comm assoc id: emptyOidSet] .
+  
+  sort ExecutionState .
+  ops outsideCS insideCS : -> ExecutionState [ctor] .
+  op waitForCS : OidSet -> ExecutionState [ctor] .
+  
+  sorts WaitTime WaitTimes .
+  subsort WaitTime < WaitTimes .
+  op <_`,_> : Oid Float -> WaitTime .
+  op empty : -> WaitTimes [ctor] .
+  op _;_ : WaitTimes WaitTimes -> WaitTimes [ctor comm assoc id: empty] .    
+endm)
+
+(mod OBJS is
+  inc SORTS .
+  
+  op Node  :              -> ObjType .
+  op state:_ : ExecutionState -> Attribute .  
+  op queue:_ : OidList -> Attribute .
+  op votingSet:_ : OidSet -> Attribute .
+  op accessGranted:_ : Bool -> Attribute .
+  
+  *** Msgs ***
+  op start : -> Payload .
+  ops requestCS ok releaseCS : -> Payload .
+endm)
+
+(mod MAEKAWA is
+  inc OBJS .
+
+  vars O O' O1 O2 : Oid .
+  vars OS : OidSet . 
+  vars AS : Attributes .
+  var CONT : Payload .
+  vars OL : OidList .
+
+  --- From outsideCS, the guy wants to join CS, and multicasts a message 
+  --- to each guy in his voting set:
+  rl [requestCS] :
+     (to O : start)
+     < O : Node | votingSet: OS, state: outsideCS, AS >
+    =>
+     < O : Node | votingSet: OS, state: waitForCS(OS), AS >
+	 multicast(requestCS,O,OS) .
+	 
+  op multicast : Payload Oid OidSet -> Msgs .
+  eq multicast(CONT,O,(O' ; OS)) = multicast(CONT,O,OS) (to O' from O : CONT) .
+  eq multicast(CONT,O,emptyOidSet) = null .
+
+
+  --- Get one ok vote, but still awaiting votes from others: 
+  rl [receiveVote1] :
+     (to O from O1 : ok)
+     < O : Node | state: waitForCS(O1 ; O2 ; OS), AS >
+    =>
+     < O : Node | state: waitForCS(O2 ; OS), AS > .
+
+
+  --- Get last ok vote, and access CS: 
+  rl [receiveVote2] :
+     (to O from O1 : ok)
+     < O : Node | state: waitForCS(O1), AS >
+    =>
+     < O : Node | state: insideCS, AS > .  
+
+
+  --- Exit CS: send releaseCS to all guy in voting set: 
+  rl [exitCS] :
+     < O : Node | votingSet: OS, state: insideCS, AS >
+    =>
+     < O : Node | votingSet: OS, state: outsideCS, AS > 
+	 multicast(releaseCS,O,OS) .
+	 
+	 
+   --- Only read and answer request when you have NOT granted access to others: 
+   rl [vote] :
+      (to O from O1 : requestCS)
+      < O : Node | accessGranted: false, AS >
+    =>
+      < O : Node | accessGranted: true, AS > 
+	  (to O1 from O : ok) .
+	  
+	  
+  --- When I get releaseCS, I set accessGranted to 'false':
+  rl [receiveRelease] :
+     (to O from O1 : releaseCS)
+     < O : Node | accessGranted: true, AS > 
+    =>
+     < O : Node | accessGranted: false, AS > .
+	 
+
+  *** with queue
+  rl [voteQueue] :
+     (to O from O1 : requestCS)
+     < O : Node | accessGranted: true, queue: OL, AS >
+   =>
+     < O : Node | accessGranted: true, queue: (OL ;; O1), AS > .
+	  
+	  
+  rl [releaseQueue] :
+     < O : Node | accessGranted: false, queue: (O1 ;; OL), AS > 
+    =>
+     < O : Node | accessGranted: true, queue: OL, AS >
+	 (to O1 from O : ok) .
+endm)

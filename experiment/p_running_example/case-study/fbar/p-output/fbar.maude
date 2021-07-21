@@ -1,0 +1,74 @@
+load ../apmaude
+
+mod SORTS is
+  inc SCHEDULING .
+
+  subsort Nat < Oid .
+  
+  sorts Key Data .
+
+  op mmetric : -> Key .
+  op map : Oid Oid Nat -> Nat .
+  ops data0 data1 : -> Data .
+  op sid : Oid Nat -> Key .
+
+  sorts Pair PList .
+  subsort Pair < PList .  
+  op pair : Oid Nat -> Pair .
+  op nil : -> PList [ctor] .
+  op _;;_ : PList PList -> PList [ctor assoc id: nil] .
+  
+  sort OidSet .
+  subsort Oid < OidSet .
+  op emptyOidSet : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor comm assoc id: emptyOidSet] .
+  
+  sort OidList .
+  subsort Oid < OidList .
+  op emptyOidList : -> OidList [ctor] .
+  op _;;_ : OidList OidList -> OidList [ctor assoc id: emptyOidList] .
+  
+  sort Payloads .
+  subsort Payload < Payloads .
+  op ept : -> Payloads [ctor] .
+  op _;_ : Payloads Payloads -> Payloads [ctor comm assoc id: ept] .
+  
+  sort PayloadList .
+  subsort Payload < PayloadList .
+  op nil : -> PayloadList [ctor] .
+  op _;;_ : PayloadList PayloadList -> PayloadList [ctor assoc id: nil] .
+endm
+view Key from TRIV to SORTS is sort Elt to Key . endv 
+
+
+mod OBJS is
+  inc SORTS .
+  pr MAP{Key,Nat} * (sort Map{Key,Nat} to Dict,
+                     op undefined to udf) .
+    
+  *** Node ***
+  op Node  :                   -> ObjType .
+  op neighbors:_ :   OidSet    -> Attribute .
+  op mem:_ :         Dict      -> Attribute .
+  op table:_ :       Dict      -> Attribute .
+  op buffer:_ :      Payloads  -> Attribute .
+  
+  *** Msg ***
+  
+  *** pScout : sId loc  src  dst  pathmsg 
+  op pScout : Key Oid Oid Oid PList -> Payload .
+  *** pFlow : sId loc  dst  last pathmsg 
+  op pFlow : Key Oid Oid Oid PList -> Payload . 
+  *** pData : data sId loc  dstmsg 
+  op pData : Data Key Oid Oid -> Payload .
+  *** Wait : sId data srcmsg 
+  op Wait : Key Data Oid -> Payload .
+  
+  op send_from_to_of_ : Data Oid Oid Key -> Payload . 
+  op start : -> Payload .
+endm
+
+
+mod FBAR is
+  inc OBJS .
+endm

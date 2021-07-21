@@ -1,0 +1,33 @@
+load f
+
+mod INIT-F is 
+  inc F .
+  
+  op _._ : Oid Oid -> Oid [assoc prec 10] .
+	
+  ops x y z : -> Key .
+  ops tb r1 r2 r3 t1 t2 t3 t4 : -> Oid .
+  ops xl yl zl : -> LocalVar .
+  
+  op initconf : -> Config .
+  eq initconf =  
+     < tb : Table | table: [replicatingSites(x, 2) ;; replicatingSites(y, 2)] > 
+     (to 1 : start) (to 2 : start)
+     < 1 : Replica | gotTxns: ( < 1 . 1 : Txn | operations: ((xl :=read x) (yl :=read y)), readSet: empty, 
+                                                latest: empty, localVars: (xl |-> [0], yl |-> [0]) >  ), 
+                     datastore: empty, sqn: 1, latestCommit: empty, 
+                     executing: none, 
+                     committed: emptyTxnList,
+                     voteSites: noVS, 
+                     1stGetSites: no1st,
+                     2ndGetSites: no2nd, commitSites: noVS > 
+
+     < 2 : Replica | gotTxns: ( < 2 . 1 : Txn | operations: (write(x,1) write(y,1)), readSet: empty, 
+                                                latest: empty, localVars: (xl |-> [0], yl |-> [0]) >), 
+                     datastore: (version(x,[0],eptTS,empty), version(y,[0],eptTS,empty)), sqn: 1, latestCommit: empty, 
+                     executing: none, 
+                     committed: emptyTxnList,
+                     voteSites: noVS, 
+                     1stGetSites: no1st,
+                     2ndGetSites: no2nd, commitSites: noVS > .							  
+endm

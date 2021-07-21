@@ -1,0 +1,414 @@
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	   Maude 2.7.1 built: Jun 27 2016 16:43:23
+	    Copyright 1997-2016 SRI International
+		   Tue Jul  6 23:57:09 2021
+
+	    Full Maude 2.7.1 June 30th 2016
+
+     Welcome to Actors2PMaude!
+Introduced module DISTR-LIB
+
+Introduced module SAMPLE-UNIFORM
+
+Introduced module SAMPLING-LIB
+
+Advisory: Module DISTR-LIB redefined.
+Introduced module DISTR-LIB
+
+Introduced module MAP
+
+Introduced module TERM-ORDER
+
+Introduced module CONFIG
+
+Introduced view Msg
+
+Introduced module SORTING
+
+Introduced module INIT-HANDLER
+
+Introduced module SCHEDULING
+
+Introduced module INTERFACE
+
+Introduced module SORTS
+
+Introduced view Key
+
+Introduced module OBJS
+
+Introduced module FBAR
+
+Introduced module PI-FBAR
+
+Advisory: Module FBAR redefined.
+New module P-FBAR generated!
+mod P-FBAR is
+  including BOOL .
+  including OBJS .
+  including PI-FBAR .
+  including SAMPLING-LIB .
+  op _slt_ : Nat Nat -> Bool .
+  op delay-RecData : Oid Data Oid Key Oid Oid Nat Dict Attributes MsgList ->
+    DTask .
+  op delay-RecFlow-2 : Dict Dict Attributes Key Oid Oid Oid Nat Oid Nat PList
+    MsgList -> DTask .
+  op delay-RecScout-1 : OidSet Dict Attributes Key Oid Oid Oid Oid Nat PList
+    MsgList -> DTask .
+  op delay-RecScout-init : OidSet Dict Attributes Key Oid Oid Oid MsgList ->
+    DTask .
+  op delay-Send : Oid Oid Nat Dict Payloads Key Data Oid Attributes MsgList ->
+    DTask .
+  op delay-SendFlow : Dict Attributes Key Oid Oid Oid Nat PList MsgList ->
+    DTask .
+  op delay-Start : Oid Payloads Attributes MsgList -> DTask .
+  op genScout : Payloads -> Msgs .
+  op scoutNeighbors : Key OidSet Oid Oid Oid PList -> Msgs .
+  op wait : Payloads -> Payloads .
+  eq V:Nat slt udf
+    = true .
+  eq genScout(ept)
+    = null .
+  eq genScout(Wait(SID:Key,DATA:Data,SRC:Oid); CS:Payloads)
+    = genScout(CS:Payloads) .
+  eq genScout(pScout(SID:Key,N:Oid,SRC:Oid,DST:Oid,L:PList); CS:Payloads)
+    = (to N:Oid from N:Oid : pScout(SID:Key,N:Oid,SRC:Oid,DST:Oid,
+    L:PList))genScout(CS:Payloads) .
+  eq objectEnabled(
+< N:Oid : Node | table:(K:Key |-> map(M:Oid,M':Oid,METRIC:Nat), TB:Dict),
+    buffer:(CS:Payloads ; Wait(K:Key,DATA:Data,N:Oid)),AS:Attributes >)
+    = true .
+  eq scoutNeighbors(SID:Key,emptyOidSet,N:Oid,M:Oid,M':Oid,L:PList)
+    = null .
+  eq scoutNeighbors(SID:Key,O:Oid ; OS:OidSet,N:Oid,M:Oid,M':Oid,L:PList)
+    = scoutNeighbors(SID:Key,OS:OidSet,N:Oid,M:Oid,M':Oid,L:PList)to O:Oid from
+    N:Oid : pScout(SID:Key,O:Oid,M:Oid,M':Oid,L:PList) .
+  eq send DATA:Data from SRC:Oid to DST:Oid of SID:Key
+    = pScout(SID:Key,SRC:Oid,SRC:Oid,DST:Oid,nil); Wait(SID:Key,DATA:Data,
+    SRC:Oid) .
+  eq wait(ept)
+    = ept .
+  eq wait(Wait(SID:Key,DATA:Data,SRC:Oid); CS:Payloads)
+    = Wait(SID:Key,DATA:Data,SRC:Oid); wait(CS:Payloads) .
+  eq wait(pScout(SID:Key,N:Oid,SRC:Oid,DST:Oid,L:PList); CS:Payloads)
+    = wait(CS:Payloads) .
+  eq V:Nat slt V':Nat
+    = V:Nat < V':Nat [owise] .
+  rl 
+{@C:Config delay-RecData(O:Oid,DATA:Data,N:Oid,K:Key,N':Oid,M:Oid,METRIC:Nat,
+    TB:Dict,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-RecData(N:Oid,O:Oid,DATA:Data,K:Key,N':Oid,M:Oid,
+    METRIC:Nat,TB:Dict,AS:Attributes)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-RecData(O:Oid,DATA:Data,N:Oid,K:Key,N':Oid,M:Oid,METRIC:Nat,
+    TB:Dict,AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-RecFlow-2(DICT:Dict,TB:Dict,AS:Attributes,SID:Key,M:Oid,
+    N':Oid,N:Oid,METRIC:Nat,M':Oid,METRIC':Nat,L:PList,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-RecFlow-2(N:Oid,DICT:Dict,TB:Dict,AS:Attributes,
+    N':Oid,SID:Key,M:Oid,METRIC:Nat,M':Oid,METRIC':Nat,L:PList)[sample(
+    lognormal(0.0,1.0))[rand]]),@M:Msg])delay-RecFlow-2(DICT:Dict,TB:Dict,
+    AS:Attributes,SID:Key,M:Oid,N':Oid,N:Oid,METRIC:Nat,M':Oid,METRIC':Nat,
+    L:PList,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-RecScout-1(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,
+    M:Oid,M':Oid,N':Oid,METRIC:Nat,L:PList,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-RecScout-1(N:Oid,S:OidSet,DICT:Dict,AS:Attributes,
+    N':Oid,SID:Key,M:Oid,M':Oid,METRIC:Nat,L:PList)[sample(lognormal(0.0,1.0))[
+    rand]]),@M:Msg])delay-RecScout-1(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,
+    N:Oid,M:Oid,M':Oid,N':Oid,METRIC:Nat,L:PList,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-RecScout-init(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,
+    M:Oid,M':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-RecScout-init(N:Oid,S:OidSet,DICT:Dict,
+    AS:Attributes,SID:Key,M:Oid,M':Oid)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-RecScout-init(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,
+    M:Oid,M':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-Send(M:Oid,M':Oid,METRIC:Nat,TB:Dict,CS:Payloads,K:Key,
+    DATA:Data,N:Oid,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-Send(N:Oid,K:Key,M:Oid,M':Oid,METRIC:Nat,TB:Dict,
+    CS:Payloads,DATA:Data,AS:Attributes)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-Send(M:Oid,M':Oid,METRIC:Nat,TB:Dict,CS:Payloads,K:Key,
+    DATA:Data,N:Oid,AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-SendFlow(DICT:Dict,AS:Attributes,SID:Key,M:Oid,N:Oid,N':Oid,
+    METRIC:Nat,L:PList,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-SendFlow(N:Oid,DICT:Dict,AS:Attributes,N':Oid,
+    SID:Key,M:Oid,METRIC:Nat,L:PList)[sample(lognormal(0.0,1.0))[rand]]),
+    @M:Msg])delay-SendFlow(DICT:Dict,AS:Attributes,SID:Key,M:Oid,N:Oid,N':Oid,
+    METRIC:Nat,L:PList,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-Start(N:Oid,CS:Payloads,AS:Attributes,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-Start(N:Oid,CS:Payloads,AS:Attributes)[sample(
+    lognormal(0.0,1.0))[rand]]),@M:Msg])delay-Start(N:Oid,CS:Payloads,
+    AS:Attributes,@ML:MsgList)|
+@T:Float} .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0e+2))[rand]),M:Msg])delay-init(
+    OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table:(K:Key |-> map(M:Oid,M':Oid,METRIC:Nat), TB:Dict),
+    buffer:(CS:Payloads ; Wait(K:Key,DATA:Data,N:Oid)),AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table:(K:Key |-> map(M:Oid,M':Oid,METRIC:Nat), TB:Dict),
+    buffer: CS:Payloads,AS:Attributes > delay-Send(M:Oid,M':Oid,METRIC:Nat,
+    TB:Dict,CS:Payloads,K:Key,DATA:Data,N:Oid,AS:Attributes,sort(to M':Oid from
+    N:Oid : pData(DATA:Data,K:Key,M':Oid,M:Oid)))|
+@T:Float} [label Send.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,AS:Attributes > to N:Oid from N':Oid : pScout(
+    SID:Key,N:Oid,M:Oid,N:Oid,pair(N':Oid,METRIC:Nat);; L:PList)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: insert(SID:Key,METRIC:Nat,DICT:Dict),AS:Attributes >
+    delay-SendFlow(DICT:Dict,AS:Attributes,SID:Key,M:Oid,N:Oid,N':Oid,
+    METRIC:Nat,L:PList,sort(to N':Oid from N:Oid : pFlow(SID:Key,N':Oid,N:Oid,
+    N:Oid,pair(N':Oid,METRIC:Nat);; L:PList)))|
+@T:Float} [label SendFlow.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | neighbors: S:OidSet,mem: DICT:Dict,AS:Attributes > to N:Oid
+    from N:Oid : pScout(SID:Key,N:Oid,M:Oid,M':Oid,nil)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | neighbors: S:OidSet,mem: DICT:Dict,AS:Attributes >
+    delay-RecScout-init(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,M:Oid,
+    M':Oid,sort(scoutNeighbors(SID:Key,S:OidSet,N:Oid,M:Oid,M':Oid,pair(N:Oid,
+    DICT:Dict[mmetric]))))|
+@T:Float} [label RecScout-init.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table: TB:Dict,AS:Attributes > to N:Oid from N':Oid : pFlow(
+    SID:Key,N:Oid,M:Oid,N':Oid,pair(N:Oid,METRIC:Nat))|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table: insert(SID:Key,map(M:Oid,N':Oid,METRIC:Nat),TB:Dict),
+    AS:Attributes > |
+@T:Float} [label EndFlow.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to N:Oid : start)
+< N:Oid : Node | buffer: CS:Payloads,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | buffer: wait(CS:Payloads),AS:Attributes > delay-Start(N:Oid,
+    CS:Payloads,AS:Attributes,sort(genScout(CS:Payloads)))|
+@T:Float} [label Start.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs(to N:Oid from O:Oid : pData(DATA:Data,SID:Key,N:Oid,
+    N:Oid))
+< N:Oid : Node | AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | AS:Attributes > |
+@T:Float} [label RecData-2.p] .
+  rl delay-RecData(O:Oid,DATA:Data,N:Oid,K:Key,N':Oid,M:Oid,METRIC:Nat,TB:Dict,
+    AS:Attributes,nil)
+    => null [label delay-RecData] .
+  rl delay-RecFlow-2(DICT:Dict,TB:Dict,AS:Attributes,SID:Key,M:Oid,N':Oid,
+    N:Oid,METRIC:Nat,M':Oid,METRIC':Nat,L:PList,nil)
+    => null [label delay-RecFlow-2] .
+  rl delay-RecScout-1(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,M:Oid,
+    M':Oid,N':Oid,METRIC:Nat,L:PList,nil)
+    => null [label delay-RecScout-1] .
+  rl delay-RecScout-init(S:OidSet,DICT:Dict,AS:Attributes,SID:Key,N:Oid,M:Oid,
+    M':Oid,nil)
+    => null [label delay-RecScout-init] .
+  rl delay-Send(M:Oid,M':Oid,METRIC:Nat,TB:Dict,CS:Payloads,K:Key,DATA:Data,
+    N:Oid,AS:Attributes,nil)
+    => null [label delay-Send] .
+  rl delay-SendFlow(DICT:Dict,AS:Attributes,SID:Key,M:Oid,N:Oid,N':Oid,
+    METRIC:Nat,L:PList,nil)
+    => null [label delay-SendFlow] .
+  rl delay-Start(N:Oid,CS:Payloads,AS:Attributes,nil)
+    => null [label delay-Start] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => null [label delay-init-2] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,AS:Attributes > to N:Oid from N':Oid : pFlow(
+    SID:Key,N:Oid,M:Oid,N':Oid,pair(N:Oid,METRIC:Nat);; L:PList ;; pair(
+    SRC:Oid,METRIC':Nat))|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,AS:Attributes > |
+@T:Float}
+    if DICT:Dict[SID:Key]=/= METRIC:Nat = true /\ N:Oid =/= SRC:Oid = true [
+    label RecFlow-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,AS:Attributes > to N:Oid from N':Oid : pScout(
+    SID:Key,N:Oid,M:Oid,M':Oid,pair(N':Oid,METRIC:Nat);; L:PList)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,AS:Attributes > |
+@T:Float}
+    if not METRIC:Nat + DICT:Dict[mmetric]slt DICT:Dict[SID:Key]= true /\ N:Oid
+    =/= M':Oid = true [label RecScout-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,table: TB:Dict,AS:Attributes > to N:Oid from
+    N':Oid : pFlow(SID:Key,N:Oid,M:Oid,N':Oid,pair(N:Oid,METRIC:Nat);; pair(
+    M':Oid,METRIC':Nat);; L:PList)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | mem: DICT:Dict,table: insert(SID:Key,map(M:Oid,N':Oid,
+    METRIC:Nat),TB:Dict),AS:Attributes > delay-RecFlow-2(DICT:Dict,TB:Dict,
+    AS:Attributes,SID:Key,M:Oid,N':Oid,N:Oid,METRIC:Nat,M':Oid,METRIC':Nat,
+    L:PList,sort(to M':Oid from N:Oid : pFlow(SID:Key,M':Oid,M:Oid,N:Oid,pair(
+    M':Oid,METRIC':Nat);; L:PList)))|
+@T:Float}
+    if DICT:Dict[SID:Key]== METRIC:Nat = true [label RecFlow-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | neighbors: S:OidSet,mem: DICT:Dict,AS:Attributes > to N:Oid
+    from N':Oid : pScout(SID:Key,N:Oid,M:Oid,M':Oid,pair(N':Oid,METRIC:Nat);;
+    L:PList)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | neighbors: S:OidSet,mem: insert(SID:Key,METRIC:Nat +
+    DICT:Dict[mmetric],DICT:Dict),AS:Attributes > delay-RecScout-1(S:OidSet,
+    DICT:Dict,AS:Attributes,SID:Key,N:Oid,M:Oid,M':Oid,N':Oid,METRIC:Nat,
+    L:PList,sort(scoutNeighbors(SID:Key,S:OidSet,N:Oid,M:Oid,M':Oid,pair(N:Oid,
+    METRIC:Nat + DICT:Dict[mmetric]);; pair(N':Oid,METRIC:Nat);; L:PList)))|
+@T:Float}
+    if METRIC:Nat + DICT:Dict[mmetric]slt DICT:Dict[SID:Key]= true /\ N:Oid =/=
+    M':Oid = true [label RecScout-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs(to N:Oid from O:Oid : pData(DATA:Data,K:Key,N:Oid,
+    N':Oid))
+< N:Oid : Node | table:(K:Key |-> map(N':Oid,M:Oid,METRIC:Nat), TB:Dict),
+    AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table:(K:Key |-> map(N':Oid,M:Oid,METRIC:Nat), TB:Dict),
+    AS:Attributes > delay-RecData(O:Oid,DATA:Data,N:Oid,K:Key,N':Oid,M:Oid,
+    METRIC:Nat,TB:Dict,AS:Attributes,sort(to M:Oid from N:Oid : pData(
+    DATA:Data,K:Key,M:Oid,N':Oid)))|
+@T:Float}
+    if N:Oid =/= N':Oid = true [label RecData.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs(to N:Oid from O:Oid : pData(DATA:Data,SID:Key,N:Oid,
+    N':Oid))
+< N:Oid : Node | table: TB:Dict,AS:Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< N:Oid : Node | table: TB:Dict,AS:Attributes > |
+@T:Float}
+    if not $hasMapping(TB:Dict,SID:Key)= true /\ N:Oid =/= N':Oid = true [label
+    RecData-1.p] .
+endm
+
+Advisory: Module MAP redefined.
+Introduced module MAP
+
+Advisory: Module TERM-ORDER redefined.
+Introduced module TERM-ORDER
+
+Advisory: Module CONFIG redefined.
+Introduced module CONFIG
+
+Advisory: View Msg redefined.
+Introduced view Msg
+
+Advisory: Module SORTING redefined.
+Introduced module SORTING
+
+Advisory: Module INIT-HANDLER redefined.
+Introduced module INIT-HANDLER
+
+Advisory: Module SCHEDULING redefined.
+Introduced module SCHEDULING
+
+Advisory: Module INTERFACE redefined.
+Introduced module INTERFACE
+
+Advisory: Module SORTS redefined.
+Introduced module SORTS
+
+Advisory: View Key redefined.
+Introduced view Key
+
+Advisory: Module OBJS redefined.
+Introduced module OBJS
+
+Advisory: Module FBAR redefined.
+Introduced module FBAR
+
+Introduced module INIT-FBAR
+
+New module P-INIT-FBAR generated!
+mod P-INIT-FBAR is
+  including BOOL .
+  including P-FBAR .
+  op initconf : -> Config .
+  op n1 : -> Oid
+    [ctor] .
+  op n10 : -> Oid
+    [ctor] .
+  op n2 : -> Oid
+    [ctor] .
+  op n3 : -> Oid
+    [ctor] .
+  op n4 : -> Oid
+    [ctor] .
+  op n5 : -> Oid
+    [ctor] .
+  op n6 : -> Oid
+    [ctor] .
+  op n7 : -> Oid
+    [ctor] .
+  op n8 : -> Oid
+    [ctor] .
+  op n9 : -> Oid
+    [ctor] .
+  eq initconf
+    = (to 0 : start)
+< 0 : Node | neighbors:(1 ; 2),mem:(mmetric |-> 5),table: empty,buffer:(send
+    data0 from 0 to 3 of sid(0,1))>
+< 1 : Node | neighbors: 3,mem:(mmetric |-> 7),table: empty,buffer: ept >
+< 2 : Node | neighbors: 3,mem:(mmetric |-> 3),table: empty,buffer: ept >
+< 3 : Node | neighbors:(1 ; 2),mem:(mmetric |-> 2),table: empty,buffer: ept > .
+endm
+
+Bye.

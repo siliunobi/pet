@@ -1,0 +1,41 @@
+fmod DISTR-LIB is
+  pr FLOAT + QID .
+  
+  sort RFun .                      *** functions on reals
+  op _[_] : RFun Float -> Float .  *** function application
+
+  *** some probability distributions  
+  op uniform : Float Float -> RFun [ctor] .    *** min, max
+  op exponential : Float -> RFun [ctor] .      *** rate: lambda
+  op normal : Float Float -> RFun [ctor] .     *** mean: mu, and sd: sigma
+  op lognormal : Float Float -> RFun [ctor] .  *** mean: mu, sd: sigma
+  op weibull : Float Float -> RFun [ctor] .    *** shape: k, scale: lambda
+  op zipfian : Float Float -> RFun [ctor] .    *** skew: s, cardinality: n
+  
+  op e : -> Float .
+  eq e = 2.71828 .
+  
+  vars X MIN MAX RATE MEAN SD SCALE SHAPE : Float .
+  
+  eq uniform(MIN,MAX)[X] = if MIN <= X and X <= MAX then 1.0 / (MAX - MIN) else 0.0 fi .
+  eq exponential(RATE)[X] = e ^ (- RATE * X) .
+  eq normal(MEAN,SD)[X] = (1.0 / (SD * sqrt(2.0 * pi))) * e ^ (- 0.5 * ((X - MEAN) / SD) ^ 2.0) .
+  eq lognormal(MEAN,SD)[X] 
+   = (1.0 / (X * SD * sqrt(2.0 * pi))) * exp((log(X) - MEAN) ^ 2.0 / (2.0 * SD ^ 2.0)) .
+  eq weibull(SCALE,SHAPE)[X] 
+   = if X >= 0.0 then (SHAPE / SCALE) * (X / SCALE) ^ (SHAPE - 1.0) * e ^ (- (X / SCALE) ^ SHAPE)  else 0.0 fi .
+  
+  *** zipfian to be added
+  
+  *** interface for Pi
+  sorts Tuple Tuples .    subsort Tuple < Tuples .  
+  
+  op [_,_,_] : Qid RFun RFun -> Tuple [ctor] .
+  op [_,_] : Qid RFun -> Tuple [ctor] .
+  
+  op empty : -> Tuples [ctor] .
+  op _;;_ : Tuples Tuples -> Tuples [ctor comm assoc id: empty] .
+  
+  op tpls : -> Tuples .
+endfm
+

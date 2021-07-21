@@ -1,0 +1,228 @@
+***load p-output/p-init-f
+load m-output/m-p-init-f
+
+mod GAMMA is
+  inc M-P-INIT-F .
+  
+  op <_`,_> : Key Value -> Version .
+  
+  *** Zone(s) ***
+  sorts nZone Zone Zones Tag .
+  subsort Zone < Zones .
+
+  op udf : -> Float .
+  
+  ops f b : -> Tag .
+ 
+  --- for Gamma
+  op `[_;_;_;_;_`] : Key Float Float Float Float -> nZone .  
+  op `[_;_;_;_;_;_`] : Key Float Float Float Float Tag -> Zone .  
+  
+  
+  vars T T' T'' T''' T1 T2 T3 T4 MAX : Float .
+  vars K K' : Key .
+  var C : Config .  
+  vars TES TES' TES1 TES2 TES3 TES4 : TimedEvents .
+  var VER : Version . 
+  var V : Value .
+  vars TID TID' RID RID' : Oid .
+  var NZ : nZone .
+  vars ZS ZS' : Zones .
+  vars Z Z' : Zone .
+  vars TAG TAG' : Tag .
+  var KS : KeySet .    
+    
+  op dir : nZone -> Zone .
+  --- for Gamma
+  eq dir([K ; T ; T' ; T'' ; T'''])
+   = if T' <= T then [K ; T' ; T ; T'' ; T''' ; f] else [ K ; T ; T' ; T'' ; T''' ; b] fi .
+  
+  op ept : -> Zones [ctor] .
+  op _;_ : Zones Zones -> Zones [ctor assoc comm id: ept] . 
+  
+  ---var Z : Zone .
+  ---eq Z ; Z = Z .
+
+
+  *** Gamma ***
+  op gamma : Config -> Float .
+  eq gamma({< log : Monitor | events: TES > C | T }) = gmoptimal(gmgen(TES)) . 
+
+  op gmgen : TimedEvents -> Zones [memo] .
+  op $gmgen : TimedEvents TimedEvents -> Zones .
+  op $$gmgen : TimedEvents TimedEvents nZone -> nZone .
+  
+  
+  eq gmgen(TES) = $gmgen(TES,TES) .
+  
+  eq $gmgen((TES1 ; (startTxn(TID,< K,V >,RID) @ T) ; TES2 ; (endTxn(TID,RID) @ T') ; TES3),TES')
+   = $gmgen((TES1 ; TES2 ; TES3),TES') ; 
+     dir($$gmgen(((startTxn(TID,< K,V >,RID) @ T) ; (endTxn(TID,RID) @ T')), TES', [K ; T ; T' ; udf ; udf])) .
+ 
+  eq $gmgen((TES1 ; (startTxn(TID,RID) @ T) ; TES2 ; (endTxn(TID,VER,RID) @ T') ; TES3),TES') 
+   = $gmgen((TES1 ; TES2 ; TES3),TES') .
+    
+  eq $gmgen(empty,TES') = ept .
+
+  eq $$gmgen(((startTxn(TID,< K,V >,RID) @ T1) ; (endTxn(TID,RID) @ T2)),  
+              (TES1 ; (startTxn(TID',RID') @ T3) ; TES2 ; (endTxn(TID',< K,V >,RID') @ T4) ; TES3),
+		      [K ; T ; T' ; T'' ; T'''])
+   = $$gmgen(((startTxn(TID,< K,V >,RID) @ T) ; (endTxn(TID,RID) @ T')), 
+              (TES1 ; TES2 ; TES3),
+              [K ; max(T,T3) ; min(T',T4) ; T1 ; (if T4 < T1 then min(T4,T''') else T''' fi)]) .
+			  
+  eq $$gmgen(TES,(TES1 ; (startTxn(TID',RID') @ T3) ; TES2 ; (endTxn(TID',VER,RID') @ T4) ; TES3),NZ) 
+   = $$gmgen(TES,(TES1 ; TES2 ; TES3),NZ) [owise] .
+   
+  eq $$gmgen(TES,empty,NZ) = NZ . 
+  
+  
+  --- max gmchi over all pairs of zones 
+  op gmoptimal : Zones -> Float .  
+  op $gmoptimal : Zones Zones KeySet -> Float .
+    
+  eq gmoptimal(ZS) = $gmoptimal(ZS,ZS,empty) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',(K,KS)) 
+   = $gmoptimal(ZS,ZS',(K,KS)) .
+  eq $gmoptimal(([K ; T ; T' ; T'' ; T''' ; TAG] ; ZS),ZS',KS) 
+   = max(gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS'),$gmoptimal(ZS,ZS',(K,KS))) [owise] .
+  eq $gmoptimal(ept,ZS',KS) = 0.0 .  
+  
+  
+  op gmmax : Zone Zones -> Float .
+  op $gmmax : Zone Zones Float -> Float .
+
+  eq gmmax(Z,ZS') = $gmmax(Z,ZS',0.0) .
+  eq $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],([K ; T1 ; T2 ; T3 ; T4 ; TAG'] ; ZS'),MAX) 
+   = $gmmax([K ; T ; T' ; T'' ; T''' ; TAG],ZS',max(MAX,gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']))) .
+  eq $gmmax(Z,(Z' ; ZS'),MAX) = $gmmax(Z,ZS',MAX) [owise] .
+  eq $gmmax(Z,ept,MAX) = MAX .  
+  
+  
+  op gmChi : Zone Zone -> Float .
+  eq gmChi([K ; T1 ; T2 ; T3 ; T4 ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG]) = 
+       if T4 == udf then 0.0 else T3 - T4 fi .
+ ceq gmChi(Z,Z') = 0.0 
+ 	   if Z =/= Z' and not gmconflict(Z,Z') .
+ ceq gmChi([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) = min(T' - T1,T2 - T)
+       if gmconflict([K ; T ; T' ; T'' ; T''' ; TAG],[K ; T1 ; T2 ; T3 ; T4 ; TAG']) .
+	   
+	   
+  op gmconflict : Zone Zone -> Bool .
+  eq gmconflict(Z,Z') = false [owise] .
+ ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; b]) = true 
+       if T1 >= T and T2 <= T' .
+  eq gmconflict([K ; T1 ; T2 ; T3 ; T4 ; b],[K' ; T ; T' ; T'' ; T''' ; f])
+   = gmconflict([K' ; T ; T' ; T'' ; T''' ; f],[K ; T1 ; T2 ; T3 ; T4 ; b]) .	
+ ceq gmconflict([K ; T ; T' ; T'' ; T''' ; f],[K' ; T1 ; T2 ; T3 ; T4 ; f]) = true
+       if ([K ; T ; T' ; T'' ; T''' ; f] =/= [K' ; T1 ; T2 ; T3 ; T4 ; f]) and  
+         ((T >= T1 and T <= T2) or (T1 >= T and T1 <= T'))  .
+endm
+
+mod TEST is
+  inc INTERFACE .
+  inc GAMMA .
+  ***inc P-INIT-F .
+  inc M-P-INIT-F .
+
+  *** PVeStA interface
+  eq initState = init(initconf) .  
+  
+  
+  vars T T' NUM T1 T2 T3 T4 : Float .  var C : Config .  
+  vars TES TES' TES1 TES2 TES3 TES4 : TimedEvents .
+  vars TID RID TID1 TID2 TID3 RID' : Oid .
+  vars RS WS RS' WS' RS'' WS'' : Versions .
+  var TE : TimedEvent .
+  vars TS TS' TS'' : Timestamp .
+  vars MD MD' MD'' : KeySet .
+  var K : Key .
+  vars V V' : Value .
+  
+  
+  *** Quatex
+  op thr : Config -> Float .
+  eq thr({< log : Monitor | events: TES > C | T }) = numberOfTxns(TES) / T .
+  
+  op numberOfTxns : TimedEvents -> Float .
+  eq numberOfTxns((endTxn(TID,RID) @ T) ; TES) = numberOfTxns(TES) + 1.0 .
+  eq numberOfTxns((endTxn(TID,RS,RID) @ T) ; TES) = numberOfTxns(TES) + 1.0 .  
+  eq numberOfTxns(TE ; TES) = numberOfTxns(TES) [owise] .  
+  eq numberOfTxns(empty) = 0.0 .
+  
+  op ryw : Config -> Float .
+  eq ryw({< log : Monitor | events: TES > C | T }) = rywReads(TES) / totalReads(TES) .
+  
+  op totalReads : TimedEvents -> Float .
+  eq totalReads((endTxn(TID,RS,RID) @ T) ; TES) = totalReads(TES) + 1.0 .
+  eq totalReads(TE ; TES) = totalReads(TES) .
+  eq totalReads(empty) = 0.0 .
+  
+  op rywReads : TimedEvents -> Float .
+  op $rywReads : TimedEvents TimedEvents Float -> Float .
+  eq rywReads(TES) = $rywReads(TES,TES,0.0) .
+  eq $rywReads(TES,((startTxn(TID,WS,RID) @ T) ; TES'),NUM) = $rywReads(TES,TES',NUM) .
+  eq $rywReads(TES,((endTxn(TID,RID) @ T) ; TES'),NUM) = $rywReads(TES,TES',NUM) .
+  eq $rywReads(TES,((startTxn(TID,RID) @ T) ; TES'),NUM) = $rywReads(TES,TES',NUM) .  
+  *** read even earlier write in the same session
+  eq $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+                TES2 ; (startTxn(TID2,(WS',version(K,V',TS',MD')),RID) @ T2) ; 
+				TES3 ; (endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID) @ T3) ; TES4),
+			   ((endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID) @ T3) ; TES'),NUM)			   
+   = $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+                TES2 ; (startTxn(TID2,(WS',version(K,V',TS',MD')),RID) @ T2) ; 
+				TES3 ; (endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID) @ T3) ; TES4),
+			   TES',NUM) .
+  *** read earlier write from a different session
+ ceq $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+                TES2 ; (startTxn(TID2,(WS',version(K,V',TS',MD')),RID') @ T2) ; 
+				TES3 ; (endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID') @ T3) ; TES4),
+			   ((endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID') @ T3) ; TES'),NUM)			   		   
+   = $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+                TES2 ; (startTxn(TID2,(WS',version(K,V',TS',MD')),RID') @ T2) ; 
+				TES3 ; (endTxn(TID3,(RS,version(K,V,TS'',MD'')),RID') @ T3) ; TES4),
+			   TES',NUM) 
+     if TS less-than TS' /\ RID =/= RID' /\ V =/= V' .
+  *** read initial value
+  eq $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+		   	    TES3 ; (endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES4),
+			   ((endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES'),NUM)
+   = $rywReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+				TES3 ; (endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES4),
+			   TES',NUM) .			   
+  eq $rywReads(TES,(TE ; TES'),NUM) = $rywReads(TES,TES',NUM + 1.0) [owise] .
+  eq $rywReads(TES,empty,NUM) = NUM .
+
+
+  op lf : Config -> Float .
+  eq lf({< log : Monitor | events: TES > C | T }) = lfReads(TES) / totalReads(TES) .
+  
+  op lfReads : TimedEvents -> Float .
+  op $lfReads : TimedEvents TimedEvents Float -> Float .
+  eq lfReads(TES) = $lfReads(TES,TES,0.0) .
+ ceq $lfReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+		   	   TES3 ; (endTxn(TID3,(RS,version(K,V,TS',MD')),RID') @ T3) ; TES4),
+			  ((endTxn(TID3,(RS,version(K,V,TS',MD')),RID') @ T3) ; TES'),NUM)
+   = $lfReads((TES1 ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; 
+		   	   TES3 ; (endTxn(TID3,(RS,version(K,V,TS',MD')),RID') @ T3) ; TES4),
+			  TES',NUM + 1.0) if noWriteBetween(TES3,K) .  
+ ceq $lfReads((TES1 ; (endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES4),
+			  ((endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES'),NUM)
+   = $lfReads((TES1 ; (endTxn(TID3,(RS,version(K,[0],eptTS,empty)),RID) @ T3) ; TES4),
+              TES',NUM + 1.0) if noWriteBetween(TES1,K) .
+  eq $lfReads(TES,(TE ; TES'),NUM) = $lfReads(TES,TES',NUM) [owise] .
+  eq $lfReads(TES,empty,NUM) = NUM .			  
+			    
+ 
+  op noWriteBetween : TimedEvents Key -> Bool .
+  eq noWriteBetween((TES ; (startTxn(TID1,(WS,version(K,V,TS,MD)),RID) @ T1) ; TES'),K) = false .
+  eq noWriteBetween(TES,K) = true [owise] .
+ 
+
+  eq val(0,C) = thr(C) .
+  eq val(1,C) = ryw(C) .
+  eq val(2,C) = lf(C) . 
+  eq val(3,C) = gamma(C) .
+endm
+
+set clear rules off .

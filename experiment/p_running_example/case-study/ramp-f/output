@@ -1,0 +1,1479 @@
+		     \||||||||||||||||||/
+		   --- Welcome to Maude ---
+		     /||||||||||||||||||\
+	   Maude 2.7.1 built: Jun 27 2016 16:43:23
+	    Copyright 1997-2016 SRI International
+		   Thu Jul  8 19:55:51 2021
+
+	    Full Maude 2.7.1 June 30th 2016
+
+     Welcome to Actors2PMaude!
+Introduced module DISTR-LIB
+
+Introduced module SAMPLE-UNIFORM
+
+Introduced module SAMPLING-LIB
+
+Advisory: Module DISTR-LIB redefined.
+Introduced module DISTR-LIB
+
+Introduced module MAP
+
+Introduced module TERM-ORDER
+
+Introduced module CONFIG
+
+Introduced view Msg
+
+Introduced view Oid
+
+Introduced module SORTING
+
+Introduced module INIT-HANDLER
+
+Introduced module SCHEDULING
+
+Introduced module INTERFACE
+
+Introduced module TXN-SORTS
+
+Introduced view Operation
+
+Introduced view Version
+
+Introduced view Key
+
+Introduced view LocalVar
+
+Introduced view Value
+
+Introduced view KeyVersion
+
+Introduced view KeyValueVersion
+
+Introduced view ValueVersion
+
+Introduced view Vote
+
+Introduced view Timestamp
+
+Introduced module TXN-AUX1
+
+Introduced view OidSet
+
+Introduced view ValueVersionList
+
+Introduced view OidList
+
+Introduced module TXN-AUX2
+
+Introduced module VALUES-NAT
+
+Introduced module VERSION-RAMP
+
+Introduced module DATASTORE-RAMP
+
+Introduced module OBJS
+
+Introduced module NAMES
+
+Introduced module MSG-STRING-CONVERSION
+
+Introduced module REPLICA-TABLE
+
+Introduced module F
+
+Introduced module PI-F
+
+Advisory: Module F redefined.
+New module P-F generated!
+mod P-F is
+  including BOOL .
+  including OBJS .
+  including REPLICA-TABLE .
+  including VERSION-RAMP .
+  including VALUES-NAT .
+  including PI-F .
+  including SAMPLING-LIB .
+  op $cmt : KeyTimestamps KeySet Timestamp -> KeyTimestamps .
+  op $genPuts : OperationList Oid Oid Nat LocalVars ReplicaTable OperationList
+    -> Msgs .
+  op 1stSites : OperationList Oid ReplicaTable -> OidSet .
+  op 2ndSites : KeyTimestamps Versions Oid ReplicaTable -> OidSet .
+  op _`[_`] : 1stGets Oid -> OidSet .
+  op _`[_`] : 2ndGets Oid -> OidSet .
+  op _`[_`] : VoteSites Oid -> OidSet .
+  op _less-than_ : Timestamp Timestamp -> Bool .
+  op cmt : KeyTimestamps Versions Timestamp -> KeyTimestamps .
+  op delay-commit-reads : Oid Oid Versions Attributes ConfigList 1stGets
+    2ndGets Attributes MsgList -> DTask .
+  op delay-receive-commit : Versions KeyTimestamps Attributes Oid Oid Int Oid
+    MsgList -> DTask .
+  op delay-receive-committed-1 : Attributes ConfigList VoteSites Attributes Oid
+    Oid Oid MsgList -> DTask .
+  op delay-receive-get-1 : Versions KeyTimestamps Attributes Oid Oid Key
+    Timestamp Oid MsgList -> DTask .
+  op delay-receive-get-2 : Versions KeyTimestamps Attributes Oid Oid Key
+    Timestamp Oid MsgList -> DTask .
+  op delay-receive-prepare : Versions Attributes Oid Oid Version Oid MsgList ->
+    DTask .
+  op delete : Oid 1stGets -> 1stGets .
+  op delete : Oid 2ndGets -> 2ndGets .
+  op gen2ndGets : Oid KeyTimestamps Versions Oid ReplicaTable -> Msgs .
+  op genCommits : Oid Nat OidSet Oid -> Msgs .
+  op genGets : OperationList Oid Oid ReplicaTable -> Msgs .
+  op genPuts : OperationList Oid Oid Nat LocalVars ReplicaTable -> Msgs .
+  op keyFilter : Versions Timestamp -> KeySet .
+  op lat : KeyTimestamps KeySet Timestamp -> KeyTimestamps .
+  op maxts : KeyTimestamps Key Timestamp -> Timestamp .
+  op md : OperationList -> KeySet .
+  op prepareSites : OperationList Oid ReplicaTable -> OidSet .
+  op remove : Oid Oid 1stGets -> 1stGets .
+  op remove : Oid Oid 2ndGets -> 2ndGets .
+  op remove : Oid Oid VoteSites -> VoteSites .
+  op vl : OperationList -> KeyTimestamps .
+  op vmatch : Key Versions KeyTimestamps -> Version .
+  op vmatch : Key Versions Timestamp -> Version .
+  op write-only : OperationList -> Bool .
+  eq $cmt(LC:KeyTimestamps,empty,TS:Timestamp)
+    = LC:KeyTimestamps .
+  eq $cmt(LC:KeyTimestamps,(K:Key, KS:KeySet),TS:Timestamp)
+    = $cmt(insert(K:Key,maxts(LC:KeyTimestamps,K:Key,TS:Timestamp),
+    LC:KeyTimestamps),KS:KeySet,TS:Timestamp) .
+  eq $genPuts(nil,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList)
+    = null .
+  eq $genPuts((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,TID:Oid,
+    SQN:Int,VARS:LocalVars,REPLICA-TABLE:ReplicaTable,OPS':OperationList)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList) .
+  eq $genPuts(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,TID:Oid,
+    SQN:Int,VARS:LocalVars,REPLICA-TABLE:ReplicaTable,OPS':OperationList write(
+    K:Key,EXPR:Expression)OPS'':OperationList)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList write(K:Key,
+    EXPR:Expression)OPS'':OperationList)if localReplica(K:Key,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)then to RID:Oid from RID:Oid : prepare(TID:Oid,
+    version(K:Key,eval(EXPR:Expression,VARS:LocalVars),ts(RID:Oid,SQN:Int),md(
+    OPS':OperationList OPS'':OperationList)),RID:Oid)else to preferredSite(
+    K:Key,REPLICA-TABLE:ReplicaTable)from RID:Oid : prepare(TID:Oid,version(
+    K:Key,eval(EXPR:Expression,VARS:LocalVars),ts(RID:Oid,SQN:Int),md(
+    OPS':OperationList OPS'':OperationList)),RID:Oid)fi .
+  eq 1stSites(nil,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq 1stSites((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid ;
+    1stSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable); 1stSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)fi .
+  eq 1stSites(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = 1stSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq 2ndSites(VL:KeyTimestamps,empty,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq 2ndSites((K:Key |-> TS':Timestamp, VL:KeyTimestamps),(version(K:Key,
+    V:Value,TS:Timestamp,MD:KeySet), RS:Versions),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = 2ndSites((K:Key |-> TS':Timestamp, VL:KeyTimestamps),RS:Versions,RID:Oid,
+    REPLICA-TABLE:ReplicaTable); if TS:Timestamp less-than TS':Timestamp then
+    if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable)fi else(empty).OidSet fi .
+  eq (1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets)[TID:Oid]
+    = RIDS:OidSet .
+  eq (2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets)[TID:Oid]
+    = RIDS:OidSet .
+  eq (voteSites(TID:Oid,RIDS:OidSet); VSTS:VoteSites)[TID:Oid]
+    = RIDS:OidSet .
+  eq ts(RID:Oid,SQN:Int)less-than ts(RID':Oid,SQN':Int)
+    = if SQN:Int < SQN':Int then true else if SQN:Int == SQN':Int and RID:Oid <
+    RID':Oid then true else false fi fi .
+  eq cmt(LC:KeyTimestamps,VS:Versions,TS:Timestamp)
+    = $cmt(LC:KeyTimestamps,keyFilter(VS:Versions,TS:Timestamp),TS:Timestamp) .
+  eq delete(TID:Oid,1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets)
+    = 1STGETS:1stGets .
+  eq delete(TID:Oid,2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets .
+  eq gen2ndGets(TID:Oid,VL:KeyTimestamps,empty,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = null .
+  eq gen2ndGets(TID:Oid,(K:Key |-> TS':Timestamp, VL:KeyTimestamps),(version(
+    K:Key,V:Value,TS:Timestamp,MD:KeySet), RS:Versions),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = gen2ndGets(TID:Oid,(K:Key |-> TS':Timestamp, VL:KeyTimestamps),
+    RS:Versions,RID:Oid,REPLICA-TABLE:ReplicaTable)if TS:Timestamp less-than
+    TS':Timestamp then if localReplica(K:Key,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)then to RID:Oid from RID:Oid : get(TID:Oid,
+    K:Key,TS':Timestamp,RID:Oid)else to preferredSite(K:Key,
+    REPLICA-TABLE:ReplicaTable)from RID:Oid : get(TID:Oid,K:Key,TS':Timestamp,
+    RID:Oid)fi else null fi .
+  eq genCommits(TID:Oid,SQN:Int,empty,RID:Oid)
+    = null .
+  eq genCommits(TID:Oid,SQN:Int,RID':Oid ; RIDS:OidSet,RID:Oid)
+    = genCommits(TID:Oid,SQN:Int,RIDS:OidSet,RID:Oid)to RID':Oid from RID:Oid :
+    commit(TID:Oid,ts(RID:Oid,SQN:Int),RID:Oid) .
+  eq genGets(nil,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable)
+    = null .
+  eq genGets((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,TID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable)if
+    localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then to RID:Oid from
+    RID:Oid : get(TID:Oid,K:Key,eptTS,RID:Oid)else to preferredSite(K:Key,
+    REPLICA-TABLE:ReplicaTable)from RID:Oid : get(TID:Oid,K:Key,eptTS,
+    RID:Oid)fi .
+  eq genGets(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,TID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS:OperationList) .
+  eq keyFilter((version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    TS:Timestamp)
+    = K:Key, keyFilter(VS:Versions,TS:Timestamp) .
+  eq lat(VL:KeyTimestamps,empty,TS:Timestamp)
+    = VL:KeyTimestamps .
+  eq lat(VL:KeyTimestamps,(K:Key, MD:KeySet),TS:Timestamp)
+    = lat(insert(K:Key,maxts(VL:KeyTimestamps,K:Key,TS:Timestamp),
+    VL:KeyTimestamps),MD:KeySet,TS:Timestamp) .
+  eq maxts(LC:KeyTimestamps,K:Key,TS:Timestamp)
+    = if $hasMapping(LC:KeyTimestamps,K:Key)then if LC:KeyTimestamps[
+    K:Key]less-than TS:Timestamp then TS:Timestamp else LC:KeyTimestamps[
+    K:Key]fi else TS:Timestamp fi .
+  eq md(nil)
+    = (empty).KeySet .
+  eq md((X:LocalVar :=read K:Key)OPS:OperationList)
+    = md(OPS:OperationList) .
+  eq md(write(K:Key,EXPR:Expression)OPS:OperationList)
+    = K:Key, md(OPS:OperationList) .
+  eq prepareSites(nil,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq prepareSites((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq prepareSites(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid ;
+    prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable); prepareSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)fi .
+  eq remove(TID:Oid,RID:Oid,1st(TID:Oid,RID:Oid ; RIDS:OidSet);
+    1STGETS:1stGets)
+    = 1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets .
+  eq remove(TID:Oid,RID:Oid,2nd(TID:Oid,RID:Oid ; RIDS:OidSet);
+    2NDGETS:2ndGets)
+    = 2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets .
+  eq remove(TID:Oid,RID:Oid,voteSites(TID:Oid,RID:Oid ; RIDS:OidSet);
+    VSTS:VoteSites)
+    = voteSites(TID:Oid,RIDS:OidSet); VSTS:VoteSites .
+  eq vl(nil)
+    = (empty).KeyTimestamps .
+  eq vl((X:LocalVar :=read K:Key)OPS:OperationList)
+    = K:Key |-> ts(-1,-1), vl(OPS:OperationList) .
+  eq vl(write(K:Key,EXPR:Expression)OPS:OperationList)
+    = vl(OPS:OperationList) .
+  eq vmatch(K:Key,(version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    TS:Timestamp)
+    = version(K:Key,V:Value,TS:Timestamp,MD:KeySet) .
+  eq vmatch(K:Key,(version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    (K:Key |-> TS:Timestamp, LC:KeyTimestamps))
+    = version(K:Key,V:Value,TS:Timestamp,MD:KeySet) .
+  eq write-only(OPS:OperationList(X:LocalVar :=read K:Key)OPS':OperationList)
+    = false .
+  ceq objectEnabled(
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >,committed:
+    TXNS:ConfigList,1stGetSites: 1STGETS:1stGets,2ndGetSites: 2NDGETS:2ndGets,
+    AS':Attributes >)
+    = true
+    if 1STGETS:1stGets[TID:Oid]==(empty).OidSet = true /\ 2NDGETS:2ndGets[
+    TID:Oid]==(empty).OidSet = true .
+  ceq objectEnabled(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid))
+    = true
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    .
+  ceq objectEnabled(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid))
+    = true
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]==(empty).OidSet = true
+    .
+  eq 2ndSites(VL:KeyTimestamps,RS:Versions,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet [owise] .
+  eq delete(TID:Oid,1STGETS:1stGets)
+    = 1STGETS:1stGets [owise] .
+  eq delete(TID:Oid,2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets [owise] .
+  eq gen2ndGets(TID:Oid,VL:KeyTimestamps,RS:Versions,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = null [owise] .
+  eq keyFilter(VS:Versions,TS:Timestamp)
+    = (empty).KeySet [owise] .
+  eq remove(TID:Oid,RID:Oid,1STGETS:1stGets)
+    = 1STGETS:1stGets [owise] .
+  eq remove(TID:Oid,RID:Oid,2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets [owise] .
+  eq remove(TID:Oid,RID:Oid,VSTS:VoteSites)
+    = VSTS:VoteSites [owise] .
+  eq vmatch(K:Key,VS:Versions,LC:KeyTimestamps)
+    = version(K:Key,[0],ts(0,0),empty) [owise] .
+  eq vmatch(K:Key,VS:Versions,TS:Timestamp)
+    = version(K:Key,[0],ts(0,0),empty) [owise] .
+  eq write-only(OPS:OperationList)
+    = true [owise] .
+  rl 
+{@C:Config delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-commit-reads(RID:Oid,TID:Oid,RS:Versions,
+    AS:Attributes,TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,
+    AS':Attributes)[sample(exponential(1.0e+3))[rand]]),
+    @M:Msg])delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,SQN:Int,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-commit(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,SQN:Int)[sample(
+    exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-commit(VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,SQN:Int,RID':Oid,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-committed-1(AS:Attributes,TXNS:ConfigList,
+    CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-committed-1(RID:Oid,TID:Oid,AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID':Oid)[sample(exponential(
+    1.0e+3))[rand]]),@M:Msg])delay-receive-committed-1(AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-get-1(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-get-1(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,K:Key,TS:Timestamp)[
+    sample(exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-get-1(
+    VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,K:Key,
+    TS:Timestamp,RID':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-get-2(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-get-1(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,K:Key,TS:Timestamp)[
+    sample(exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-get-2(
+    VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,K:Key,
+    TS:Timestamp,RID':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-prepare(RID:Oid,VS:Versions,
+    AS':Attributes,RID':Oid,TID:Oid,VERSION:Version)[sample(exponential(
+    1.0e+1))[rand]]),@M:Msg])delay-receive-prepare(VS:Versions,AS':Attributes,
+    RID:Oid,TID:Oid,VERSION:Version,RID':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0e+3))[rand]),M:Msg])delay-init(
+    OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,AS':Attributes > to RID:Oid from
+    RID':Oid : prepare(TID:Oid,VERSION:Version,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore:(VS:Versions, VERSION:Version),AS':Attributes >
+    delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,sort(to RID':Oid from RID:Oid : prepare-reply(
+    TID:Oid,true,RID:Oid)))|
+@T:Float} [label receive-prepare.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : commit(TID:Oid,ts(RID':Oid,
+    SQN:Int),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: cmt(
+    LC:KeyTimestamps,VS:Versions,ts(RID':Oid,SQN:Int)),AS':Attributes >
+    delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,SQN:Int,RID':Oid,sort(to RID':Oid from RID:Oid : committed(TID:Oid,
+    RID:Oid)))|
+@T:Float} [label receive-commit.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V':Value,
+    TS':Timestamp,MD':KeySet)),localVars: VARS:LocalVars,AS:Attributes >,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response2(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),AS:Attributes >,2ndGetSites: remove(TID:Oid,RID':Oid,
+    2NDGETS:2ndGets),AS':Attributes > |
+@T:Float} [label receive-response2.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | gotTxns: emptyTxnList,AS:Attributes > to RID:Oid : start
+    |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | gotTxns: emptyTxnList,AS:Attributes > |
+@T:Float} [label receiving-start-when-no-txn-to-start.p] .
+  rl delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,nil)
+    => null [label delay-commit-reads] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => null [label delay-init-2] .
+  rl delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,SQN:Int,RID':Oid,nil)
+    => null [label delay-receive-commit] .
+  rl delay-receive-committed-1(AS:Attributes,TXNS:ConfigList,CMTS:VoteSites,
+    AS':Attributes,RID:Oid,TID:Oid,RID':Oid,nil)
+    => null [label delay-receive-committed-1] .
+  rl delay-receive-get-1(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,K:Key,TS:Timestamp,RID':Oid,nil)
+    => null [label delay-receive-get-1] .
+  rl delay-receive-get-2(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,K:Key,TS:Timestamp,RID':Oid,nil)
+    => null [label delay-receive-get-2] .
+  rl delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,nil)
+    => null [label delay-receive-prepare] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >,committed:
+    TXNS:ConfigList,1stGetSites: 1STGETS:1stGets,2ndGetSites: 2NDGETS:2ndGets,
+    AS':Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing: none,committed:(TXNS:ConfigList ;;
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >),1stGetSites: delete(
+    TID:Oid,1STGETS:1stGets),2ndGetSites: delete(TID:Oid,2NDGETS:2ndGets),
+    AS':Attributes > delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,
+    AS:Attributes,TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,
+    AS':Attributes,sort(to RID:Oid : start))|
+@T:Float}
+    if 1STGETS:1stGets[TID:Oid]==(empty).OidSet = true /\ 2NDGETS:2ndGets[
+    TID:Oid]==(empty).OidSet = true [label commit-reads.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : get(TID:Oid,K:Key,TS:Timestamp,
+    RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > delay-receive-get-1(VS:Versions,LC:KeyTimestamps,
+    AS':Attributes,RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,sort(to RID':Oid
+    from RID:Oid : response1(TID:Oid,vmatch(K:Key,VS:Versions,
+    LC:KeyTimestamps),RID:Oid)))|
+@T:Float}
+    if TS:Timestamp == eptTS = true [label receive-get-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : get(TID:Oid,K:Key,TS:Timestamp,
+    RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > delay-receive-get-2(VS:Versions,LC:KeyTimestamps,
+    AS':Attributes,RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,sort(to RID':Oid
+    from RID:Oid : response2(TID:Oid,vmatch(K:Key,VS:Versions,TS:Timestamp),
+    RID:Oid)))|
+@T:Float}
+    if TS:Timestamp =/= eptTS = true [label receive-get-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    CMTS:VoteSites,AS':Attributes > to RID:Oid from RID':Oid : committed(
+    TID:Oid,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    remove(TID:Oid,RID':Oid,CMTS:VoteSites),AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,CMTS:VoteSites)[TID:Oid]=/=(empty).OidSet = true
+    [label receive-committed-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    CMTS:VoteSites,AS':Attributes > to RID:Oid from RID':Oid : committed(
+    TID:Oid,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing: none,committed:(TXNS:ConfigList ;;
+< TID:Oid : Txn | AS:Attributes >),commitSites: remove(TID:Oid,RID':Oid,
+    CMTS:VoteSites),AS':Attributes > delay-receive-committed-1(AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,
+    sort(to RID:Oid : start))|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,CMTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    [label receive-committed-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    remove(TID:Oid,RID':Oid,VSTS:VoteSites),sqn: SQN:Int,commitSites:
+    CMTS:VoteSites,AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]=/=(empty).OidSet = true
+    [label receive-prepare-reply-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),latest: lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),
+    AS:Attributes >,1stGetSites: remove(TID:Oid,RID':Oid,1STGETS:1stGets),
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]=/=(empty).OidSet =
+    true [label receive-response1-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    remove(TID:Oid,RID':Oid,VSTS:VoteSites),sqn: SQN:Int,commitSites:(
+    CMTS:VoteSites ; voteSites(TID:Oid,prepareSites(OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable))),AS':Attributes > genCommits(TID:Oid,SQN:Int,
+    prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable),
+    RID:Oid)|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    [label receive-prepare-reply-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),latest: lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),
+    AS:Attributes >,1stGetSites: remove(TID:Oid,RID':Oid,1STGETS:1stGets),
+    2ndGetSites:(2NDGETS:2ndGets ; 2nd(TID:Oid,2ndSites(lat(VL:KeyTimestamps,
+    MD:KeySet,TS:Timestamp),(RS:Versions, version(K:Key,V:Value,TS:Timestamp,
+    MD:KeySet)),RID:Oid,REPLICA-TABLE:ReplicaTable))),AS':Attributes >
+    gen2ndGets(TID:Oid,lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),(
+    RS:Versions, version(K:Key,V:Value,TS:Timestamp,MD:KeySet)),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]==(empty).OidSet = true
+    [label receive-response1-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs(to RID:Oid : start)
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns:(
+< TID:Oid : Txn | operations: OPS:OperationList,latest: empty,AS:Attributes >
+    ;; TXNS:ConfigList),executing: none,1stGetSites: 1STGETS:1stGets,
+    AS':Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns: TXNS:ConfigList,executing:
+< TID:Oid : Txn | operations: OPS:OperationList,latest: vl(OPS:OperationList),
+    AS:Attributes >,1stGetSites:(1STGETS:1stGets ; 1st(TID:Oid,1stSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable))),AS':Attributes >
+    genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable)|
+@T:Float}
+    if not write-only(OPS:OperationList)= true [label start-ro-or-rw-txn.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs(to RID:Oid : start)
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns:(
+< TID:Oid : Txn | operations: OPS:OperationList,localVars: VARS:LocalVars,
+    AS:Attributes > ;; TXNS:ConfigList),executing: none,sqn: SQN:Int,voteSites:
+    VSTS:VoteSites,AS':Attributes > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns: TXNS:ConfigList,executing:
+< TID:Oid : Txn | operations: OPS:OperationList,localVars: VARS:LocalVars,
+    AS:Attributes >,sqn:(SQN:Int + 1),voteSites:(VSTS:VoteSites ; voteSites(
+    TID:Oid,prepareSites(OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable))),AS':Attributes > genPuts(OPS:OperationList,
+    RID:Oid,TID:Oid,SQN:Int + 1,VARS:LocalVars,REPLICA-TABLE:ReplicaTable)|
+@T:Float}
+    if write-only(OPS:OperationList)= true [label start-wo-txn.p] .
+endm
+
+Advisory: Module MAP redefined.
+Introduced module MAP
+
+Advisory: Module TERM-ORDER redefined.
+Introduced module TERM-ORDER
+
+Advisory: Module CONFIG redefined.
+Introduced module CONFIG
+
+Advisory: View Msg redefined.
+Introduced view Msg
+
+Advisory: View Oid redefined.
+Introduced view Oid
+
+Advisory: Module SORTING redefined.
+Introduced module SORTING
+
+Advisory: Module INIT-HANDLER redefined.
+Introduced module INIT-HANDLER
+
+Advisory: Module SCHEDULING redefined.
+Introduced module SCHEDULING
+
+Advisory: Module INTERFACE redefined.
+Introduced module INTERFACE
+
+Advisory: Module TXN-SORTS redefined.
+Introduced module TXN-SORTS
+
+Advisory: View Operation redefined.
+Introduced view Operation
+
+Advisory: View Version redefined.
+Introduced view Version
+
+Advisory: View Key redefined.
+Introduced view Key
+
+Advisory: View LocalVar redefined.
+Introduced view LocalVar
+
+Advisory: View Value redefined.
+Introduced view Value
+
+Advisory: View KeyVersion redefined.
+Introduced view KeyVersion
+
+Advisory: View KeyValueVersion redefined.
+Introduced view KeyValueVersion
+
+Advisory: View ValueVersion redefined.
+Introduced view ValueVersion
+
+Advisory: View Vote redefined.
+Introduced view Vote
+
+Advisory: View Timestamp redefined.
+Introduced view Timestamp
+
+Advisory: Module TXN-AUX1 redefined.
+Introduced module TXN-AUX1
+
+Advisory: View OidSet redefined.
+Introduced view OidSet
+
+Advisory: View ValueVersionList redefined.
+Introduced view ValueVersionList
+
+Advisory: View OidList redefined.
+Introduced view OidList
+
+Advisory: Module TXN-AUX2 redefined.
+Introduced module TXN-AUX2
+
+Advisory: Module VALUES-NAT redefined.
+Introduced module VALUES-NAT
+
+Advisory: Module VERSION-RAMP redefined.
+Introduced module VERSION-RAMP
+
+Advisory: Module DATASTORE-RAMP redefined.
+Introduced module DATASTORE-RAMP
+
+Advisory: Module OBJS redefined.
+Introduced module OBJS
+
+Advisory: Module NAMES redefined.
+Introduced module NAMES
+
+Advisory: Module MSG-STRING-CONVERSION redefined.
+Introduced module MSG-STRING-CONVERSION
+
+Advisory: Module REPLICA-TABLE redefined.
+Introduced module REPLICA-TABLE
+
+Advisory: Module F redefined.
+Introduced module F
+
+Introduced module INIT-F
+
+New module P-INIT-F generated!
+mod P-INIT-F is
+  including BOOL .
+  including P-F .
+  op initconf : -> Config .
+  op r1 : -> Oid .
+  op r2 : -> Oid .
+  op r3 : -> Oid .
+  op t1 : -> Oid .
+  op t2 : -> Oid .
+  op t3 : -> Oid .
+  op t4 : -> Oid .
+  op tb : -> Oid .
+  op x : -> Key .
+  op xl : -> LocalVar .
+  op y : -> Key .
+  op yl : -> LocalVar .
+  op z : -> Key .
+  op zl : -> LocalVar .
+  op _._ : Oid Oid -> Oid
+    [assoc prec 10] .
+  eq initconf
+    = 
+< tb : Table | table:[replicatingSites(x,2);; replicatingSites(y,2)]>(to 1 :
+    start)(to 2 : start)
+< 1 : Replica | gotTxns:
+< 1 . 1 : Txn | operations:((xl :=read x)(yl :=read y)),readSet: empty,latest:
+    empty,localVars:(xl |->[0], yl |->[0])>,datastore: empty,sqn: 1,
+    latestCommit: empty,executing: none,committed: emptyTxnList,voteSites:
+    noVS,1stGetSites: no1st,2ndGetSites: no2nd,commitSites: noVS >
+< 2 : Replica | gotTxns:
+< 2 . 1 : Txn | operations:(write(x,1)write(y,1)),readSet: empty,latest: empty,
+    localVars:(xl |->[0], yl |->[0])>,datastore:(version(x,[0],eptTS,empty),
+    version(y,[0],eptTS,empty)),sqn: 1,latestCommit: empty,executing: none,
+    committed: emptyTxnList,voteSites: noVS,1stGetSites: no1st,2ndGetSites:
+    no2nd,commitSites: noVS > .
+endm
+
+Introduced module EVENTS
+
+Introduced module EVENTS-F
+
+Advisory: Module F redefined.
+New module M-P-F generated!
+mod M-P-F is
+  including BOOL .
+  including OBJS .
+  including REPLICA-TABLE .
+  including VERSION-RAMP .
+  including VALUES-NAT .
+  including PI-F .
+  including EVENTS-F .
+  including SAMPLING-LIB .
+  op $cmt : KeyTimestamps KeySet Timestamp -> KeyTimestamps .
+  op $genPuts : OperationList Oid Oid Nat LocalVars ReplicaTable OperationList
+    -> Msgs .
+  op 1stSites : OperationList Oid ReplicaTable -> OidSet .
+  op 2ndSites : KeyTimestamps Versions Oid ReplicaTable -> OidSet .
+  op _`[_`] : 1stGets Oid -> OidSet .
+  op _`[_`] : 2ndGets Oid -> OidSet .
+  op _`[_`] : VoteSites Oid -> OidSet .
+  op _less-than_ : Timestamp Timestamp -> Bool .
+  op cmt : KeyTimestamps Versions Timestamp -> KeyTimestamps .
+  op delay-commit-reads : Oid Oid Versions Attributes ConfigList 1stGets
+    2ndGets Attributes MsgList -> DTask .
+  op delay-receive-commit : Versions KeyTimestamps Attributes Oid Oid Int Oid
+    MsgList -> DTask .
+  op delay-receive-committed-1 : Attributes ConfigList VoteSites Attributes Oid
+    Oid Oid MsgList -> DTask .
+  op delay-receive-get-1 : Versions KeyTimestamps Attributes Oid Oid Key
+    Timestamp Oid MsgList -> DTask .
+  op delay-receive-get-2 : Versions KeyTimestamps Attributes Oid Oid Key
+    Timestamp Oid MsgList -> DTask .
+  op delay-receive-prepare : Versions Attributes Oid Oid Version Oid MsgList ->
+    DTask .
+  op delete : Oid 1stGets -> 1stGets .
+  op delete : Oid 2ndGets -> 2ndGets .
+  op gen2ndGets : Oid KeyTimestamps Versions Oid ReplicaTable -> Msgs .
+  op genCommits : Oid Nat OidSet Oid -> Msgs .
+  op genGets : OperationList Oid Oid ReplicaTable -> Msgs .
+  op genPuts : OperationList Oid Oid Nat LocalVars ReplicaTable -> Msgs .
+  op keyFilter : Versions Timestamp -> KeySet .
+  op lat : KeyTimestamps KeySet Timestamp -> KeyTimestamps .
+  op maxts : KeyTimestamps Key Timestamp -> Timestamp .
+  op md : OperationList -> KeySet .
+  op prepareSites : OperationList Oid ReplicaTable -> OidSet .
+  op remove : Oid Oid 1stGets -> 1stGets .
+  op remove : Oid Oid 2ndGets -> 2ndGets .
+  op remove : Oid Oid VoteSites -> VoteSites .
+  op vl : OperationList -> KeyTimestamps .
+  op vmatch : Key Versions KeyTimestamps -> Version .
+  op vmatch : Key Versions Timestamp -> Version .
+  op write-only : OperationList -> Bool .
+  eq $cmt(LC:KeyTimestamps,empty,TS:Timestamp)
+    = LC:KeyTimestamps .
+  eq $cmt(LC:KeyTimestamps,(K:Key, KS:KeySet),TS:Timestamp)
+    = $cmt(insert(K:Key,maxts(LC:KeyTimestamps,K:Key,TS:Timestamp),
+    LC:KeyTimestamps),KS:KeySet,TS:Timestamp) .
+  eq $genPuts(nil,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList)
+    = null .
+  eq $genPuts((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,TID:Oid,
+    SQN:Int,VARS:LocalVars,REPLICA-TABLE:ReplicaTable,OPS':OperationList)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList) .
+  eq $genPuts(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,TID:Oid,
+    SQN:Int,VARS:LocalVars,REPLICA-TABLE:ReplicaTable,OPS':OperationList write(
+    K:Key,EXPR:Expression)OPS'':OperationList)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS':OperationList write(K:Key,
+    EXPR:Expression)OPS'':OperationList)if localReplica(K:Key,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)then to RID:Oid from RID:Oid : prepare(TID:Oid,
+    version(K:Key,eval(EXPR:Expression,VARS:LocalVars),ts(RID:Oid,SQN:Int),md(
+    OPS':OperationList OPS'':OperationList)),RID:Oid)else to preferredSite(
+    K:Key,REPLICA-TABLE:ReplicaTable)from RID:Oid : prepare(TID:Oid,version(
+    K:Key,eval(EXPR:Expression,VARS:LocalVars),ts(RID:Oid,SQN:Int),md(
+    OPS':OperationList OPS'':OperationList)),RID:Oid)fi .
+  eq 1stSites(nil,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq 1stSites((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid ;
+    1stSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable); 1stSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)fi .
+  eq 1stSites(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = 1stSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq 2ndSites(VL:KeyTimestamps,empty,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq 2ndSites((K:Key |-> TS':Timestamp, VL:KeyTimestamps),(version(K:Key,
+    V:Value,TS:Timestamp,MD:KeySet), RS:Versions),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = 2ndSites((K:Key |-> TS':Timestamp, VL:KeyTimestamps),RS:Versions,RID:Oid,
+    REPLICA-TABLE:ReplicaTable); if TS:Timestamp less-than TS':Timestamp then
+    if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable)fi else(empty).OidSet fi .
+  eq (1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets)[TID:Oid]
+    = RIDS:OidSet .
+  eq (2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets)[TID:Oid]
+    = RIDS:OidSet .
+  eq (voteSites(TID:Oid,RIDS:OidSet); VSTS:VoteSites)[TID:Oid]
+    = RIDS:OidSet .
+  eq ts(RID:Oid,SQN:Int)less-than ts(RID':Oid,SQN':Int)
+    = if SQN:Int < SQN':Int then true else if SQN:Int == SQN':Int and RID:Oid <
+    RID':Oid then true else false fi fi .
+  eq cmt(LC:KeyTimestamps,VS:Versions,TS:Timestamp)
+    = $cmt(LC:KeyTimestamps,keyFilter(VS:Versions,TS:Timestamp),TS:Timestamp) .
+  eq delete(TID:Oid,1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets)
+    = 1STGETS:1stGets .
+  eq delete(TID:Oid,2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets .
+  eq gen2ndGets(TID:Oid,VL:KeyTimestamps,empty,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = null .
+  eq gen2ndGets(TID:Oid,(K:Key |-> TS':Timestamp, VL:KeyTimestamps),(version(
+    K:Key,V:Value,TS:Timestamp,MD:KeySet), RS:Versions),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = gen2ndGets(TID:Oid,(K:Key |-> TS':Timestamp, VL:KeyTimestamps),
+    RS:Versions,RID:Oid,REPLICA-TABLE:ReplicaTable)if TS:Timestamp less-than
+    TS':Timestamp then if localReplica(K:Key,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)then to RID:Oid from RID:Oid : get(TID:Oid,
+    K:Key,TS':Timestamp,RID:Oid)else to preferredSite(K:Key,
+    REPLICA-TABLE:ReplicaTable)from RID:Oid : get(TID:Oid,K:Key,TS':Timestamp,
+    RID:Oid)fi else null fi .
+  eq genCommits(TID:Oid,SQN:Int,empty,RID:Oid)
+    = null .
+  eq genCommits(TID:Oid,SQN:Int,RID':Oid ; RIDS:OidSet,RID:Oid)
+    = genCommits(TID:Oid,SQN:Int,RIDS:OidSet,RID:Oid)to RID':Oid from RID:Oid :
+    commit(TID:Oid,ts(RID:Oid,SQN:Int),RID:Oid) .
+  eq genGets(nil,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable)
+    = null .
+  eq genGets((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,TID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable)if
+    localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then to RID:Oid from
+    RID:Oid : get(TID:Oid,K:Key,eptTS,RID:Oid)else to preferredSite(K:Key,
+    REPLICA-TABLE:ReplicaTable)from RID:Oid : get(TID:Oid,K:Key,eptTS,
+    RID:Oid)fi .
+  eq genGets(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,TID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable)
+    = $genPuts(OPS:OperationList,RID:Oid,TID:Oid,SQN:Int,VARS:LocalVars,
+    REPLICA-TABLE:ReplicaTable,OPS:OperationList) .
+  eq keyFilter((version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    TS:Timestamp)
+    = K:Key, keyFilter(VS:Versions,TS:Timestamp) .
+  eq lat(VL:KeyTimestamps,empty,TS:Timestamp)
+    = VL:KeyTimestamps .
+  eq lat(VL:KeyTimestamps,(K:Key, MD:KeySet),TS:Timestamp)
+    = lat(insert(K:Key,maxts(VL:KeyTimestamps,K:Key,TS:Timestamp),
+    VL:KeyTimestamps),MD:KeySet,TS:Timestamp) .
+  eq maxts(LC:KeyTimestamps,K:Key,TS:Timestamp)
+    = if $hasMapping(LC:KeyTimestamps,K:Key)then if LC:KeyTimestamps[
+    K:Key]less-than TS:Timestamp then TS:Timestamp else LC:KeyTimestamps[
+    K:Key]fi else TS:Timestamp fi .
+  eq md(nil)
+    = (empty).KeySet .
+  eq md((X:LocalVar :=read K:Key)OPS:OperationList)
+    = md(OPS:OperationList) .
+  eq md(write(K:Key,EXPR:Expression)OPS:OperationList)
+    = K:Key, md(OPS:OperationList) .
+  eq prepareSites(nil,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet .
+  eq prepareSites((X:LocalVar :=read K:Key)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable) .
+  eq prepareSites(write(K:Key,EXPR:Expression)OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = if localReplica(K:Key,RID:Oid,REPLICA-TABLE:ReplicaTable)then RID:Oid ;
+    prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)else
+    preferredSite(K:Key,REPLICA-TABLE:ReplicaTable); prepareSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable)fi .
+  eq remove(TID:Oid,RID:Oid,1st(TID:Oid,RID:Oid ; RIDS:OidSet);
+    1STGETS:1stGets)
+    = 1st(TID:Oid,RIDS:OidSet); 1STGETS:1stGets .
+  eq remove(TID:Oid,RID:Oid,2nd(TID:Oid,RID:Oid ; RIDS:OidSet);
+    2NDGETS:2ndGets)
+    = 2nd(TID:Oid,RIDS:OidSet); 2NDGETS:2ndGets .
+  eq remove(TID:Oid,RID:Oid,voteSites(TID:Oid,RID:Oid ; RIDS:OidSet);
+    VSTS:VoteSites)
+    = voteSites(TID:Oid,RIDS:OidSet); VSTS:VoteSites .
+  eq vl(nil)
+    = (empty).KeyTimestamps .
+  eq vl((X:LocalVar :=read K:Key)OPS:OperationList)
+    = K:Key |-> ts(-1,-1), vl(OPS:OperationList) .
+  eq vl(write(K:Key,EXPR:Expression)OPS:OperationList)
+    = vl(OPS:OperationList) .
+  eq vmatch(K:Key,(version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    TS:Timestamp)
+    = version(K:Key,V:Value,TS:Timestamp,MD:KeySet) .
+  eq vmatch(K:Key,(version(K:Key,V:Value,TS:Timestamp,MD:KeySet), VS:Versions),
+    (K:Key |-> TS:Timestamp, LC:KeyTimestamps))
+    = version(K:Key,V:Value,TS:Timestamp,MD:KeySet) .
+  eq write-only(OPS:OperationList(X:LocalVar :=read K:Key)OPS':OperationList)
+    = false .
+  ceq objectEnabled(
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >,committed:
+    TXNS:ConfigList,1stGetSites: 1STGETS:1stGets,2ndGetSites: 2NDGETS:2ndGets,
+    AS':Attributes >)
+    = true
+    if 1STGETS:1stGets[TID:Oid]==(empty).OidSet = true /\ 2NDGETS:2ndGets[
+    TID:Oid]==(empty).OidSet = true .
+  ceq objectEnabled(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid))
+    = true
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    .
+  ceq objectEnabled(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid))
+    = true
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]==(empty).OidSet = true
+    .
+  eq 2ndSites(VL:KeyTimestamps,RS:Versions,RID:Oid,REPLICA-TABLE:ReplicaTable)
+    = (empty).OidSet [owise] .
+  eq delete(TID:Oid,1STGETS:1stGets)
+    = 1STGETS:1stGets [owise] .
+  eq delete(TID:Oid,2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets [owise] .
+  eq gen2ndGets(TID:Oid,VL:KeyTimestamps,RS:Versions,RID:Oid,
+    REPLICA-TABLE:ReplicaTable)
+    = null [owise] .
+  eq keyFilter(VS:Versions,TS:Timestamp)
+    = (empty).KeySet [owise] .
+  eq remove(TID:Oid,RID:Oid,1STGETS:1stGets)
+    = 1STGETS:1stGets [owise] .
+  eq remove(TID:Oid,RID:Oid,2NDGETS:2ndGets)
+    = 2NDGETS:2ndGets [owise] .
+  eq remove(TID:Oid,RID:Oid,VSTS:VoteSites)
+    = VSTS:VoteSites [owise] .
+  eq vmatch(K:Key,VS:Versions,LC:KeyTimestamps)
+    = version(K:Key,[0],ts(0,0),empty) [owise] .
+  eq vmatch(K:Key,VS:Versions,TS:Timestamp)
+    = version(K:Key,[0],ts(0,0),empty) [owise] .
+  eq write-only(OPS:OperationList)
+    = true [owise] .
+  rl 
+{@C:Config delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-commit-reads(RID:Oid,TID:Oid,RS:Versions,
+    AS:Attributes,TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,
+    AS':Attributes)[sample(exponential(1.0e+3))[rand]]),
+    @M:Msg])delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-committed-1(AS:Attributes,TXNS:ConfigList,
+    CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,@M:Msg ::
+    @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-committed-1(RID:Oid,TID:Oid,AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID':Oid)[sample(exponential(
+    1.0e+3))[rand]]),@M:Msg])delay-receive-committed-1(AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,
+    @ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-get-1(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-get-1(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,K:Key,TS:Timestamp)[
+    sample(exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-get-1(
+    VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,K:Key,
+    TS:Timestamp,RID':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-get-2(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-get-1(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,K:Key,TS:Timestamp)[
+    sample(exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-get-2(
+    VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,K:Key,
+    TS:Timestamp,RID':Oid,@ML:MsgList)|
+@T:Float} .
+  rl 
+{@C:Config delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,
+    RID:Oid,TID:Oid,SQN:Int,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-commit(RID:Oid,VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID':Oid,TID:Oid,SQN:Int)[sample(
+    exponential(1.0e+1))[rand]]),@M:Msg])delay-receive-commit(VS:Versions,
+    LC:KeyTimestamps,AS':Attributes,RID:Oid,TID:Oid,SQN:Int,RID':Oid,
+    @ML:MsgList)|
+@T:Float} [label delay-receive-commit] .
+  rl 
+{@C:Config delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,@M:Msg :: @ML:MsgList)|
+@T:Float}
+    => 
+{(@C:Config[@T:Float +(delta-receive-prepare(RID:Oid,VS:Versions,
+    AS':Attributes,RID':Oid,TID:Oid,VERSION:Version)[sample(exponential(
+    1.0e+1))[rand]]),@M:Msg])delay-receive-prepare(VS:Versions,AS':Attributes,
+    RID:Oid,TID:Oid,VERSION:Version,RID':Oid,@ML:MsgList)|
+@T:Float} [label delay-receive-prepare] .
+  rl 
+{C:Config delay-init(OBJS:Objects,MSGS:Msgs,M:Msg :: ML:MsgList)|
+T:Float}
+    => 
+{(C:Config[T:Float +(sample(exponential(1.0e+3))[rand]),M:Msg])delay-init(
+    OBJS:Objects,MSGS:Msgs,ML:MsgList)|
+T:Float} [label delay-init-1] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,AS':Attributes > to RID:Oid from
+    RID':Oid : prepare(TID:Oid,VERSION:Version,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore:(VS:Versions, VERSION:Version),AS':Attributes >
+    delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,sort(to RID':Oid from RID:Oid : prepare-reply(
+    TID:Oid,true,RID:Oid)))|
+@T:Float} [label receive-prepare.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : commit(TID:Oid,ts(RID':Oid,
+    SQN:Int),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: cmt(
+    LC:KeyTimestamps,VS:Versions,ts(RID':Oid,SQN:Int)),AS':Attributes >
+    delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,SQN:Int,RID':Oid,sort(to RID':Oid from RID:Oid : committed(TID:Oid,
+    RID:Oid)))|
+@T:Float} [label receive-commit.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V':Value,
+    TS':Timestamp,MD':KeySet)),localVars: VARS:LocalVars,AS:Attributes >,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response2(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),AS:Attributes >,2ndGetSites: remove(TID:Oid,RID':Oid,
+    2NDGETS:2ndGets),AS':Attributes > |
+@T:Float} [label receive-response2.p] .
+  rl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | gotTxns: emptyTxnList,AS:Attributes > to RID:Oid : start
+    |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | gotTxns: emptyTxnList,AS:Attributes > |
+@T:Float} [label receiving-start-when-no-txn-to-start.p] .
+  rl delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,AS:Attributes,
+    TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,AS':Attributes,nil)
+    => null [label delay-commit-reads] .
+  rl delay-init(OBJS:Objects,MSGS:Msgs,nil)
+    => null [label delay-init-2] .
+  rl delay-receive-commit(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,SQN:Int,RID':Oid,nil)
+    => null [label delay-receive-commit] .
+  rl delay-receive-committed-1(AS:Attributes,TXNS:ConfigList,CMTS:VoteSites,
+    AS':Attributes,RID:Oid,TID:Oid,RID':Oid,nil)
+    => null [label delay-receive-committed-1] .
+  rl delay-receive-get-1(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,K:Key,TS:Timestamp,RID':Oid,nil)
+    => null [label delay-receive-get-1] .
+  rl delay-receive-get-2(VS:Versions,LC:KeyTimestamps,AS':Attributes,RID:Oid,
+    TID:Oid,K:Key,TS:Timestamp,RID':Oid,nil)
+    => null [label delay-receive-get-2] .
+  rl delay-receive-prepare(VS:Versions,AS':Attributes,RID:Oid,TID:Oid,
+    VERSION:Version,RID':Oid,nil)
+    => null [label delay-receive-prepare] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : get(TID:Oid,K:Key,TS:Timestamp,
+    RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > delay-receive-get-1(VS:Versions,LC:KeyTimestamps,
+    AS':Attributes,RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,sort(to RID':Oid
+    from RID:Oid : response1(TID:Oid,vmatch(K:Key,VS:Versions,
+    LC:KeyTimestamps),RID:Oid)))|
+@T:Float}
+    if TS:Timestamp == eptTS = true [label receive-get-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > to RID:Oid from RID':Oid : get(TID:Oid,K:Key,TS:Timestamp,
+    RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | datastore: VS:Versions,latestCommit: LC:KeyTimestamps,
+    AS':Attributes > delay-receive-get-2(VS:Versions,LC:KeyTimestamps,
+    AS':Attributes,RID:Oid,TID:Oid,K:Key,TS:Timestamp,RID':Oid,sort(to RID':Oid
+    from RID:Oid : response2(TID:Oid,vmatch(K:Key,VS:Versions,TS:Timestamp),
+    RID:Oid)))|
+@T:Float}
+    if TS:Timestamp =/= eptTS = true [label receive-get-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    CMTS:VoteSites,AS':Attributes > to RID:Oid from RID':Oid : committed(
+    TID:Oid,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    remove(TID:Oid,RID':Oid,CMTS:VoteSites),AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,CMTS:VoteSites)[TID:Oid]=/=(empty).OidSet = true
+    [label receive-committed-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | AS:Attributes >,committed: TXNS:ConfigList,commitSites:
+    CMTS:VoteSites,AS':Attributes > to RID:Oid from RID':Oid : committed(
+    TID:Oid,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing: none,committed:(TXNS:ConfigList ;;
+< TID:Oid : Txn | AS:Attributes >),commitSites: remove(TID:Oid,RID':Oid,
+    CMTS:VoteSites),AS':Attributes > delay-receive-committed-1(AS:Attributes,
+    TXNS:ConfigList,CMTS:VoteSites,AS':Attributes,RID:Oid,TID:Oid,RID':Oid,
+    sort(to RID:Oid : start))|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,CMTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    [label receive-committed-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    remove(TID:Oid,RID':Oid,VSTS:VoteSites),sqn: SQN:Int,commitSites:
+    CMTS:VoteSites,AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]=/=(empty).OidSet = true
+    [label receive-prepare-reply-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),latest: lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),
+    AS:Attributes >,1stGetSites: remove(TID:Oid,RID':Oid,1STGETS:1stGets),
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > |
+@T:Float}
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]=/=(empty).OidSet =
+    true [label receive-response1-2.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    VSTS:VoteSites,sqn: SQN:Int,commitSites: CMTS:VoteSites,AS':Attributes > to
+    RID:Oid from RID':Oid : prepare-reply(TID:Oid,FLAG:Bool,RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations: OPS:OperationList,AS:Attributes >,voteSites:
+    remove(TID:Oid,RID':Oid,VSTS:VoteSites),sqn: SQN:Int,commitSites:(
+    CMTS:VoteSites ; voteSites(TID:Oid,prepareSites(OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable))),AS':Attributes > genCommits(TID:Oid,SQN:Int,
+    prepareSites(OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable),
+    RID:Oid)|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,VSTS:VoteSites)[TID:Oid]==(empty).OidSet = true
+    [label receive-prepare-reply-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet: RS:Versions,localVars: VARS:LocalVars,
+    latest: VL:KeyTimestamps,AS:Attributes >,1stGetSites: 1STGETS:1stGets,
+    2ndGetSites: 2NDGETS:2ndGets,AS':Attributes > to RID:Oid from RID':Oid :
+    response1(TID:Oid,version(K:Key,V:Value,TS:Timestamp,MD:KeySet),RID':Oid)|
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | operations:(OPS:OperationList(X:LocalVar :=read
+    K:Key)OPS':OperationList),readSet:(RS:Versions, version(K:Key,V:Value,
+    TS:Timestamp,MD:KeySet)),localVars: insert(X:LocalVar,V:Value,
+    VARS:LocalVars),latest: lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),
+    AS:Attributes >,1stGetSites: remove(TID:Oid,RID':Oid,1STGETS:1stGets),
+    2ndGetSites:(2NDGETS:2ndGets ; 2nd(TID:Oid,2ndSites(lat(VL:KeyTimestamps,
+    MD:KeySet,TS:Timestamp),(RS:Versions, version(K:Key,V:Value,TS:Timestamp,
+    MD:KeySet)),RID:Oid,REPLICA-TABLE:ReplicaTable))),AS':Attributes >
+    gen2ndGets(TID:Oid,lat(VL:KeyTimestamps,MD:KeySet,TS:Timestamp),(
+    RS:Versions, version(K:Key,V:Value,TS:Timestamp,MD:KeySet)),RID:Oid,
+    REPLICA-TABLE:ReplicaTable)|
+@T:Float}
+    if remove(TID:Oid,RID':Oid,1STGETS:1stGets)[TID:Oid]==(empty).OidSet = true
+    [label receive-response1-1.p] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs((to RID:Oid : start)
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns:(
+< TID:Oid : Txn | operations: OPS:OperationList,latest: empty,AS:Attributes >
+    ;; TXNS:ConfigList),executing: none,1stGetSites: 1STGETS:1stGets,
+    AS':Attributes >)
+< log : Monitor | events: TES:TimedEvents > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns: TXNS:ConfigList,executing:
+< TID:Oid : Txn | operations: OPS:OperationList,latest: vl(OPS:OperationList),
+    AS:Attributes >,1stGetSites:(1STGETS:1stGets ; 1st(TID:Oid,1stSites(
+    OPS:OperationList,RID:Oid,REPLICA-TABLE:ReplicaTable))),AS':Attributes >
+    genGets(OPS:OperationList,RID:Oid,TID:Oid,REPLICA-TABLE:ReplicaTable))
+< log : Monitor | events:(TES:TimedEvents ; startTxn(TID:Oid,RID:Oid)@
+    @T:Float)> |
+@T:Float}
+    if not write-only(OPS:OperationList)= true [label start-ro-or-rw-txn.p.m] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs((to RID:Oid : start)
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns:(
+< TID:Oid : Txn | operations: OPS:OperationList,localVars: VARS:LocalVars,
+    AS:Attributes > ;; TXNS:ConfigList),executing: none,sqn: SQN:Int,voteSites:
+    VSTS:VoteSites,AS':Attributes >)
+< log : Monitor | events: TES:TimedEvents > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs(
+< TABLE:Oid : Table | table: REPLICA-TABLE:ReplicaTable >
+< RID:Oid : Replica | gotTxns: TXNS:ConfigList,executing:
+< TID:Oid : Txn | operations: OPS:OperationList,localVars: VARS:LocalVars,
+    AS:Attributes >,sqn:(SQN:Int + 1),voteSites:(VSTS:VoteSites ; voteSites(
+    TID:Oid,prepareSites(OPS:OperationList,RID:Oid,
+    REPLICA-TABLE:ReplicaTable))),AS':Attributes > genPuts(OPS:OperationList,
+    RID:Oid,TID:Oid,SQN:Int + 1,VARS:LocalVars,REPLICA-TABLE:ReplicaTable))
+< log : Monitor | events:(TES:TimedEvents ; startTxn(TID:Oid,ws(
+    OPS:OperationList,RID:Oid,SQN:Int + 1,VARS:LocalVars),RID:Oid)@ @T:Float)>
+    |
+@T:Float}
+    if write-only(OPS:OperationList)= true [label start-wo-txn.p.m] .
+  crl 
+{@OBJS:Objects @DMS:DMsgs
+< RID:Oid : Replica | executing:
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >,committed:
+    TXNS:ConfigList,1stGetSites: 1STGETS:1stGets,2ndGetSites: 2NDGETS:2ndGets,
+    AS':Attributes >
+< log : Monitor | events: TES:TimedEvents > |
+@T:Float}
+    => 
+{@OBJS:Objects @DMS:DMsgs
+< log : Monitor | events:(TES:TimedEvents ; endTxn(TID:Oid,RS:Versions,
+    RID:Oid)@ @T:Float)>
+< RID:Oid : Replica | executing: none,committed:(TXNS:ConfigList ;;
+< TID:Oid : Txn | readSet: RS:Versions,AS:Attributes >),1stGetSites: delete(
+    TID:Oid,1STGETS:1stGets),2ndGetSites: delete(TID:Oid,2NDGETS:2ndGets),
+    AS':Attributes > delay-commit-reads(RID:Oid,TID:Oid,RS:Versions,
+    AS:Attributes,TXNS:ConfigList,1STGETS:1stGets,2NDGETS:2ndGets,
+    AS':Attributes,sort(to RID:Oid : start))|
+@T:Float}
+    if 1STGETS:1stGets[TID:Oid]==(empty).OidSet = true /\ 2NDGETS:2ndGets[
+    TID:Oid]==(empty).OidSet = true [label commit-reads.p.m] .
+endm
+
+New module M-P-INIT-F generated!
+mod M-P-INIT-F is
+  including BOOL .
+  including M-P-F .
+  op initconf : -> Config .
+  op r1 : -> Oid .
+  op r2 : -> Oid .
+  op r3 : -> Oid .
+  op t1 : -> Oid .
+  op t2 : -> Oid .
+  op t3 : -> Oid .
+  op t4 : -> Oid .
+  op tb : -> Oid .
+  op x : -> Key .
+  op xl : -> LocalVar .
+  op y : -> Key .
+  op yl : -> LocalVar .
+  op z : -> Key .
+  op zl : -> LocalVar .
+  op _._ : Oid Oid -> Oid
+    [assoc prec 10] .
+  eq initconf
+    = 
+< log : Monitor | events: empty >
+< tb : Table | table:[replicatingSites(x,2);; replicatingSites(y,2)]>(to 1 :
+    start)(to 2 : start)
+< 1 : Replica | gotTxns:
+< 1 . 1 : Txn | operations:((xl :=read x)(yl :=read y)),readSet: empty,latest:
+    empty,localVars:(xl |->[0], yl |->[0])>,datastore: empty,sqn: 1,
+    latestCommit: empty,executing: none,committed: emptyTxnList,voteSites:
+    noVS,1stGetSites: no1st,2ndGetSites: no2nd,commitSites: noVS >
+< 2 : Replica | gotTxns:
+< 2 . 1 : Txn | operations:(write(x,1)write(y,1)),readSet: empty,latest: empty,
+    localVars:(xl |->[0], yl |->[0])>,datastore:(version(x,[0],eptTS,empty),
+    version(y,[0],eptTS,empty)),sqn: 1,latestCommit: empty,executing: none,
+    committed: emptyTxnList,voteSites: noVS,1stGetSites: no1st,2ndGetSites:
+    no2nd,commitSites: noVS > .
+endm
+
+Bye.

@@ -1,0 +1,49 @@
+load ../events
+***load f
+
+(mod EVENTS-F is 
+  inc EVENTS + F .
+  
+  *** user-specified interesting events 
+  op startTxn : Oid Oid -> Event [ctor] .
+  op startTxn : Oid Versions Oid -> Event [ctor] .
+  op endTxn : Oid Oid -> Event [ctor] .
+  op endTxn : Oid Versions Oid -> Event [ctor] .
+  
+  
+  vars TID RID : Oid .
+  vars OPS OPS' OPS'' : OperationList .
+  var SQN : Int .
+  var VARS : LocalVars .
+  var K : Key .
+  var EXPR : Expression .
+  var X : LocalVar .
+  var V : Value .
+  var TS : Timestamp .
+  var MD : KeySet .
+  var RS : Versions .
+  
+  *** aux functions
+  op ws : OperationList Oid Nat LocalVars -> Versions .
+  op $ws : OperationList Oid Nat LocalVars OperationList -> Versions .
+  eq ws(OPS,RID,SQN,VARS) = $ws(OPS,RID,SQN,VARS,OPS) .
+  eq $ws((write(K,EXPR) OPS),RID,SQN,VARS,(OPS' write(K,EXPR) OPS'')) = 
+       version(K,eval(EXPR,VARS),ts(RID,SQN),md(OPS' OPS'')), 
+       $ws(OPS,RID,SQN,VARS,(OPS' write(K,EXPR) OPS'')) .
+  eq $ws(((X :=read K) OPS),RID,SQN,VARS,OPS') =
+       $ws(OPS,RID,SQN,VARS,OPS') .
+  eq $ws(nil,RID,SQN,VARS,OPS') = empty .
+  
+  
+  op md : OperationList -> KeySet .
+  eq md((write(K,EXPR) OPS)) = K, md(OPS) .
+  eq md(((X :=read K) OPS)) = md(OPS) .
+  eq md(nil) = empty .
+
+  
+  *** rule-specific mapping
+  eq eventMap = ['start-ro-or-rw-txn, startTxn(TID,RID)] ;; 
+                ['start-wo-txn, startTxn(TID,ws(OPS,RID,(SQN + 1),VARS),RID)] ;;
+				['receive-committed, endTxn(TID,RID)] ;; 
+				['commit-reads, endTxn(TID,RS,RID)] [nonexec] .
+endm)

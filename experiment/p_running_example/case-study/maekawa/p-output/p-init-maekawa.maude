@@ -1,0 +1,15 @@
+load p-maekawa
+
+mod P-INIT-MAEKAWA is
+  including BOOL .
+  including P-MAEKAWA .
+  op initconf : -> Config .
+  eq initconf
+    = (to 1 : start)(to 2 : start)(to 3 : start)
+< 1 : Node | state: outsideCS,queue: emptyOidList,votingSet:(1 ; 2),
+    accessGranted: false >
+< 2 : Node | state: outsideCS,queue: emptyOidList,votingSet:(2 ; 3),
+    accessGranted: false >
+< 3 : Node | state: outsideCS,queue: emptyOidList,votingSet:(1 ; 3),
+    accessGranted: false > .
+endm

@@ -1,0 +1,26 @@
+load aodv
+
+mod INIT-AODV is 
+  inc AODV .
+  
+  eq testDIP = 30 .
+  eq testOIP = 10 .
+  
+  op initconf : -> Config .
+  eq initconf =    < 10 : Node | rreqID: 100,
+                                 sequenceNumber: 1,
+                                 routingTable: empty,
+                                 requestBuffer: empty,
+			    			     neighbors: 20 >
+                   < 20 : Node | rreqID: 100,
+                                 sequenceNumber: 1,
+                                 routingTable: empty,
+                                 requestBuffer: empty,
+			    			     neighbors: (10 ; 30) >
+                   < 30 : Node | rreqID: 100,
+                                 sequenceNumber: 1,
+                                 routingTable: empty,
+                                 requestBuffer: empty,
+			    			     neighbors: 20 >
+                   (to testOIP : bootstrap)  . 		  
+endm
