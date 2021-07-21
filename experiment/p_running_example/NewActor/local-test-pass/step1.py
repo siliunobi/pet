@@ -1,7 +1,15 @@
 import os
 import sys
+import re
 
 INPUT_FOLDER = "input-modules"
+
+def replace_with_regx(src, old, new):
+    content = open(src).read()
+    content = re.sub(old, new, content)
+    with open(src, "w") as f:
+        f.write(content)
+
 
 def replace_str(src, old, new):
     content = open(src).read()
@@ -20,6 +28,30 @@ def save_lines(dst, lines, end_line=False):
 				f.write("%s\n" % line)
 			else:
 				f.write("%s" % line)
+
+def copy_with_process(src, dst, name):
+	name = name.upper()
+	res = []
+	lines = open(src).readlines()
+	i = 0
+	while i < len(lines):
+		line = lines[i]
+		if line.startswith("mod %s is" % name):
+			res.append(lines[i])
+			while not lines[i].startswith("endm"):
+				for x in ["inc", "including", "pr", "protecting", "ex", "extending"]:
+					if lines[i].strip().startswith(x+" "):
+						res.append(lines[i])
+						break
+				i += 1
+			res.append(lines[i])
+			i += 1
+
+		else:
+			res.append(line)
+			i += 1
+
+	save_lines(dst, res)
 
 def copy_file(src, dst):
 	dst_dir = os.path.dirname(dst)
@@ -99,7 +131,8 @@ if __name__ == "__main__":
 			src = os.path.join(INPUT_FOLDER, args[i])
 			dst = os.path.join(output_dir, args[i])
 			copy_file(src, dst)
-
+			if i == 0:
+				copy_with_process(src, dst, app_name)
 			
 		output_dir = "full-maude/input-modules-full-maude"
 		for i in range(len(args)):
@@ -117,6 +150,8 @@ if __name__ == "__main__":
 			src = os.path.join(INPUT_FOLDER, args[i])
 			dst = os.path.join(output_dir, args[i])
 			copy_file(src, dst)
+			if i == 0:
+				copy_with_process(src, dst, app_name)
 			
 		output_dir = "full-maude/input-modules-full-maude"
 		for i in range(len(args)):

@@ -142,24 +142,27 @@ fmod TAG-BUILTINS is
 
 
     op genDelayInit : SModule -> RuleSet .
-    eq genDelayInit(SM) =  
+    ceq genDelayInit(SM) =  
     (rl '`{_|_`}['__['C:Config,'delay-init['OBJS:Objects,'MSGS:Msgs,'_::_['M:Msg,'ML:MsgList]]],'T:Float] => 
       '`{_|_`}['__['__['C:Config,'`[_`,_`]['_+_['T:Float,'_`[_`]['sample[get23TermsByID('init, SM)],'rand.Float]],'M:Msg]],
       'delay-init['OBJS:Objects,'MSGS:Msgs,
       'ML:MsgList]],'T:Float] [label('delay-init-1)] .
-      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) .
-
+      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) 
+    if get23TermsByID('init, SM) =/= empty .
+    eq genDelayInit(SM) = none [owise] .
 
     --- generate delay initial with probability
 
         op genPDelayInit : SModule -> RuleSet .
-    eq genPDelayInit(SM) =  
+    ceq genPDelayInit(SM) =  
     (crl '`{_|_`}['__['C:Config,'delay-init['OBJS:Objects,'MSGS:Msgs,'_::_['M:Msg,'ML:MsgList]]],'T:Float] => 
       '`{_|_`}['__['__['C:Config,'`[_`,_`]['_+_['T:Float,'D:Float],'M:Msg]],
       'delay-init['OBJS:Objects,'MSGS:Msgs,
       'ML:MsgList]],'T:Float] if 'D:Float := get23TermsByID('init, SM) [label('delay-init-1)]  .
-      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .) .
+      rl 'delay-init['OBJS:Objects,'MSGS:Msgs,'nil.MsgList] => 'null.DMsgs [label('delay-init-2)] .)
+      if  get23TermsByID('init, SM) =/= empty .
 
+    eq genPDelayInit(SM) = none [owise] .
 
 
     --- Bool indicates whether it does p trans or m trans. True for p and false for m 
@@ -202,7 +205,7 @@ fmod TAG-BUILTINS is
         '<_:_|_>['log.Oid,'Monitor.ObjType,'events:_['_;_['TES:TimedEvents,'_@_[getEventTerm(SM1,LBL),'@T:Float]]]] .
 
 
-    eq getEventTerm(mod Q is IL sorts S .  SS O M E (eq 'eventMap.EventMap = T [nonexec] .) R endm, LBL) = 
+    eq getEventTerm(mod Q is IL sorts S .  SS O M E (eq 'eventMap.EventMap = T [AtS] .) R endm, LBL) = 
        getEventTermAux(T, LBL) .
 
     eq getEventTermAux('_;;_[TL], LBL) = getEventTermAux(TL,LBL) . 
@@ -398,7 +401,9 @@ fmod TAG-BUILTINS is
           '`{_|_`}['__['__['@C:Config,
           '`[_`,_`]['_+_['@T:Float,'_`[_`]['sample[T2],'rand.Float]],'@M:Msg]],
           delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] [label(delayID(LBL))] . ) 
-    if T2 := get23TermsByID(LBL, SM) .
+    if T2 := get23TermsByID(LBL, SM) /\ T2 =/= empty .
+
+
 
 
 
@@ -425,7 +430,7 @@ fmod TAG-BUILTINS is
           '`{_|_`}['__['__['@C:Config,
           '`[_`,_`]['_+_['@T:Float,'_`[_`][T3,'_`[_`]['sample[T2],'rand.Float]]],'@M:Msg]],
           delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] [none] . ) 
-    if T2,T3 := get23TermsByID(LBL, SM) .
+    if T2,T3 := get23TermsByID(LBL, SM) /\ T2 =/= empty .
 
     ceq genPRls(T, LBL,SM) = (
           rl '`{_|_`}['__['@C:Config,delayID(LBL)[getVars(T),'_::_['@M:Msg,'@ML:MsgList]]],'@T:Float] => 
@@ -433,8 +438,11 @@ fmod TAG-BUILTINS is
           '`[_`,_`]['_+_['@T:Float,'D:Float],'@M:Msg]],
           delayID(LBL)[getVars(T),'@ML:MsgList]],'@T:Float] with probability 'D:Float := T2 
           [nonexec] . ) 
-    if T2 := get23TermsByID(LBL, SM) .
+    if T2 := get23TermsByID(LBL, SM) /\ T2 =/= empty .
 
+    eq genPRls(T, LBL,SM) = none [owise] .
+
+    *** ceq genPRls(T, LBL,SM) = none if get23TermsByID(LBL, SM) == empty .
 
 
     --- end here 
@@ -444,17 +452,20 @@ fmod TAG-BUILTINS is
     op get23TermsByID : Qid Term -> TermList .
     ceq get23TermsByID(LBL, SM) = get23TermsByID(LBL, EqS)
        if EqS := getEqs(SM) .
-    eq get23TermsByID(LBL, (eq 'tpls.Tuples = T  [nonexec] .) EqS) = 
+    eq get23TermsByID(LBL, (eq 'tpls.Tuples = T  [AtS] .) EqS) = 
       get23TermsByID(upTerm(LBL), T) .
 
    op get23TermsByID : Constant EquationSet -> TermList .
    var C1 : Constant .
    eq get23TermsByID(C, '`[_`,_`,_`][C, T2, T3]) = (T2, T3) .
    eq get23TermsByID(C, '`[_`,_`][C, T2]) = T2 .
-   eq get23TermsByID(C, '_;;_['`[_`,_`,_`][C, T2, T3],T]) = (T2, T3) .
-   eq get23TermsByID(C, '_;;_['`[_`,_`][C, T2],T]) = T2 .
-   ceq get23TermsByID(C, '_;;_['`[_`,_`][C1, T2],T]) =  get23TermsByID(C,T) if C =/= C1 .
-   ceq get23TermsByID(C, '_;;_['`[_`,_`,_`][C1, T2, T3],T]) = get23TermsByID(C,T) if C =/= C1 .
+   ceq get23TermsByID(C, '`[_`,_`][C1, T2]) = empty if C =/= C1 .
+   ceq get23TermsByID(C, '`[_`,_`,_`][C1, T2, T3]) = empty if C =/= C1  .
+   eq get23TermsByID(C, '_;;_['`[_`,_`,_`][C, T2, T3],TL]) = (T2, T3) .
+   eq get23TermsByID(C, '_;;_['`[_`,_`][C, T2],TL]) = T2 .
+   ceq get23TermsByID(C, '_;;_['`[_`,_`][C1, T2],TL]) =  get23TermsByID(C,TL) if C =/= C1 .
+   ceq get23TermsByID(C, '_;;_['`[_`,_`,_`][C1, T2, T3],TL]) = get23TermsByID(C,TL) if C =/= C1 .
+   eq get23TermsByID(C, 'empty.Tuples) = empty .
 
 
     op getSorts : Term -> TypeList .
@@ -716,9 +727,9 @@ mod MONITORING is
 endm
 
 set print conceal off .
-*** break select bp .
+break select bp .
 set break off .
-break select renameIncModule .
+*** break select renameIncModule .
 
  print conceal mod_is_sorts_._____endm .
  print conceal fmod_is_sorts_.____endfm .
@@ -726,22 +737,34 @@ print conceal db .
     
 loop init .
     
+
+
+
 *** scripts start here
 
 load sampling-lib.maude
 
-load input-modules-full-maude/pi-query.maude
+load input-modules-full-maude/pi-f.maude
 
-(p-trans QUERY .)
+(p-trans F .)
 
-(show module P-QUERY .)
+(show module P-F .)
 
-load input-modules-full-maude/init-query.maude
+load input-modules-full-maude/init-f.maude
 
-(p-init INIT-QUERY .)
+(p-init INIT-F .)
 
-(show module P-INIT-QUERY .)
+(show module P-INIT-F .)
 
 *** scripts end here
+load input-modules-full-maude/events-f.maude
+
+(pm-trans F .)
+
+(show module M-P-F .)
+
+(pm-init INIT-F .)
+
+(show module M-P-INIT-F .)
 
 q

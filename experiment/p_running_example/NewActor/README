@@ -1,39 +1,73 @@
+1. Abstract
 
-The pmonitor v2 is extended to support p and m transformation. 
-
-Usage:
-
-For p transformation:
-
-1. load pminitorV2-20210703.maude 
-
-1.5 load sampling-lib.maude
-
-2. load input-modules/pi-query.maude 
-
-3. (p-trans QUERY .)
-Advisory: Module QUERY redefined.
-New module P-QUERY generated!
-
-4. load input-modules/init-query.maude 
-
-5. (p-init INIT-QUERY .)
-New module P-INIT-QUERY generated!
-
-6. (show module P-INIT-QUERY .)
+The Actors2PMaude tool is a client-server-based parallelization of SMC analysis. It consists of four components for the P transformation, the Sim transformation, the M transformation, and the PVeStA statistical model checker, respectively. The technical details about the transformations are presented in our submitted paper.
 
 
-For m transformation with p 
+2. Install dependencies
 
-1. load input-modules/events-query.maude 
+- Maude 2.7.1 for Linux64 http://maude.cs.illinois.edu/w/index.php/All_Maude_2_versions Make sure it is globally executable in each experimental machine.
+- Full Maude 2.7.1 http://maude.cs.illinois.edu/w/index.php/All_Maude_2_versions Put it under the directory 'full-maude'
+- PVeStA http://maude.cs.uiuc.edu/tools/pvesta/download.html Make sure all Java-relevant dependencies are successfully installed.
 
-2. (pm-trans QUERY .)
-Advisory: Module QUERY redefined.
-New module M-P-QUERY generated!
 
-3. load input-modules/init-query.maude 
+3. System Requirements
 
-4. (pm-init INIT-QUERY .)
-New module M-P-INIT-QUERY generated!
+3.1 Machine type: Our experiments were performed on a cluster of 60 Emulab d710 nodes (one 2.4 GHz Quad-Core Xeon CPU, 12 GB RAM, and a 1 Gbps network interface). 
 
-5. (show module M-P-INIT-QUERY .)
+3.2 Operating System: Ubuntu 16.04 STD
+
+We highly recommend re-creating the experimental environment close to this settings to get close experimental results and time.
+
+
+4. Tool usage
+
+We illustrate the tool usage via the running example (i.e., the query protocol). Other case studies follow the same instructions.
+
+4.1 Launch each server machine by
+
+$ cd [path-to-actors2PMaude]/query/
+$ java -jar [path-to-pvesta]/pvesta-server.jar > server.out &
+
+See PVeStA details, e.g., port for listening to incoming clients and list of server machines at http://maude.cs.uiuc.edu/tools/pvesta/usage.html
+
+4.2 The tool offers two options depending on whether the built-in SMC analysis is needed.
+
+4.2.1 Only the P transformation to obtain the probabilistic model:
+
+- Run the following script at the client machine: 
+
+$ ./run.sh -smc off -tr query.maude init-query.maude pi-query.maude
+
+- The resulting modules can be found in the directory 'p-output'
+
+- Run tests: $ maude test.maude
+
+- [optional]: One could inspect the resulting probabilistic modules (e.g., Cassandra) and has the freedome to customize the monitoring mechanism for (ease of) specifying QuaTEx formulas, as well as the state predicates (e.g., the Gamma metric). A subsequent SMC analysis could be performed by running the following script at the client machine:
+
+$ java -jar [path-to-pvesta]/pvesta-client.jar -l [path-to-pvesta]/serverlist -m test.maude -f formula.quatex -a 0.05 -d1 0.01
+
+where the flag -l refers to the file listing the available servers (and ports), -m to the main file having the state predicates and Maude's interface for PVeStA, -f to the QuaTEa formula, -a the confidence level used by SMC, and -d1 the threshold used by SMC.
+
+4.2.2 With the built-in SMC analysis:
+
+- Run the following script at the client machine:
+
+$ ./run.sh -smc on -tr query.maude init-query.maude pi-query.maude events-query.maude -pv latency.quatex 0.05 0.01 serverlist
+
+- The resulting modules can be found in the directory 'm-output'; the SMC result is shown in 'smc-result', e.g.,
+
+Confidence (alpha): 0.05 
+Threshold (delta): 0.01
+Samples generated: 60 
+Result: 5.85732047356881
+Running time: 1.191 seconds
+...
+
+
+5. Other notes
+
+5.1 The input modules need to be under the directory 'input-modules'; the main file (e.g., test.maude) needs to be under the same directory as 'apmaude.maude'.
+
+5.2 To run less complex case studies such as query, a single machine (playing both roles of client and server) should suffice. For complex case studies such as RAMP, we highly recommend 'many' server machines for distributing the simulation workload to obtain the result in reasonable time (e.g., a single data point in the plot may require up to five hours with 60 Emulab nodes).
+
+5.3 In our case studies we have experimented with all three options: 4.2.1, 4.2.1-optional, and 4.2.2.

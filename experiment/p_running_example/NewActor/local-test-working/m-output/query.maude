@@ -48,7 +48,7 @@ endm
 
 mod QUERY is
   inc OBJS .
-  
+  ---(
   vars O O' TB : Oid .  vars QS QS' : Queries .
   var OS : Oids .  var R : Map{Key,Oids} .
   vars AS AS' : Attributes .  var K : Key .
@@ -101,4 +101,5 @@ mod QUERY is
      < O : Client | queries: (read(ID,K) :: QS), waiting: empty, results: (RS, ID |-> DAT), AS >
   => 
      < O : Client | queries: QS, waiting: empty, results: (RS, ID |-> DAT), AS > .
+  )
 endm
