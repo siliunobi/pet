@@ -1,0 +1,19 @@
+load ../events
+load query
+
+(mod EVENTS-QUERY is 
+  inc EVENTS + QUERY .
+  
+  *** user-specified interesting events 
+  op replicaValue : Id Data -> Event [ctor] . 
+  op returnedValue : Id Data -> Event [ctor] .
+
+  var ID : Id .
+  var DB : Map{Key,Data} . 
+  var K : Key .
+  var DAT : Data .
+  
+  *** rule-specific mapping
+  eq eventMap = ['reply, replicaValue(ID,DB[K])] ;; 
+                ['ack, returnedValue(ID,DAT)] [nonexec] .
+endm)
