@@ -1,9 +1,8 @@
 ***load ../apmaude
 load events-query
 
-mod L-QUERY is
+mod L-QUERY is inc EVENTS-QUERY .
   inc OBJS .
-  inc EVENTS-QUERY .
   
   vars O O' TB : Oid .  vars QS QS' : Queries .
   var OS : Oids .  var R : Map{Key,Oids} .

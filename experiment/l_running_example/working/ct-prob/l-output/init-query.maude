@@ -1,0 +1,37 @@
+load query
+
+mod INIT-QUERY is
+  inc APMAUDE .
+  inc QUERY .
+  
+  eq LIMIT = 100.0 .
+  eq md = sample(lognormal(0.0,1.0))[rand] .
+  eq sd = sample(exponential(1.0))[rand] .
+  
+  ops c1 c2 c3 s1 s2 s3 : -> Address [ctor] . 
+  ops k1 k2 k3 : -> Key [ctor] .
+   
+  eq initState = { 0.0 | nil }
+     [sd, (to c1 : startQuery)] [sd, (to c2 : startQuery)] [sd, (to c3 : startQuery)] 
+	 
+     < c1 : Client | queries: (query(1,k1) :: query(2,k3)), servers: (s1 |-> 3.0, s2 |-> 2.0, s3 |-> 1.0) >
+     < c2 : Client | queries: query(3,k2), servers: (s1 |-> 2.0, s2 |-> 1.0, s3 |-> 2.0) >					 
+     < c3 : Client | queries: query(4,k1), servers: (s1 |-> 0.0, s2 |-> 4.0, s3 |-> 1.0) >
+	 			 
+     < s1 : Server | executing: ept, clients: empty, waiting: empty, results: empty,
+	                 replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)),
+                     database: (k1 |-> < 23, 1 >, k3 |-> < 8, 4 >) >
+     < s2 : Server | executing: ept, clients: empty, waiting: empty, results: empty,
+	                 replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)),
+	                 database: (k1 |-> < 10, 5 >, k2 |-> < 7, 3 >) >
+     < s3 : Server | executing: ept, clients: empty, waiting: empty, results: empty,
+	                 replicas: (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)),
+	                 database: (k2 |-> < 14, 2 >, k3 |-> < 3, 6 >) > .
+					 
+  op initconf : -> Config .
+  eq initconf = run(initState,LIMIT) .
+endm
+
+set clear rules off .
+rew initconf .
+

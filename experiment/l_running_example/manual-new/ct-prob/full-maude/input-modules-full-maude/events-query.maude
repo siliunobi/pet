@@ -1,0 +1,25 @@
+load ../events
+load query
+
+(mod EVENTS-QUERY is 
+  inc EVENTS + QUERY .
+  
+  *** user-specified interesting events 
+  op replicaValue : Id Data -> Event [ctor] . 
+  op returnedValue : Id Data -> Event [ctor] .
+  op proxy : Address -> Event [ctor] .
+
+  var ID : Id .
+  var DB : Map{Key,Data} . 
+  var K : Key .
+  var DAT : Data .
+  var O' : Address .
+  var LOAD : Map{Address,Float} .
+  
+  op localBalancedServer : Map{Address,Float} -> Address .
+  
+  *** rule-specific mapping
+  eq eventMap = ['reply, replicaValue(ID,DB[K])] ;; 
+                ['ack, returnedValue(ID,DAT)] ;;
+				['delegate, proxy(localBalancedServer(LOAD))] [nonexec] .
+endm)

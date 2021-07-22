@@ -8,7 +8,7 @@ mod L-INIT-QUERY is
    
 *** Monitor
   op initconf : -> Config .
-  eq initconf = < log : Monitor | events: none >
+  eq initconf = < log : Monitor | events: ept >
      (to c1 : startQuery) (to c2 : startQuery) (to c3 : startQuery)
      < c1 : Client | queries: (query(1,k1) :: query(2,k3)), servers: (s1 ; s2 ; s3) >
      < c2 : Client | queries: query(3,k2), servers: (s1 ; s2 ; s3) >					 
