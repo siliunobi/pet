@@ -1,4 +1,4 @@
-load l-query-timed
+load l-query
 
 (tomod L-INIT-QUERY is
   inc L-QUERY . 
