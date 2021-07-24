@@ -12,7 +12,7 @@ load ../events
   var ID : Id .
   var DB : Map{Key,Data} . 
   var K : Key .
-  var DAT : Data .
+  vars DAT DAT' : Data .
   var O' : Oid .
   
   *** rule-specific mapping
