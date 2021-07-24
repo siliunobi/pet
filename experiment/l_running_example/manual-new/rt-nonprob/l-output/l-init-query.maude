@@ -2,6 +2,14 @@ load l-query
 
 (tomod L-INIT-QUERY is
   inc L-QUERY . 
+  
+
+***add:
+***capture time
+  eq mte(< log : Monitor | >) = INF . 
+  eq delta(< log : Monitor | clock : T':Time >, T:Time) 
+   = < log : Monitor | clock : (T':Time + T:Time) > .
+
 
   eq md = 1 .
 

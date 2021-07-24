@@ -3,7 +3,7 @@ load events-query
 
 *** name change
 *** add inc EVENTS-QUERY .
-mod L-QUERY is inc EVENTS-QUERY .
+mod L-QUERY is inc EVENT-MAP .
   inc OBJS .
   
   vars O O' TB : Oid .  vars QS QS' : Queries .

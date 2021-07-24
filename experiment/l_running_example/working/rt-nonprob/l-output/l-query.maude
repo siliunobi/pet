@@ -1,14 +1,7 @@
 load events-query
 
-(tomod L-QUERY is inc EVENTS-QUERY .
-  inc DELAY .
-
-***add:
-***capture time
-  eq mte(< log : Monitor | >) = INF . 
-  eq delta(< log : Monitor | clock : T':Time >, T:Time) 
-   = < log : Monitor | clock : (T':Time + T:Time) > .
-  
+(tomod L-QUERY is inc EVENT-MAP .
+  inc DELAY .  
 
   vars O O' TB : Oid .  vars QS QS' : Queries .
   var OS : Oids .  var R : Map{Key,Oids} .

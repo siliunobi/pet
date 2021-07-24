@@ -2,7 +2,7 @@ load query
 load ../events
 
 
-(omod EVENTS-QUERY is 
+(omod EVENT-MAP is 
   inc EVENTS + OBJS .  *** OBJS must be the first module that imports all data structure defs
     
 *** subsort Nat < Time .   *** discrete time

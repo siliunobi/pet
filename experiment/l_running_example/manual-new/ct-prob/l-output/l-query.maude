@@ -1,6 +1,6 @@
 load events-query
 
-mod L-QUERY is inc EVENTS-QUERY .
+mod L-QUERY is inc EVENT-MAP .
   inc OBJS .
   inc SAMPLING-LIB .
   
