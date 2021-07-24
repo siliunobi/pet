@@ -29,7 +29,7 @@ load events-query
    =>
      < log : Monitor | events : (TES:TimedEvents ; (startQuery(ID) @ T:Time) ; (proxy(O') @ T:Time)), clock : T:Time >
      < O : Client | queries : QS, servers : (O' ; OS) >  
-	 (to O' from O : query(ID,K)) .
+	 dly((to O' from O : query(ID,K)),md) .
 	 
 
   rl [propagate] :
@@ -45,7 +45,7 @@ load events-query
   op propagate_to_from_ : Query Oids Oid -> Configuration .
   eq propagate Q to (O ; OS) from O'
    = (propagate Q to OS from O') 
-     (to O from O' : Q) .
+     dly((to O from O' : Q),md) .
   eq propagate Q to empty from O' = none . 
 
 
@@ -54,8 +54,8 @@ load events-query
      < O : Server | database : DB >
   => 
      < O : Server | database : DB > 
-     to O' from O : reply(ID,DB[K]) .  
- 
+     dly((to O' from O : reply(ID,DB[K])),md) .  
+	  
 *** Monitor 
   rl [update] :
      < log : Monitor | events : TES:TimedEvents, clock : T:Time > 
@@ -83,7 +83,7 @@ load events-query
   => 
      < O : Server | executing : (QS :: QS'), waiting : SS,
 	                clients : CLS, results : RS > 
-     (to O' from O : reply(ID,DAT)) .
+     dly((to O' from O : reply(ID,DAT)),md) .
 	 
 *** Monitor 	 
   rl [finish] :
@@ -93,7 +93,7 @@ load events-query
    =>
      < log : Monitor | events : (TES:TimedEvents ; (returnedValue(ID,DAT) @ T:Time) ; (finishQuery(ID) @ T:Time)), clock : T:Time > 
      < O : Client | results : insert(ID,DAT,RS) >
-	 (to O : startQuery) .
+	 dly((to O : startQuery),0) .
 	 
   rl [silient] :
      (to O : startQuery)
