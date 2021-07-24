@@ -16,7 +16,7 @@ load ../events
   var O' : Oid .
   
   *** rule-specific mapping
-  eq eventMap = ['reply, replicaValue(ID,DB[K])] ;; 
-                ['ack, returnedValue(ID,DAT)] ;;
-                ['delegate, proxy(O')] [nonexec] .
+  eq eventMap = ['delegate, (startQuery(ID) ; proxy(O'))] ;;
+                ['update, replicaValue(ID,DAT')] ;; 
+                ['finish, (returnedValue(ID,DAT) ; finishQuery(ID))] [nonexec] .
 endtom)
