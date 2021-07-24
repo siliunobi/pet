@@ -14,13 +14,14 @@ load events-query
   var Q : Query .
   vars CLS SS : Map{Id,Oids} .
   
-
-***monitor
+  
+*** Monitor 
   rl [delegate] : 
-     < log : Monitor | events : ES:Events >
+     < log : Monitor | events : ES:Events >  
+     (to O : startQuery)
      < O : Client | queries : (query(ID,K) :: QS), servers : (O' ; OS) >
    =>
-     < log : Monitor | events : (ES:Events ; proxy(O')) >
+     < log : Monitor | events : (ES:Events ; startQuery(ID) ; proxy(O')) >
      < O : Client | queries : QS, servers : (O' ; OS) >  
 	 (to O' from O : query(ID,K)) .
 	 
@@ -42,22 +43,21 @@ load events-query
   eq propagate Q to empty from O' = none . 
 
 
-  
-*** Monitor
   rl [reply] :
-     < log : Monitor | events : ES:Events >
      (to O from O' : read(ID,K)) 
      < O : Server | database : DB >
   => 
-     < log : Monitor | events : (ES:Events ; replicaValue(ID,DB[K])) >
      < O : Server | database : DB > 
      to O' from O : reply(ID,DB[K]) .  
  
 
+*** Monitor 
   rl [update] :
+     < log : Monitor | events : ES:Events >
      (to O from O' : reply(ID,DAT')) 
      < O : Server | waiting : (SS, ID |-> (O' ; OS)), results : RS >
   => 
+     < log : Monitor | events : (ES:Events ; replicaValue(ID,DAT')) >
      < O : Server | waiting : (SS, ID |-> OS), results : latest(ID,DAT',RS) > .
 	 
 
@@ -72,21 +72,29 @@ load events-query
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
 
-*** Monitor   
-  rl [ack] :
-     < log : Monitor | events : ES:Events >
+  rl [return] :
      < O : Server | executing : (QS :: query(ID,K) :: QS'), waiting : (SS, ID |-> empty), 
 	                clients : (CLS, ID |-> O'), results : (RS, ID |-> DAT) >
   => 
-     < log : Monitor | events : (ES:Events ; returnedValue(ID,DAT)) >
      < O : Server | executing : (QS :: QS'), waiting : SS,
 	                clients : CLS, results : RS > 
-     (to O' : startQuery) .
+     (to O' from O : reply(ID,DAT)) .
 	 
+	 
+*** Monitor 	 
   rl [finish] :
+     < log : Monitor | events : ES:Events >
+     (to O from O' : reply(ID,DAT))
+     < O : Client | results : RS >
+   =>
+     < log : Monitor | events : (ES:Events ; (returnedValue(ID,DAT) ; finishQuery(ID))) >
+     < O : Client | results : insert(ID,DAT,RS) >
+	 (to O : startQuery) .
+	 
+  rl [silient] :
      (to O : startQuery)
      < O : Client | queries : ept >
-   =>
-     < O : Client | queries : ept > .
+  =>
+     < O : Client | queries : ept > .	
 
 endom)

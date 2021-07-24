@@ -1,6 +1,8 @@
-***load ../apmaude
+*** L-added starts here
 load events-query
 
+*** name change
+*** add inc EVENTS-QUERY .
 mod L-QUERY is inc EVENTS-QUERY .
   inc OBJS .
   
@@ -13,6 +15,8 @@ mod L-QUERY is inc EVENTS-QUERY .
   var RS : Map{Id,Data} .  
   var Q : Query .
   vars CLS SS : Map{Id,Oids} .
+ 
+
   
 *** Monitor 
   rl [delegate] : 
@@ -20,7 +24,7 @@ mod L-QUERY is inc EVENTS-QUERY .
      (to O : startQuery)
      < O : Client | queries: (query(ID,K) :: QS), servers: (O' ; OS), AS >
    =>
-     < log : Monitor | events: (ES:Events ; proxy(O')) >
+     < log : Monitor | events: (ES:Events ; startQuery(ID) ; proxy(O')) >
      < O : Client | queries: QS, servers: (O' ; OS), AS >  
 	 (to O' from O : query(ID,K)) .
 	 
@@ -39,21 +43,21 @@ mod L-QUERY is inc EVENTS-QUERY .
   eq propagate Q to (O ; OS) from O' = (propagate Q to OS from O') (to O from O' : Q) .
   eq propagate Q to empty from O' = null . 
   
-*** Monitor
+
   rl [reply] :
-     < log : Monitor | events: ES:Events >
      (to O from O' : read(ID,K)) 
      < O : Server | database: DB, AS >
   => 
-     < log : Monitor | events: (ES:Events ; replicaValue(ID,DB[K])) >
      < O : Server | database: DB, AS > 
      (to O' from O : reply(ID,DB[K])) .  
- 
 
+*** Monitor 
   rl [update] :
+     < log : Monitor | events: ES:Events >
      (to O from O' : reply(ID,DAT')) 
      < O : Server | waiting: (SS, ID |-> (O' ; OS)), results: RS, AS >
   => 
+     < log : Monitor | events: (ES:Events ; replicaValue(ID,DAT')) >
      < O : Server | waiting: (SS, ID |-> OS), results: latest(ID,DAT',RS), AS > .
 	 
 
@@ -67,21 +71,29 @@ mod L-QUERY is inc EVENTS-QUERY .
   eq fresher(null,< V,TS >) = < V,TS > .
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
-*** Monitor   
-  rl [ack] :
-     < log : Monitor | events: ES:Events >
+   
+  rl [return] :
      < O : Server | executing: (QS :: query(ID,K) :: QS'), waiting: (SS, ID |-> empty), 
 	                clients: (CLS, ID |-> O'), results: (RS, ID |-> DAT), AS >
   => 
-     < log : Monitor | events: (ES:Events ; returnedValue(ID,DAT)) >
      < O : Server | executing: (QS :: QS'), waiting: SS,
 	                clients: CLS, results: RS, AS > 
-     (to O' : startQuery) .
-	 
+     (to O' from O : reply(ID,DAT)) .
+   	 
+*** Monitor 	 
   rl [finish] :
+     < log : Monitor | events: ES:Events >
+     (to O from O' : reply(ID,DAT))
+     < O : Client | results: RS, AS  >
+  =>
+     < log : Monitor | events: (ES:Events ; (returnedValue(ID,DAT) ; finishQuery(ID))) >
+     < O : Client | results: insert(ID,DAT,RS), AS >
+     (to O : startQuery) .	 
+		 
+
+  rl [silient] :
      (to O : startQuery)
-     < O : Client | queries: ept, AS >
-   =>
-     < O : Client | queries: ept, AS > .
-	 
+     < O : Client | queries: ept, AS  >
+  =>
+     < O : Client | queries: ept, AS > .	 
 endm

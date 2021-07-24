@@ -9,9 +9,9 @@ load query
   op initconf : -> Configuration .
   eq initconf = 
      (to c1 : startQuery) (to c2 : startQuery) (to c3 : startQuery)
-     < c1 : Client | queries : (query(1,k1) :: query(2,k3)), servers : (s1 ; s2 ; s3) >
-     < c2 : Client | queries : query(3,k2), servers : (s1 ; s2 ; s3) >					 
-     < c3 : Client | queries : query(4,k1), servers : (s1 ; s2 ; s3) >
+     < c1 : Client | queries : (query(1,k1) :: query(2,k3)), servers : (s1 ; s2 ; s3), results : empty >
+     < c2 : Client | queries : query(3,k2), servers : (s1 ; s2 ; s3), results : empty >					 
+     < c3 : Client | queries : query(4,k1), servers : (s1 ; s2 ; s3), results : empty >
      < s1 : Server | executing : ept, clients : empty, waiting : empty, results : empty,
 	                 replicas : (k1 |-> (s1 ; s2), k2 |-> (s2 ; s3), k3 |-> (s1 ; s3)),
                      database : (k1 |-> < 23, 1 >, k3 |-> < 8, 4 >) >
@@ -23,4 +23,4 @@ load query
 	                 database : (k2 |-> < 14, 2 >, k3 |-> < 3, 6 >) > .
 endom)
 
-(rew initconf .)
+---(rew initconf .)

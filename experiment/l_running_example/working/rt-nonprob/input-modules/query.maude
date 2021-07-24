@@ -1,7 +1,3 @@
-set show advisories off .
-
-load ../real-time-maude
-
 (omod SORTS is
   pr NAT .
 
@@ -44,7 +40,8 @@ endom)
   pr MAP{Id,Oids} .
 
   class Client | queries : Queries,
-                 servers : Oids .
+                 servers : Oids,
+				 results : Map{Id,Data} .
 
   class Server | waiting : Map{Id,Oids},
                  replicas : Map{Key,Oids},
@@ -125,7 +122,7 @@ endtom)
      < O : Client | queries : (query(ID,K) :: QS), servers : (O' ; OS) >
    =>
      < O : Client | queries : QS, servers : (O' ; OS) >  
-	 dly((to O' from O : query(ID,K)),md) .
+	 (to O' from O : query(ID,K)) .
 	 
 
   rl [propagate] :
@@ -141,7 +138,7 @@ endtom)
   op propagate_to_from_ : Query Oids Oid -> Configuration .
   eq propagate Q to (O ; OS) from O'
    = (propagate Q to OS from O') 
-     dly((to O from O' : Q),md) .
+     (to O from O' : Q) .
   eq propagate Q to empty from O' = none . 
 
 
@@ -150,7 +147,7 @@ endtom)
      < O : Server | database : DB >
   => 
      < O : Server | database : DB > 
-     dly(to O' from O : reply(ID,DB[K]),md) .  
+     to O' from O : reply(ID,DB[K]) .  
  
 
   rl [update] :
@@ -171,18 +168,26 @@ endtom)
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
 
-  rl [ack] :
+  rl [return] :
      < O : Server | executing : (QS :: query(ID,K) :: QS'), waiting : (SS, ID |-> empty), 
 	                clients : (CLS, ID |-> O'), results : (RS, ID |-> DAT) >
   => 
      < O : Server | executing : (QS :: QS'), waiting : SS,
 	                clients : CLS, results : RS > 
-     dly(to O' : startQuery,md) .
+     (to O' from O : reply(ID,DAT)) .
+	 
 	 
   rl [finish] :
+     (to O from O' : reply(ID,DAT))
+     < O : Client | results : RS >
+   =>
+     < O : Client | results : insert(ID,DAT,RS) >
+	 (to O : startQuery) .
+	 
+  rl [silient] :
      (to O : startQuery)
      < O : Client | queries : ept >
-   =>
-     < O : Client | queries : ept > .
+  =>
+     < O : Client | queries : ept > .	
 
 endtom)

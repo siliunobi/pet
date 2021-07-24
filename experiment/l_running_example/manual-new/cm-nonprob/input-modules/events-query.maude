@@ -2,18 +2,26 @@ load ../events
 load query
 
 mod EVENTS-QUERY is 
-  inc EVENTS + QUERY .
+  inc EVENTS + OBJS .  *** OBJS must be the first module that imports all data structure defs
+    
+*** subsort Nat < Time .   *** discrete time
+*** subsort Float < Time .  *** dense time
   
   *** user-specified interesting events 
+  op startQuery : Id -> Event [ctor] .
+  op proxy : Oid -> Event [ctor] .
   op replicaValue : Id Data -> Event [ctor] . 
   op returnedValue : Id Data -> Event [ctor] .
+  op finishQuery : Id -> Event [ctor] .
 
   var ID : Id .
   var DB : Map{Key,Data} . 
   var K : Key .
-  var DAT : Data .
+  vars DAT DAT' : Data .
+  var O' : Oid .
   
   *** rule-specific mapping
-  eq eventMap = ['reply, replicaValue(ID,DB[K])] ;; 
-                ['ack, returnedValue(ID,DAT)] [nonexec] .
+  eq eventMap = ['delegate, (startQuery(ID) ; proxy(O'))] ;;
+                ['update, replicaValue(ID,DAT')] ;; 
+                ['finish, (returnedValue(ID,DAT) ; finishQuery(ID))] [nonexec] .
 endm

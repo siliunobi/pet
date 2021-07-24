@@ -1,4 +1,4 @@
-load ../apmaude
+load apmaude
 
 (mod SORTS is
   inc SCHEDULING .
@@ -118,18 +118,26 @@ endm)
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
    
-  rl [ack] :
+  rl [return] :
      < O : Server | executing: (QS :: query(ID,K) :: QS'), waiting: (SS, ID |-> empty), 
 	                clients: (CLS, ID |-> O'), results: (RS, ID |-> DAT), AS >
   => 
      < O : Server | executing: (QS :: QS'), waiting: SS,
 	                clients: CLS, results: RS, AS > 
-     (to O' : startQuery) .
+     (to O' from O : reply(ID,DAT)) .
+   	 
 	 
   rl [finish] :
-     (to O : startQuery)
-     < O : Client | queries: ept, AS >
-   =>
-     < O : Client | queries: ept, AS > .
+     (to O from O' : reply(ID,DAT))
+     < O : Client | results: RS, AS  >
+  =>
+     < O : Client | results: insert(ID,DAT,RS), AS >
+     (to O : startQuery) .	 
 	 
+
+  rl [silient] :
+     (to O : startQuery)
+     < O : Client | queries: ept, AS  >
+  =>
+     < O : Client | queries: ept, AS > .	   
 endm)

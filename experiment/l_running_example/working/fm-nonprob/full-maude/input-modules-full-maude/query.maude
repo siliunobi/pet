@@ -1,7 +1,3 @@
-set show advisories off .
-
-load full-maude
-
 (omod SORTS is
   pr NAT .
 
@@ -44,7 +40,8 @@ endom)
   pr MAP{Id,Oids} .
 
   class Client | queries : Queries,
-                 servers : Oids .
+                 servers : Oids,
+				 results : Map{Id,Data} .
 
   class Server | waiting : Map{Id,Oids},
                  replicas : Map{Key,Oids},
@@ -122,18 +119,26 @@ endom)
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
 
-  rl [ack] :
+  rl [return] :
      < O : Server | executing : (QS :: query(ID,K) :: QS'), waiting : (SS, ID |-> empty), 
 	                clients : (CLS, ID |-> O'), results : (RS, ID |-> DAT) >
   => 
      < O : Server | executing : (QS :: QS'), waiting : SS,
 	                clients : CLS, results : RS > 
-     (to O' : startQuery) .
+     (to O' from O : reply(ID,DAT)) .
+	 
 	 
   rl [finish] :
+     (to O from O' : reply(ID,DAT))
+     < O : Client | results : RS >
+   =>
+     < O : Client | results : insert(ID,DAT,RS) >
+	 (to O : startQuery) .
+	 
+  rl [silient] :
      (to O : startQuery)
      < O : Client | queries : ept >
-   =>
-     < O : Client | queries : ept > .
+  =>
+     < O : Client | queries : ept > .	
 
 endom)

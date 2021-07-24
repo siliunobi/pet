@@ -1,0 +1,29 @@
+load distr-lib
+
+(mod SAMPLE-UNIFORM is
+  pr RANDOM + COUNTER + CONVERSION .
+
+  op rand : -> [Float] .
+  rl [rnd] : rand => float(random(counter) / 4294967296) .
+endm)
+
+(mod SAMPLING-LIB is
+  inc DISTR-LIB + SAMPLE-UNIFORM .
+  
+  *** unified operator for defining sampling functions  
+  op sample : RFun -> RFun [ctor] .
+
+  vars MIN MAX RATE MEAN SD SCALE SHAPE RAND : Float .
+  
+  eq sample(uniform(MIN,MAX))[RAND] = RAND * (MAX - MIN) + MIN .
+  eq sample(exponential(RATE))[RAND] = (- log(RAND)) / RATE .  
+  eq sample(normal(MEAN,SD))[RAND] 
+   = (sqrt(- 2.0 * log(RAND)) * cos(2.0 * pi * RAND)) * SD + MEAN .
+  eq sample(lognormal(MEAN,SD))[RAND] 
+   = exp(MEAN + SD * sqrt(- 2.0 * log(RAND)) * cos(2.0 * pi * RAND)) .  
+  eq sample(weibull(SHAPE,SCALE))[RAND] 
+   = SCALE * exp((1.0 / SHAPE) * log(- log(RAND))) . 
+   
+  *** zipf to be added
+endm)
+

@@ -1,32 +1,44 @@
+*** PVeStA framework
 load apmaude
 
 (mod EVENTS is
+  pr NAT + FLOAT .
   inc ACTOR-MODEL + QID .
   
-  sorts Event TimedEvent TimedEvents .    subsort TimedEvent < TimedEvents .
+*** rt
+  sort Time .
+  
+  sorts Event Events TimedEvent TimedEvents .    
+  subsort Event < Events .
+  subsort TimedEvent < TimedEvents .
+
+  op empty : -> Events [ctor] .
+  op _;_ : Events Events -> Events [ctor assoc id: empty] .
+
   op empty : -> TimedEvents [ctor] .
   op _;_ : TimedEvents TimedEvents -> TimedEvents [ctor assoc id: empty] .
-  op _@_ : Event Float -> TimedEvent [ctor] .
+  op _@_ : Event Time -> TimedEvent [ctor] .   
 
   op Monitor : -> ActorType .
-  op events:_ : TimedEvents -> Attribute .
   op log : -> Address [ctor] .    *** the monitor's identifier
   
+*** cm
+***  op events:_ : Events -> Attribute .
+
+*** fm
+***  op events:_ : Events -> Attribute .
+ 
+*** ct
+  op events:_ : TimedEvents -> Attribute .
+  
+*** rt
+***  op events:_ : TimedEvents -> Attribute .
+    
   sorts Pair EventMap .  subsort Pair < EventMap .
-  op `[_`,_`] : Qid Event -> Pair [ctor] .
+  op `[_`,_`] : Qid Events -> Pair [ctor] .
 
   op none : -> EventMap [ctor] .
   op _;;_ : EventMap EventMap -> EventMap [ctor comm assoc id: none] .  
   
   op eventMap : -> EventMap .  *** to be defined by user
-  
-  
-*** 
-  sort Events .
-  subsort Event < Events .
-  
-  op ept : -> Events [ctor] .
-  op _;_ : Events Events -> Events [ctor assoc id: ept] .
-
-  op events:_ : Events -> Attribute .
 endm)

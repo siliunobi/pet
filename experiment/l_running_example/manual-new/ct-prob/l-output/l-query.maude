@@ -17,14 +17,15 @@ mod L-QUERY is inc EVENTS-QUERY .
   vars COUNT RAND F1 F2 F3 : Float .
   var GT : Float .
   var AC : ActorConfig .
-    
+  
+
 ***monitor
   rl [delegate] : 
      < log : Monitor | events: TES:TimedEvents >
      {GT, to O : startQuery}
      < O : Client | queries: (query(ID,K) :: QS), servers: LOAD, AS >
    =>
-     < log : Monitor | events: (TES:TimedEvents ; (proxy(localBalancedServer(LOAD)) @ GT)) >
+     < log : Monitor | events: (TES:TimedEvents ; ((startQuery(ID) @ GT) ; (proxy(localBalancedServer(LOAD)) @ GT))) >
      < O : Client | queries: QS, servers: incr(localBalancedServer(LOAD),LOAD), AS >  
 	 [md, to localBalancedServer(LOAD) from O : query(ID,K)] .
 	 
@@ -64,21 +65,20 @@ mod L-QUERY is inc EVENTS-QUERY .
   eq propagate Q to empty from O' = null . 
   
 
-***monitor
   rl [reply] :
-     < log : Monitor | events: TES:TimedEvents >
      {GT, to O from O' : read(ID,K)}
      < O : Server | database: DB, AS >
   => 
-     < log : Monitor | events: (TES:TimedEvents ; (replicaValue(ID,DB[K]) @ GT)) >
      < O : Server | database: DB, AS > 
      [md, to O' from O : reply(ID,DB[K])] .  
  
-
+*** Monitor 
   rl [update] :
+     < log : Monitor | events: TES:TimedEvents >
      {GT, to O from O' : reply(ID,DAT')}
      < O : Server | waiting: (SS, ID |-> (O' ; OS)), results: RS, AS >
   => 
+     < log : Monitor | events: (TES:TimedEvents ; (replicaValue(ID,DAT') @ GT)) >
      < O : Server | waiting: (SS, ID |-> OS), results: latest(ID,DAT',RS), AS > .
 	 
 
@@ -93,29 +93,35 @@ mod L-QUERY is inc EVENTS-QUERY .
   eq fresher(< V,TS >,< V',TS' >) = if TS >= TS' then < V,TS > else < V',TS' > fi .   
 	 
 
-***monitor
-  rl [ack] :
-     { GT:Float | SL:ScheduleList }
-     < log : Monitor | events: TES:TimedEvents >
+  rl [return] :
      < O : Server | executing: (QS :: query(ID,K) :: QS'), waiting: (SS, ID |-> empty), 
 	                clients: (CLS, ID |-> O'), results: (RS, ID |-> DAT), AS >
   => 
-     { GT:Float | SL:ScheduleList }
-     < log : Monitor | events: (TES:TimedEvents ; (returnedValue(ID,DAT) @ GT)) >
      < O : Server | executing: (QS :: QS'), waiting: SS,
 	                clients: CLS, results: RS, AS > 
-     [md, to O' : startQuery] .
+     [md, (to O' from O : reply(ID,DAT))] .
+	 
 
   *** do NOT forget AC
   eq eagerEnabled(AC < O : Server | executing: (QS :: query(ID,K) :: QS'), waiting: (SS, ID |-> empty), 
 	                                clients: (CLS, ID |-> O'), results: (RS, ID |-> DAT), AS >) 
    = true .
-
-
+   
+   
+*** Monitor 	 
   rl [finish] :
+     < log : Monitor | events: TES:TimedEvents >
+     {GT, (to O from O' : reply(ID,DAT))}
+     < O : Client | results: RS, AS  >
+  =>
+     < log : Monitor | events: (TES:TimedEvents ; (returnedValue(ID,DAT) @ GT) ; (finishQuery(ID) @ GT)) >
+     < O : Client | results: insert(ID,DAT,RS), AS >
+     [sd, (to O : startQuery)] .	
+
+
+  rl [silient] :
      {GT, to O : startQuery}
-     < O : Client | queries: ept, AS >
-   =>
-     < O : Client | queries: ept, AS > .
- 
+     < O : Client | queries: ept, AS  >
+  =>
+     < O : Client | queries: ept, AS > .  
 endm
