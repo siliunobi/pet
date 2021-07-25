@@ -1,0 +1,17 @@
+load nspk
+load ../events
+
+(omod EVENT-MAP is 
+  inc EVENTS + OBJS .
+    
+*** subsort Nat < Time .   *** discrete time
+*** subsort Float < Time .  *** dense time
+  
+  *** user-specified interesting events 
+  op trusted : Oid -> Event [ctor] .
+
+  var A : Oid . 
+    
+  *** rule-specific mapping
+  eq eventMap = ['read-3, trusted(A)] [nonexec] .
+endom)

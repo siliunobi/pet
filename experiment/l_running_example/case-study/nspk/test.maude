@@ -1,0 +1,16 @@
+load l-output/init-nspk
+
+(omod TEST is
+  inc TEST-NSPK .
+
+  *** property
+  op insecureConnection : Configuration -> Bool .
+  op insecureConnection : Events -> Bool .
+  eq insecureConnection(C:Configuration < log : Monitor | events : ES:Events >)
+   = insecureConnection(ES:Events) .
+   
+  eq insecureConnection(ES:Events ; trusted("Scrooge") ; ES':Events) = true .
+  eq insecureConnection(ES:Events) = false [owise] .
+endom)
+
+(search [1] intruderInit =>* C:Configuration such that insecureConnection(C:Configuration) .)

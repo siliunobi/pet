@@ -1,0 +1,24 @@
+load nspk
+
+(omod TEST-NSPK is including NSPK-INTRUDER . protecting STRING .
+  subsort String < Oid .
+  ---(
+  op init2 : -> Configuration .
+  eq init2
+   = < "a" : InitAndResp | initSessions : notInitiated("c"), respSessions : emptySession, nonceCtr : 1 >
+     < "Bank" : Responder | respSessions : emptySession, nonceCtr : 1 >
+     < "c" : InitAndResp | initSessions : notInitiated("Bank") notInitiated("a"), respSessions : emptySession, nonceCtr : 1 > .
+  )
+
+  op intruderInit : -> Configuration .
+  eq intruderInit
+   = < "Scrooge" : Initiator | initSessions : notInitiated("BeagleBoys"), nonceCtr : 1 >
+     < "Bank" : Responder | respSessions : emptySession, nonceCtr : 1 >
+     < "BeagleBoys" : Intruder | initSessions : emptySession, respSessions : emptySession,
+                                 nonceCtr : 1, agentsSeen : "Bank" ; "BeagleBoys",
+                                 noncesSeen : emptyNonceSet, encrMsgsSeen : emptyEncrMsg > .
+endom)
+
+---(search init2 =>! C:Configuration .)
+
+---(rew intruderInit .)
