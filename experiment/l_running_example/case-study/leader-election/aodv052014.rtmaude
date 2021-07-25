@@ -1,0 +1,1558 @@
+    --- Based on aodv042314
+    --- Unidirection: each node has its own transmission range
+
+
+load real-time-maude
+
+(omod MANET-PARAMETERS is
+    protecting CONVERSION .
+    protecting NAT-TIME-DOMAIN-WITH-INF .
+
+    op max : TimeInf Int -> TimeInf [ditto] . 
+
+    --- The following parameters are for general MANETs 
+    op areaSize : -> Nat .
+    eq areaSize = 100 .
+
+    op delta : -> Time .
+    eq delta = 10 .
+
+    op roundTime : -> Time .
+---    eq roundTime = 20 .
+
+    op movingTime : -> Time .
+--- eq movingTime = INF .
+
+    op pauseTime : -> Time .
+--- eq pauseTime = 20 .
+   
+    op minSpeed : -> Nat .
+    eq minSpeed = 1 .
+
+    op transRange : -> Nat .  
+    eq transRange = 10 .
+
+    --- The following parameters are for AODV
+    op PktDelay : -> Nat . 
+    eq PktDelay = 10 .	
+
+    op SendDelay : -> Nat .
+---    eq SendDelay = 10 .
+ 
+    op RecDelay : -> Nat .
+---    eq RecDelay = 5 .    
+
+    --- For Scenarios iii and iii'
+---       eq RecDelay = 0 .
+
+endom)
+
+(tomod MANET-SORTS is
+    including MANET-PARAMETERS .  
+
+    sort Location . 
+    op _._ : Rat Rat -> Location [ctor] .
+    
+    vars X X' Y Y' : Rat .
+    vars L L'      : Location .
+    var N          : Nat .
+
+    op vectorLengthSq       : Location Location -> Rat .
+    op _withinTransRangeOf_ : Location Location -> Bool .
+    op _within_TransRangeOf_ : Location Nat Location -> Bool . 
+
+    eq vectorLengthSq(X . Y, X' . Y') = 
+       ((X - X') * (X - X')) + ((Y - Y') * (Y - Y')) .
+
+    eq L withinTransRangeOf L' = 
+       vectorLengthSq(L, L') <= (transRange * transRange) .
+
+    eq L within N TransRangeOf L' =
+       vectorLengthSq(L, L') <= (N * N) .
+
+    sort Status .
+    op moving  : -> Status [ctor] .
+    op pausing : -> Status [ctor] .
+
+    sort Pattern .
+    op STA : -> Pattern [ctor] .
+    op RWK : -> Pattern [ctor] .
+    op RWP : -> Pattern [ctor] .
+    op RDR : -> Pattern [ctor] .
+
+endtom)
+(view Location from TRIV to MANET-SORTS is sort Elt to Location . endv)
+
+(tomod AODV-SORTS is
+    including MANET-PARAMETERS .  
+
+    sort Sqn .
+    subsort Nat < Sqn .
+    --- 0 for unknown
+    --- 1 for smallest sequence number, also as initia value 
+
+    sort Tuple6 .   
+    --- Each route table entry: 
+    --- Destination  |-> Next Hop
+    ---                  Number of hops
+    ---                  Sequence number for the destination
+    ---                  Active neighbors for this route 
+    ---                  Expiration time for the route table entry
+    ---                  Route table valid or outdated
+    --- Reverse path route entry:
+    --- Intermediate |-> SIP
+    ---                  1
+    ---                  0
+    ---                  none (for now)
+    ---                  INF (for now)
+    ---                  true or false 
+    --- Source Node  |-> SIP
+    ---                  HOPS + 1
+    ---                  OSN
+    ---                  none (for now)
+    ---                  INF (for now)
+    ---                  true or false
+
+    sort Tuple4 .
+    sort Tuple2 .
+
+    sort RreqID .
+
+endtom)
+(view Tuple6   from TRIV to AODV-SORTS is sort Elt to Tuple6   . endv)
+(view Tuple4   from TRIV to AODV-SORTS is sort Elt to Tuple4   . endv)
+(view Tuple2   from TRIV to AODV-SORTS is sort Elt to Tuple2   . endv)
+(view Oid      from TRIV to AODV-SORTS is sort Elt to Oid      . endv)
+(view RreqID   from TRIV to AODV-SORTS is sort Elt to RreqID   . endv)
+
+(tomod AODV-AUX is
+    protecting SET{Nat} .
+    protecting MAP{Oid, Tuple4} * (sort Map{Oid, Tuple4} to RouteTable,
+                                   sort Entry{Oid, Tuple4} to RtEntry,
+                                   op $hasMapping to inRT) .
+    protecting SET{RreqID} * (sort Set{RreqID} to RreqBuffer) .
+    protecting SET{Tuple2} * (sort Set{Tuple2} to DestSet,
+                                op empty to eptDS) .
+
+    sort Neighbor .
+    subsort Nat < Neighbor < Oid .
+
+    sort NeighborSet .
+    subsort Set{Nat} < NeighborSet .
+
+
+    --- OIP ~ RREQID uniquely identifies a RREQ 
+    op _~_ : Oid Int -> RreqID [ctor] .
+    op null : -> RreqID .
+    op pr1 : RreqID -> Oid .
+    op pr2 : RreqID -> Int .
+
+    eq pr1(O ~ X) = O .
+    eq pr2(O ~ X) = X .
+
+
+    vars X Y X' Y'  : Int .
+    vars Z Z'       : Sqn .
+    var NB NB'      : Neighbor .
+    var NBS         : NeighborSet .
+    var B           : Bool .
+    
+    op tuple4    : Int Int Sqn NeighborSet Bool -> Tuple4 [ctor] .
+    op nexthop   : Tuple4 -> Int .
+    op hops      : Tuple4 -> Int .
+    op localdsn  : Tuple4 -> Sqn .
+    op neighbors : Tuple4 -> NeighborSet .
+    op rtflag    : Tuple4 -> Bool .
+
+    eq nexthop(tuple4(X,Y,Z,NBS,B))   = X .
+    eq hops(tuple4(X,Y,Z,NBS,B))      = Y .
+    eq localdsn(tuple4(X,Y,Z,NBS,B))  = Z .
+    eq neighbors(tuple4(X,Y,Z,NBS,B)) = NBS .
+    eq rtflag(tuple4(X,Y,Z,NBS,B))    = B .
+
+    --- No Neighbors
+    op tuple4    : Int Int Sqn -> Tuple4 [ctor] .
+    eq nexthop(tuple4(X,Y,Z))   = X .
+    eq hops(tuple4(X,Y,Z))      = Y .
+    eq localdsn(tuple4(X,Y,Z))  = Z .
+
+
+    vars O O' O'' : Oid .
+    var TP        : Tuple4 .
+    var RT        : RouteTable .
+
+    --- op update : Oid Tuple4 RouteTable -> RouteTable [memo] .
+    --- eq update(O,TP,RT) = insert(O,TP,RT) .
+
+    op update : Oid Int Int Sqn RouteTable -> RouteTable [memo] .
+    eq update(O,X',Y',Z',(RT, O |-> tuple4(X,Y,Z,NBS,B))) =
+         if inRT(RT,O)
+           then update(O,X',Y',Z',RT)
+           else (RT, O |-> tuple4(X',Y',Z',NBS,true))
+         fi .
+    eq update(O,X',Y',Z',RT) = 
+         (RT, O |-> tuple4(X',Y',Z',empty,true)) [owise] .
+
+
+    op addPrec : Neighbor Oid RouteTable -> RouteTable [memo] .
+    eq addPrec(NB,O,(RT, O |-> tuple4(X,Y,Z,NBS,B))) = 
+         if inRT(RT,O)
+           then addPrec(NB,O,RT)
+           else (RT, O |-> tuple4(X,Y,Z,(NB,NBS),B))
+         fi . 
+    eq addPrec(NB,O,RT) = RT [owise] .  
+
+
+    --- This is for generating multiMsg
+    op destPair : Oid Sqn -> Tuple2 [ctor] .
+
+    op dests  : Oid RouteTable -> DestSet [memo] . 
+    op $dests : Oid RouteTable DestSet -> DestSet .
+
+    vars DS DS' : DestSet .
+
+    eq dests(O,RT) = $dests(O,RT,eptDS) .
+    eq $dests(O,empty,DS) = DS .
+    eq $dests(O,(RT, O' |-> tuple4(O'',Y,Z,NBS,B)),DS) = 
+         $dests(O,RT, if O == O'' 
+                        then (DS, destPair(O',Z + 1))
+                        else DS
+                      fi ) .
+
+    --- Generate precursors
+    op prec  : DestSet RouteTable -> NeighborSet [memo] .
+    op $prec : DestSet RouteTable NeighborSet -> NeighborSet .
+
+    eq prec(DS,RT) = $prec(DS,RT,empty) .
+    eq $prec(eptDS,RT,NBS) = NBS .
+    eq $prec((DS, destPair(O,Z)),RT,NBS) =
+         if inRT(RT,O)
+           then $prec(DS,RT,(NBS,neighbors(RT[O]))) 
+           else $prec(DS,RT,NBS)
+         fi .
+
+    op precurs : Oid RouteTable -> NeighborSet .
+    eq precurs(O,RT) = prec(dests(O,RT),RT) .
+
+    --- Invalidate a Route Entry
+    op invalRT : DestSet RouteTable -> RouteTable [memo] .    
+    eq invalRT((destPair(O,Z),DS),RT) = invalRT(DS,$invalRT(O,RT)) .
+    eq invalRT(eptDS,RT) = RT . 
+
+    op $invalRT : Oid RouteTable -> RouteTable [memo] .
+    eq $invalRT(O,(RT, O |-> tuple4(X,Y,Z,NBS,B))) =
+         if inRT(RT,O)
+           then $invalRT(O,RT)
+           else (RT, O |-> tuple4(X,Y,Z,NBS,false))
+         fi .
+    eq $invalRT(O,RT) = RT [owise] .
+    
+    op inval : Oid RouteTable -> RouteTable .
+    eq inval(O,RT) = invalRT(dests(O,RT),RT) .
+
+    --- When receiving RERR, the node updates DestSet to forward
+    --- according to its own routing table
+    op destFilter  : DestSet Oid RouteTable -> DestSet [memo] .
+    op $destFilter : DestSet Oid RouteTable DestSet -> DestSet .
+ 
+    eq destFilter(DS,O',RT) = $destFilter(DS,O',RT,eptDS) .
+    eq $destFilter((destPair(O,Z),DS),O',RT,DS') =
+         if inRT(RT,O) and nexthop(RT[O]) == O' and Z > localdsn(RT[O])
+           then $destFilter(DS,O',RT,(destPair(O,Z),DS'))
+           else $destFilter(DS,O',RT,DS')
+         fi .
+    eq $destFilter(eptDS,O',RT,DS') = DS' .
+
+    --- We need to define a request queue
+
+endtom)
+
+(tomod MANET-NODE-DEFINITION is
+    protecting MANET-SORTS .
+    protecting AODV-AUX .
+    protecting SET{Location} * (sort Set{Location} to DestRange) .
+
+    sort SpeedRange .
+    sort DirRange .
+    subsorts Set{Nat} < SpeedRange DirRange .
+
+
+    class Node | currentLocation : Location,
+                 radius : Nat,
+                 neighbors : NeighborSet .
+
+    class StaNode .
+    subclass StaNode < Node .
+
+    class MobNode | speed      : Nat,
+                    direction  : Nat,
+                    timer      : Time .
+    subclass MobNode < Node .
+
+    class RWNode | speedRange : SpeedRange,
+                   dirRange   : DirRange .
+    subclass RWNode < MobNode .
+
+    class RWPNode | destination : Location,
+                    speedRange  : SpeedRange,
+                    destRange   : DestRange,
+                    status      : Status .
+    subclass RWPNode < MobNode .
+
+    class RDNode | speedRange : SpeedRange,
+                   dirRange   : DirRange,
+                   status     : Status .
+    subclass RDNode < MobNode .
+
+
+    class AODVNode | rreqID          : Nat,
+                     sequenceNumber  : Sqn,
+                     routingTable    : RouteTable,
+                     requestBuffer   : RreqBuffer .
+    subclass AODVNode < Node .
+
+
+    class SANode .
+    class RWANode .
+    class RWPANode .
+    class RDANode .
+
+    subclass SANode   < StaNode AODVNode .
+    subclass RWANode  < RWNode AODVNode .
+    subclass RWPANode < RWPNode AODVNode .
+    subclass RDANode  < RDNode AODVNode . 
+
+endtom)
+
+(tomod MANET-MOBILITY-AUX is
+    protecting MANET-NODE-DEFINITION .
+    protecting RANDOM .
+
+    op pi : -> Rat .
+    eq pi = rat(pi) .
+
+    op sqrt : Rat -> Rat .
+    eq sqrt(R:Rat) = rat(sqrt(float(R:Rat))) .
+
+    op cos : Rat -> Rat .
+    eq cos(R:Rat) = rat(cos(float(R:Rat))) .
+
+    op sin : Rat -> Rat .
+    eq sin(R:Rat) = rat(sin(float(R:Rat))) .
+
+    op acos : Rat -> Rat .
+    eq acos(R:Rat) = rat(acos(float(R:Rat))) .
+
+    op asin : Rat -> Rat .
+    eq asin(R:Rat) = rat(asin(float(R:Rat))) .
+
+    vars M N V D         : Nat .
+    vars X X' Y Y' ANGLE : Rat .
+    vars L L' VECTOR     : Location .
+    var T                : Time .
+
+    op locX : Rat Nat Nat Time -> Rat .
+    op locY : Rat Nat Nat Time -> Rat .
+
+---    eq locX(X,V,D,T) = rat(floor(float(X + V * cos(D) * T) + 0.5)) .
+---    eq locY(Y,V,D,T) = rat(floor(float(Y + V * sin(D) * T) + 0.5)) .
+
+    eq locX(X,V,D,T) = rat(floor(float(X + V * cos(dirConvert(D)) * T) + 0.5)) .
+    eq locY(Y,V,D,T) = rat(floor(float(Y + V * sin(dirConvert(D)) * T) + 0.5)) .
+
+    op dirConvert : Nat -> Rat .
+    eq dirConvert(D) = rat(float(D) / 180.0 * pi) .
+
+    op timeBtwTwoLoc : Location Location Nat -> Nat .
+    eq timeBtwTwoLoc(L,L',V) = 
+         rat(floor(float(sqrt(vectorLengthSq(L, L')) / V) + 0.5)) .
+
+    op timeBtwTwoLoc : Location Nat Nat -> Nat .
+    eq timeBtwTwoLoc(L,D,V) =
+         rat(floor(float(sqrt(vectorLengthSq(L, borderLoc(L,D))) / V) + 0.5)) .         
+
+    op checkBorder : Location -> Location .
+    eq checkBorder(X' . Y') = 
+          if X' <= 0
+            then if Y' >= areaSize
+                   then (1 . (areaSize - 1))
+                   else if Y' <= 0
+                          then (1 . 1)
+                          else (1 . Y')
+                        fi
+                 fi
+            else if X' >= areaSize
+                   then if Y' >= areaSize
+                          then ((areaSize - 1) . (areaSize - 1))
+                          else if Y' <= 0
+                                 then ((areaSize - 1) . 1)
+                                 else ((areaSize - 1) . Y')
+                               fi
+                        fi
+                   else if Y' >= areaSize
+                          then (X' . (areaSize - 1))
+                          else if Y' <= 0
+                                 then (X' . 1)
+                                 else (X' . Y')
+                               fi
+                        fi
+                 fi
+          fi .
+
+    op borderLoc : Location Nat -> Location . 
+    eq borderLoc(X . Y,D) = 
+       if D == 0
+         then (areaSize . Y)
+         else if D == 90
+                then (X . areaSize)
+                else if D == 180
+                       then (0 . Y)
+                       else (X . 0)
+                     fi 
+              fi 
+        fi .
+
+    --- The following borrowed from Peter's work is for Random Waypoint 
+    op negY : Location -> Bool .
+
+    --- Calculate the angle the vector created by the two locations 
+    --- and the x-axis
+    op angle     : Location Location -> Rat .
+    --- Normalize a vector
+    op normalize : Location -> Location .
+    --- Calculate the scalar product of two vectors
+    op dotProd   : Location Location -> Rat .
+
+    eq angle(L, L) = 0 .
+   ceq angle(X . Y, X' . Y') = 
+         (if negY(VECTOR)
+            then 2 * pi - acos(dotProd(VECTOR, 1 . 0))
+            else acos(dotProd(VECTOR, 1 . 0))
+          fi)
+     if VECTOR := normalize((X' - X) . (Y' - Y)) [owise] .
+
+    op dir : Location Location -> Nat .
+    eq dir(L,L') = ((angle(L,L') / pi) * 180) rem 360 . 
+
+    eq normalize(X . Y) = ((X / (sqrt((X * X) + (Y * Y))))
+			 . (Y / (sqrt((X * X) + (Y * Y))))) .
+
+    eq dotProd(X . Y, X' . Y') = (X * X') + (Y * Y') .
+
+    eq negY(X . Y) = Y < 0 .
+
+    --- Generate 2 or 4 new destinations based on the current location.
+    --- N,S,W,E or N,S or W,E
+    --- Distance 10
+    op newDestRange : Location -> DestRange .
+--- For scenarios iii and iii'
+---    eq newDestRange(X . Y) = (X . Y + 10, X . Y - 10) .
+
+--- For scenarios i and i'
+---    eq newDestRange(X . Y) = (X . Y + 10) .
+
+--- For scenario ii
+---    eq newDestRange(X . Y) = (X + 10 . Y) .    
+    
+
+    --- For LE
+
+    eq newDestRange(X . Y) = 
+      if X == 60 
+        then (X - 10 . Y)
+        else (X + 10 . Y)
+      fi .
+
+
+
+    ---
+    op newDirRange : Location -> DirRange .
+  
+endtom)
+
+(tomod MANET-MOBILITY is
+    protecting MANET-MOBILITY-AUX .
+
+    vars T T' T''      : Time .
+    vars TI TI' TI''   : TimeInf .
+    var O              : Oid .
+    var MSG            : Msg .
+    vars CS S          : Nat .
+    vars CD D          : Nat .
+    vars X X' Y Y'     : Rat .
+    vars L L'          : Location .
+    var SR             : SpeedRange .
+    var DR             : DirRange .
+    var DER            : DestRange .
+    var DE             : Location .
+    var P              : Pattern .
+    vars C REST        : Configuration .
+
+    op mte    : Configuration -> TimeInf [frozen(1)] .
+    op mteMob : Configuration -> TimeInf [frozen(1)] .
+
+    eq mte(none) = INF .
+    eq mte(NEC:NEConfiguration NEC':NEConfiguration) = 
+             min(mte(NEC:NEConfiguration), mte(NEC':NEConfiguration)) .
+    eq mte(< O : AODVNode | >) = INF . 
+    eq mte(REST) = INF [owise] .
+
+
+    eq mteMob(none) = INF .
+    eq mteMob(NEC:NEConfiguration NEC':NEConfiguration) = 
+             min(mteMob(NEC:NEConfiguration), mteMob(NEC':NEConfiguration)) .
+    eq mteMob(< O : StaNode | >) = INF . 
+    eq mteMob(< O : MobNode | timer : T >) = T . 
+    eq mteMob(REST) = INF [owise] .
+
+    
+   crl [tick] : 
+       {C} 
+    => 
+       {delta(deltaMob(C,T),T)} in time T 
+          if T <= min(mte(C),mteMob(C)) [nonexec] .
+
+
+    op delta : Configuration Time -> Configuration [frozen (1)] .
+    eq delta(none, T) = none . 
+    eq delta(NEC:NEConfiguration NEC':NEConfiguration, T) = 
+           delta(NEC:NEConfiguration, T) delta(NEC':NEConfiguration, T) . 
+    eq delta(REST, T) = REST [owise] .
+    eq delta(< O : AODVNode | >, T) = < O : AODVNode | > .
+    
+
+    op deltaMob : Configuration Time -> Configuration [frozen (1)] . 
+    eq deltaMob(none, T) = none . 
+    eq deltaMob(NEC:NEConfiguration NEC':NEConfiguration, T) = 
+           deltaMob(NEC:NEConfiguration, T) deltaMob(NEC':NEConfiguration, T) . 
+    eq deltaMob(REST, T) = REST [owise] .
+
+
+    --- Stationary 
+    eq deltaMob(< O : StaNode | >, T) = < O : StaNode | > .
+
+
+    --- Random Walk
+    eq deltaMob(< O : RWNode | currentLocation : X . Y,
+                               speed : CS, direction : CD,
+                               timer : T >, T') =
+                < O : RWNode | currentLocation : checkBorder(locX(X,CS,CD,T') . 
+                                                             locY(Y,CS,CD,T')),                       
+                               timer : T monus T' > .
+
+    rl < O : RWNode | timer : 0, 
+                      speedRange : (S,SR), dirRange : (D,DR) > 
+     => 
+       < O : RWNode | timer : movingTime,
+                      speed : S, direction : D > .
+
+    ---
+    --- Random Waypoint
+    --- If destRange is initialized as (X . Y - 10, X . Y + 10)
+
+    eq deltaMob(< O : RWPNode | timer : T, status : pausing >, T') =
+                < O : RWPNode | timer : T monus T' > .
+
+    rl [rwp-move] :
+       < O : RWPNode | currentLocation : L,
+                       speedRange : (S,SR),
+                       destRange : (DE,DER),
+                       timer : 0, status : pausing > 
+     =>
+       < O : RWPNode | speed : S, destination : DE,
+                       destRange : newDestRange(DE),
+                       timer : timeBtwTwoLoc(L,DE,S), 
+                       status : moving > .
+
+   ceq deltaMob(< O : RWPNode | currentLocation : X . Y, 
+                                speed : CS,
+                                destination : DE,
+                                timer : T, status : moving >, T') =
+                < O : RWPNode | currentLocation : locX(X,CS,D,T') . 
+                                                  locY(Y,CS,D,T'),
+                                timer : T monus T' >
+       if D := dir(X . Y,DE) .
+
+    rl [rwp-reset] :
+       < O : RWPNode | timer : 0, status : moving >
+     =>
+       < O : RWPNode | timer : pauseTime, status : pausing > .
+
+
+    --- Random Direction
+    --- First move then pause
+
+    eq deltaMob(< O : RDNode | currentLocation : X . Y,
+                               speed : CS, direction : CD,
+                               timer : T, status : moving >, T') =
+                < O : RDNode | currentLocation : locX(X,CS,CD,T') . 
+                                                 locY(Y,CS,CD,T'), 
+                               timer : T monus T' > .
+
+    rl < O : RDNode | timer : 0, status : moving >
+     =>
+       < O : RDNode | timer : pauseTime, status : pausing > .
+
+    eq deltaMob(< O : RDNode | timer : T, status : pausing >, T') =
+                < O : RDNode | timer : T monus T' > .
+
+    ---
+    rl < O : RDNode | currentLocation : L,
+                      speedRange : (S,SR), 
+                      dirRange : (D,DR),
+                      timer : 0, status : pausing > 
+     =>
+       < O : RDNode | speed : S, direction : D,
+                      timer : timeBtwTwoLoc(L,D,S), 
+                      status : moving > .
+    
+
+    ---(
+   crl < O : RDNode | currentLocation : L,
+                      speedRange : (S,SR), 
+                      dirRange : (D,DR),
+                      timer : 0, status : pausing > 
+     =>
+       < O : RDNode | speed : S, direction : D,
+                      dirRange : newDirRange(L'),
+                      timer : timeBtwTwoLoc(L,L',S), 
+                      status : moving >
+       if L'  := borderLoc(L,D) .
+    )
+
+endtom)
+
+(tomod MANET-MESSAGE-DEFINITIONS is
+    protecting MANET-MOBILITY .
+
+    sort MsgCont .
+
+    --- Broadcast, Groupcast and Unicast
+    msg broadcast_from_ : MsgCont Oid -> Msg .
+    msg gpcast_from_to_ : MsgCont Oid NeighborSet -> Msg . 
+---    msg msg_from_at_to_    : MsgCont Oid Location Oid -> Msg . 
+    msg msg_from_to_       : MsgCont Oid Oid -> Msg .
+    msg transmit_from_  : MsgCont Oid -> Msg .
+    msg transmit_from_to_ : MsgCont Oid Oid -> Msg .
+---    msg transmit_from_to_ : MsgCont Oid NeighborSet -> Msg .
+    msg transmit_to_from_ : MsgCont NeighborSet Oid -> Msg .
+    msg _from_to_ : MsgCont Oid Oid -> Msg .
+
+    msg _to_               : MsgCont Oid -> Msg .
+    msg bootstrap_         : Oid -> Msg .
+
+    op dly : Msg TimeInf -> Msg [ctor right id: 0] .
+
+    --- Complement
+    var TI : TimeInf .  
+    var T  : Time .
+
+    eq mte(dly(MSG,TI)) = TI .
+    eq mte(bootstrap O) = 0 .
+
+    eq delta(dly(MSG,TI),T) = dly(MSG,TI monus T) .
+    eq delta(bootstrap O,T) = bootstrap O .
+
+
+    op distrMsg  : Oid Location Nat             MsgCont Configuration -> Configuration [frozen (3)] . 
+    op fwdMsg    : Oid Location Nat Oid         MsgCont Configuration -> Configuration [frozen (4)] .
+    op multiMsg  : Oid Location Nat NeighborSet MsgCont Configuration -> Configuration [frozen (3 4)] .
+
+    vars L L'         : Location .
+    vars O O' OIP DIP : Oid .
+    var MC            : MsgCont . 
+    var C             : Configuration .
+    var MSG           : Msg .
+    var OBJECT        : Object .
+    vars HOPS R       : Nat .
+    var SN            : Sqn .
+    var NBS           : NeighborSet .
+    var DS            : DestSet .
+    var RT            : RouteTable .
+
+    eq {< O : Node | > (broadcast MC from O) C} =
+       {< O : Node | > dly(transmit MC from O,SendDelay) C} .
+
+    eq {< O : Node | > (msg MC from O to O') C} = 
+       {< O : Node | > dly(transmit MC from O to O',SendDelay) C} .
+
+    eq {< O : Node | > (gpcast MC from O to NBS) C} = 
+       {< O : Node | > dly(transmit MC to NBS from O,SendDelay) C} .
+
+    eq {< O : Node | currentLocation : L, radius : R > (transmit MC from O) C} = 
+       {< O : Node | currentLocation : L, radius : R > distrMsg(O, L, R, MC, C)} .
+
+    eq {< O : Node | currentLocation : L, radius : R > (transmit MC from O to O') C} = 
+       {< O : Node | currentLocation : L, radius : R > fwdMsg(O, L, R, O', MC, C)} .
+
+    eq {< O : Node | currentLocation : L, radius : R > (transmit MC to NBS from O) C} = 
+       {< O : Node | currentLocation : L, radius : R > multiMsg(O, L, R, NBS, MC, C)} .
+
+
+    --- How to define distrMsg, fwdMsg and multiMsg depends on the protocol 
+
+    --- rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP)
+    --- rrep(OIP,DIP,DSN,HOPS,LIFETIME,SIP)
+    --- rerr(DESTCOUNT,UNRDIP,UNRDSN)
+    op rreq  : Oid Sqn Int Oid Sqn Int Oid -> MsgCont [ctor] .
+--- op rrep  : Oid Oid Sqn Int TimeInf Oid -> MsgCont [ctor] .  
+    op rrep  : Oid Oid Sqn Int Oid -> MsgCont [ctor] .
+    op rerr  : DestSet -> MsgCont [ctor] .
+    op error : Oid -> MsgCont [ctor] .
+    op mserror : Oid -> MsgCont [ctor] . 
+    op mrerror : Oid -> MsgCont [ctor] .    
+    op serror : Oid -> MsgCont [ctor] .
+    op rerror : Oid -> MsgCont [ctor] .   --- 1 for multicast, 2 for unicast
+
+    op pkt   : -> MsgCont [ctor] .
+
+
+    eq distrMsg(O, L, R, MC, none) = none .
+    eq distrMsg(O, L, R, MC, MSG C) = MSG distrMsg(O, L, R, MC, C) . 
+    eq distrMsg(O, L, R, MC, OBJECT C) = OBJECT distrMsg(O, L, R, MC, C) [owise] .
+    eq distrMsg(O, L, R, MC, < O' : Node | currentLocation : L' > C) = 
+         < O' : Node | currentLocation : L' > distrMsg(O, L, R, MC, C)
+             (if L within R TransRangeOf L' 
+	        then dly((MC from O to O'), RecDelay)
+	        else none
+	      fi) .
+
+    eq fwdMsg(O, L, R, O', MC, none) = none .
+    eq fwdMsg(O, L, R, O', MC, MSG C) = MSG fwdMsg(O, L, R, O', MC, C) . 
+    eq fwdMsg(O, L, R, O', MC, OBJECT C) = OBJECT fwdMsg(O, L, R, O', MC, C) [owise] .
+    eq fwdMsg(O, L, R, O', MC, < O' : Node | currentLocation : L' > C) =
+         < O' : Node | currentLocation : L' > fwdMsg(O, L, R, O', MC, C)    
+             (if L within R TransRangeOf L' 
+                then dly((MC from O to O'), RecDelay)
+                   --- for L.E. without Probe
+---                else (error(O') to O)    
+
+                   --- for L.E. with Probe
+                   --- or: (error(O') to O)
+                   ---     dly((error(O) to O'), probeTimeout)
+                   else (serror(O') to O)    
+                        (rerror(O) to O')                                                  
+---                else none    --- for WRLA, no handling of failed unicast
+             fi) .
+
+    eq multiMsg(O, L, R, NBS, MC, none) = none .
+    eq multiMsg(O, L, R, NBS, MC, MSG C) = MSG multiMsg(O, L, R, NBS, MC, C) . 
+    eq multiMsg(O, L, R, NBS, MC, OBJECT C) = OBJECT multiMsg(O, L, R, NBS, MC, C) [owise] .
+    eq multiMsg(O, L, R, NBS, MC, < O' : Node | currentLocation : L' > C) = 
+         < O' : Node | currentLocation : L' > multiMsg(O, L, R, NBS, MC, C)
+           (if L within R TransRangeOf L' 
+              then if O' in NBS
+                     then dly((MC from O to O'), RecDelay)
+                     else none
+                   fi
+              else if O' in NBS
+                     then (mserror(O') to O)
+                          (mrerror(O) to O')
+                     else none
+                   fi
+            fi) .
+              
+    
+    --- There may be problems due to in NBS but L not within L'
+    --- In this case O' cannot receive RERR       
+    --- We may have re-send for RERR
+
+    --- In this version, we do not have to cover AODV-specific groupcast
+    --- but instead we define general groupcast
+    --- If we do later, we need to add error messages and how to handle them 
+
+endtom)
+
+(tomod AODV is
+    protecting MANET-MESSAGE-DEFINITIONS .
+
+    --- Constants for test
+    op testDIP   : -> Oid .
+    op testOIP   : -> Oid .
+
+    vars O OIP DIP SIP            : Oid .
+    vars L L'                     : Location .
+    vars RREQID HOPS FLAG         : Nat .
+    vars OSN DSN SN SN'           : Sqn .
+    vars RT RT' RT'' RT''' RT'''' : RouteTable .
+    var RB                        : RreqBuffer .
+
+    ---
+    rl [init-route-discovery] :
+       < O : AODVNode | rreqID          : RREQID,
+                        sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (bootstrap O)
+     =>
+       if inRT(RT,testDIP)
+       then < O : AODVNode | rreqID          : RREQID,
+                             sequenceNumber  : SN, 
+                             routingTable    : RT,
+                             requestBuffer   : RB >
+            (msg pkt from O to testDIP)
+       else < O : AODVNode | rreqID          : RREQID + 1,
+                             sequenceNumber  : SN + 1, 
+                             routingTable    : RT,
+                             requestBuffer   : (O ~ RREQID, RB) >
+            (broadcast rreq(O,SN + 1,RREQID,testDIP,0,0,O) from O)
+       fi .
+    
+
+    --- RREQ handling
+ 
+    --- 0 in tuple4 means unknown
+   crl [on-receiving-rreq-1] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT', 
+                        requestBuffer   : RB >
+
+     if (OIP ~ RREQID) in RB /\
+        RT' := update(SIP,SIP,1,0,RT) .
+
+
+    --- 0 in rrep(OIP,DIP,SN',0,O) means the distance to DIP
+   crl [on-receiving-rreq-2] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN',
+                        routingTable    : RT'',
+                        requestBuffer   : (OIP ~ RREQID, RB) >
+       (msg rrep(OIP,DIP,SN',0,O) from O to nexthop(RT''[OIP]))
+
+     if RT'  := update(SIP,SIP,1,0,RT) /\
+        RT'' := update(OIP,SIP,HOPS + 1,OSN,RT') /\ 
+        SN'  := max(SN,DSN + 1) /\
+        not (OIP ~ RREQID) in RB /\ 
+        DIP == O .
+
+
+   crl [on-receiving-rreq-3] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT'''', 
+                        requestBuffer   : (OIP ~ RREQID, RB) > 
+       (msg rrep(OIP,DIP,localdsn(RT''''[DIP]),hops(RT''''[DIP]),O)
+          from O to nexthop(RT''''[OIP]))
+
+     if RT'    := update(SIP,SIP,1,0,RT) /\
+        RT''   := update(OIP,SIP,HOPS + 1,OSN,RT') /\
+        RT'''  := addPrec(nexthop(RT''[OIP]),DIP,RT'') /\
+        RT'''' := addPrec(nexthop(RT'''[DIP]),OIP,RT''') /\
+        not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        DSN <= localdsn(RT[DIP]) /\
+        inRT(RT,DIP) .
+
+
+    --- rreq-4 and -5 response the same 
+   crl [on-receiving-rreq-4] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT'', 
+                        requestBuffer   : (OIP ~ RREQID, RB) >
+       (broadcast rreq(OIP,OSN,RREQID,DIP,SN',HOPS + 1,O) from O)
+
+     if RT'  := update(SIP,SIP,1,0,RT) /\
+        RT'' := update(OIP,SIP,HOPS + 1,OSN,RT') /\
+        SN'  := max(localdsn(RT''[DIP]),DSN) /\
+        not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        DSN > localdsn(RT[DIP]) /\
+        inRT(RT,DIP) .
+
+
+   crl [on-receiving-rreq-5] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rreq(OIP,OSN,RREQID,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT'', 
+                        requestBuffer   : (OIP ~ RREQID, RB) >
+       (broadcast rreq(OIP,OSN,RREQID,DIP,DSN,HOPS + 1,O)
+         from O)
+
+     if RT'  := update(SIP,SIP,1,0,RT) /\
+        RT'' := update(OIP,SIP,HOPS + 1,OSN,RT') /\
+        not (OIP ~ RREQID) in RB /\
+        DIP =/= O /\
+        not inRT(RT,DIP) .
+
+
+    --- RREP handling
+
+    crl [on-receiving-rrep-1] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT', 
+                        requestBuffer   : RB  >
+
+     if OIP == O /\
+        RT' := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        not inRT(RT,DIP) .
+
+
+   crl [on-receiving-rrep-2] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT', 
+                        requestBuffer   : RB >
+
+     if OIP == O /\
+        RT' := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        inRT(RT,DIP) /\
+        DSN > localdsn(RT[DIP]) .
+
+
+    crl [on-receiving-rrep-3] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT', 
+                        requestBuffer   : RB >
+
+     if OIP == O /\
+        RT' := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) > HOPS + 1 .
+
+
+    crl [on-receiving-rrep-4] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) <= HOPS + 1 .
+
+
+    crl [on-receiving-rrep-5] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+
+     if OIP == O /\
+        inRT(RT,DIP) /\
+        DSN < localdsn(RT[DIP]) .
+
+
+   crl [on-receiving-rrep-6] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT''', 
+                        requestBuffer   : RB >
+       (msg rrep(OIP,DIP,DSN,HOPS + 1,O) 
+          from O to nexthop(RT'''[OIP]))
+
+     if OIP =/= O /\
+        RT'   := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        RT''  := addPrec(nexthop(RT'[OIP]),DIP,RT') /\
+        RT''' := addPrec(nexthop(RT''[DIP]),OIP,RT'') /\
+        not inRT(RT,DIP) .
+
+
+   crl [on-receiving-rrep-7] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT''', 
+                        requestBuffer   : RB >
+       (msg rrep(OIP,DIP,DSN,HOPS + 1,O) 
+          from O to nexthop(RT'''[OIP]))
+
+     if OIP =/= O /\
+        RT'   := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        RT''  := addPrec(nexthop(RT'[OIP]),DIP,RT') /\
+        RT''' := addPrec(nexthop(RT''[DIP]),OIP,RT'') /\
+        inRT(RT,DIP) /\
+        DSN > localdsn(RT[DIP]) .
+
+
+   crl [on-receiving-rrep-8] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT''', 
+                        requestBuffer   : RB >
+       (msg rrep(OIP,DIP,DSN,HOPS + 1,O) 
+          from O to nexthop(RT'''[OIP]))
+
+     if OIP =/= O /\
+        RT'   := update(DIP,SIP,HOPS + 1,DSN,RT) /\
+        RT''  := addPrec(nexthop(RT'[OIP]),DIP,RT') /\
+        RT''' := addPrec(nexthop(RT''[DIP]),OIP,RT'') /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) > HOPS + 1 .
+
+
+   crl [on-receiving-rrep-9] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN == localdsn(RT[DIP]) /\
+        hops(RT[DIP]) <= HOPS + 1 .
+
+
+   crl [on-receiving-rrep-10] :
+       < O : AODVNode | sequenceNumber  : SN, 
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+       (rrep(OIP,DIP,DSN,HOPS,SIP) from SIP to O)
+     =>
+       < O : AODVNode | sequenceNumber  : SN,
+                        routingTable    : RT, 
+                        requestBuffer   : RB >
+
+     if OIP =/= O /\
+        inRT(RT,DIP) /\
+        DSN < localdsn(RT[DIP]) .
+
+    ---(
+    --- RERR handling
+    vars DS DS' : DestSet .
+
+    crl [on-receiving-rerr] :
+        < O : AODVNode | sequenceNumber  : SN, 
+                         routingTable    : RT, 
+                         requestBuffer   : RB >
+        (rerr(DS) from SIP to O)
+     =>
+        < O : AODVNode | sequenceNumber  : SN,
+                         routingTable    : invalRT(DS,RT), 
+                         requestBuffer   : RB >
+        (gpcast rerr(DS') from O at L to prec(DS',RT))
+     if DS' := destFilter(DS,SIP,RT) .
+    )
+
+endtom)
+
+(tomod MANET-ANALYSIS is
+    protecting AODV .
+    including TIMED-MODEL-CHECKER .
+
+---    eq roundTime = 100 .
+    op TEST : -> MsgCont .
+
+    op initConfig : -> Configuration .
+
+    var SYS    : Configuration .
+    var MSG    : Msg .
+    var OBJ    : Object .
+    vars O O'  : Oid .
+    var RT RT' : RouteTable .
+    var FLAG   : Nat .
+    var TP     : Tuple4 .
+
+    ---(
+    op desiredState : Oid Oid Configuration -> Bool [frozen (3)] .
+
+    eq desiredState(O,O',< O : AODVNode | routingTable : (RT, O' |-> TP) > SYS) = true .
+    eq desiredState(O,O',SYS) = false [owise] .
+
+    op desired-state-phase : Oid Oid -> Prop [ctor] .
+    eq { SYS } |= desired-state-phase(O,O') = desiredState(O,O',SYS) .
+    )
+
+    ---(
+    eq movingTime = 20 .
+    eq pauseTime = 10 .
+
+    eq initConfig = < 10 : RWNode | currentLocation : 50 . 50,
+                                  speed           : 0,
+                                  direction       : 0,
+
+                                  speedRange      : (2),
+                                  dirRange        : (90,180),
+
+                                  timer           : 0 >
+                    < 20 : StaNode | currentLocation : 50 . 60  >
+                    < 30 : RWPNode | currentLocation : 50 . 40,
+                                  speed           : 0,
+                                  direction       : 0,
+                                  destination     : 0 . 0,
+                                  speedRange      : (1),
+                                  destRange       : (50 . 40, 50 . 60),
+                                  timer           : pauseTime,
+                                  status          : pausing > .
+    )
+
+
+    --- Scenario i: Yes
+    ---(
+    eq SendDelay = 10 .
+    eq RecDelay = 5 .   
+    eq roundTime = 100 .
+
+    eq testDIP = 50 .
+    eq testOIP = 10 .
+
+    eq initConfig = < 10 : SANode | currentLocation : 50 . 45 ,
+                                    radius : 10,                                     
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : SANode | currentLocation : 50 . 50,
+                                    radius : 10,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : SANode | currentLocation : 50 . 40,
+                                    radius : 10,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 40 : SANode | currentLocation : 60 . 40,
+                                    radius : 10,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 50 : SANode | currentLocation : 60 . 50,
+                                    radius : 10,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                   (bootstrap testOIP) .
+    )
+
+    --- Scenario i': Yes 
+    --- pauseTime = 10s, 30s, or 60s.
+    ---(
+    eq pauseTime = 30 .
+
+    eq testDIP = 50 .
+    eq testOIP = 10 .
+
+
+    eq initConfig = < 10 : SANode | currentLocation : 45 . 45 ,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : RWPANode | currentLocation : 50 . 50,
+
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : (1),
+                                      destRange       : (50 . 60),
+                                      timer           : pauseTime,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : SANode | currentLocation : 50 . 40,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 40 : SANode | currentLocation : 60 . 40,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 50 : SANode | currentLocation : 60 . 50,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                   (bootstrap testOIP) .
+    )
+
+
+    --- Scenario i' for test! 
+    --- pauseTime = 10s, 30s, or 60s.
+    ---(
+    eq pauseTime = 20 .
+
+    eq testDIP = 50 .
+    eq testOIP = 10 .
+
+---    eq desiredState(< 10 : AODVNode | routingTable : RT > SYS) = 
+---         inRT(RT,testDIP) and desiredState(SYS) .
+
+    eq initConfig = < 10 : AODVNode | currentLocation : 45 . 45 ,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : AODVNode | currentLocation : 50 . 50,
+                                      pattern         : RWP,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : (1),
+                                      dirRange        : empty,
+                                      destRange       : (50 . 60),
+                                      timer           : pauseTime,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 50 : AODVNode | currentLocation : 56 . 45,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                   (bootstrap testOIP) .
+    )
+
+
+    --- Scenario 4: Yes
+    ---(
+    eq testDIP = 10 .
+    eq testOIP = 30 .
+
+---   ceq desiredState(< O : AODVNode | > SYS) = desiredState(SYS) 
+---         if O =/= 20 and O =/= 30 . 
+---    eq desiredState(< 20 : AODVNode | routingTable : RT > 
+---                    < 30 : AODVNode | routingTable : RT' > SYS) = 
+---         inRT(RT,10) and inRT(RT',10) and desiredState(SYS) .
+
+    eq initConfig = < 10 : AODVNode | currentLocation : 50 . 50 ,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : AODVNode | currentLocation : 60 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : AODVNode | currentLocation : 50 . 40,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty > 
+                   (bootstrap 20)
+                   (bootstrap 30) .
+    )
+
+    --- Scenario ii: Yes
+    ---(
+    eq pauseTime = 100 .
+
+    eq testDIP = 10 .
+    eq testOIP = 30 .
+
+---   ceq desiredState(< O : AODVNode | > SYS) = desiredState(SYS) 
+---         if O =/= 20 and O =/= 30 . 
+---    eq desiredState(< 20 : AODVNode | routingTable : RT > 
+---                    < 30 : AODVNode | routingTable : RT' > SYS) = 
+---         inRT(RT,10) and inRT(RT',10) and desiredState(SYS) .
+
+    eq initConfig = < 10 : AODVNode | currentLocation : 50 . 50 ,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : AODVNode | currentLocation : 60 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : AODVNode | currentLocation : 50 . 40,
+                                      pattern         : RWP,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : (1),
+                                      dirRange        : empty,
+                                      destRange       : (60 . 40),
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty > 
+                   (bootstrap 20)
+                   (bootstrap 30) .
+    )
+
+    --- Scenario iii: Yes
+    ---(
+    eq movingTime = 10 .
+
+    eq testDIP = 40 .
+    eq testOIP = 10 .
+
+---    eq desiredState(< 10 : AODVNode | routingTable : RT > SYS) = 
+---         inRT(RT,testDIP) and desiredState(SYS) .
+
+    eq initConfig = < 10 : AODVNode | currentLocation : 40 . 50 ,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : AODVNode | currentLocation : 50 . 40,
+                                      pattern         : RWK,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : (1),
+                                      dirRange        : (90,270),
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : moving,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : AODVNode | currentLocation : 60 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 40 : AODVNode | currentLocation : 70 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                   (bootstrap testOIP) .
+    )
+
+    --- Scenario iii': Yes
+    --- RecDelay = 0 .
+    ---(
+    eq pauseTime = 10 .
+
+    eq testDIP = 40 .
+    eq testOIP = 10 .
+
+---    eq desiredState(< 10 : AODVNode | routingTable : RT > SYS) = 
+---         inRT(RT,testDIP) and desiredState(SYS) .
+
+    eq initConfig = < 10 : AODVNode | currentLocation : 40 . 50 ,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 20 : AODVNode | currentLocation : 50 . 40,
+                                      pattern         : RWP,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : (1),
+                                      dirRange        : empty,
+                                      destRange       : (50 . 50),
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 30 : AODVNode | currentLocation : 60 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                    < 40 : AODVNode | currentLocation : 70 . 50,
+                                      pattern         : STA,
+                                      speed           : 0,
+                                      direction       : 0,
+                                      destination     : 0 . 0,
+                                      speedRange      : empty,
+                                      dirRange        : empty,
+                                      destRange       : empty,
+                                      timer           : 0,
+                                      status          : pausing,
+                                      rreqID          : 100,
+                                      sequenceNumber  : 1,
+                                      routingTable    : empty,
+                                      requestBuffer   : empty >
+                   (bootstrap testOIP) .
+    )
+
+endtom) 
+
+
+---(set tick def delta .)
+---(set tick max .)
+
+---(tfrew {initConfig} in time <= roundTime .)
+---(tsearch {initConfig} =>! {C:Configuration} in time <= roundTime .)
+
+---(tsearch {initConfig} =>* {C:Configuration} 
+   --- such that desiredState(testOIP,testDIP,C:Configuration) in time <= roundTime .)
+
+
+---(mc {initConfig} |=t <> (desired-state-phase(testOIP,testDIP))
+   ---    in time <= roundTime .)
+
+---(rew timeBtwTwoLoc(20 . 20, 20 . 100, 4)  .)
+---(rew newDestRange(20 . 20) .)
