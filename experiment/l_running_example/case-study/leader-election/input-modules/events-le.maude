@@ -1,0 +1,17 @@
+load le
+load ../events
+
+(tomod EVENT-MAP is 
+  inc EVENTS + LE-MESSAGE-DEFINITIONS .
+  
+*** subsort Nat < Time .   *** discrete time
+*** subsort Float < Time .  *** dense time
+  
+  *** user-specified interesting events 
+  op leader : Oid -> Event [ctor] .
+
+  var O : Oid .
+  
+  *** rule-specific mapping
+  eq eventMap = ['delegate, leader(O)] [nonexec] .
+endtom)

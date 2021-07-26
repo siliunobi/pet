@@ -1,0 +1,55 @@
+load l-output/init-le
+
+mod TEST is
+  inc TIMED-MODEL-CHECKER .
+  inc INIT-LE .
+
+
+
+    var SYS : Configuration .
+    vars O1 O2 O3 MO LD : Oid .
+    vars NBS1 NBS2 NBS3 : NeighborSet . 
+
+    ---
+    op desiredState : Oid Oid Oid Configuration -> Bool [frozen (4)] .
+
+    --- In our experiments, we only consider scenarios where the topology keeps 
+    --- being one connected component during the whole election process. 
+    --- Thus the predicate can be simply defined as the following, which says that
+    --- all three nodes share the same leader which is the most-valued one.
+   ceq desiredState(O1,O2,O3,< O1 : LENode | leader : MO > 
+                             < O2 : LENode | leader : MO >
+                             < O3 : LENode | leader : MO > SYS) 
+     = true if MO == max(O1,max(O2,O3)) .
+    
+    eq desiredState(O1,O2,O3,SYS) = false [owise] .
+
+    op desired-state-phase : Oid Oid Oid -> Prop [ctor] .
+    eq { SYS } |= desired-state-phase(O1,O2,O3) = desiredState(O1,O2,O3,SYS) .
+
+
+    var MSG : Msg .
+    op consumed : Configuration -> Bool [frozen (1)] .
+    eq consumed(MSG SYS) = false .
+    eq consumed(SYS) = true [owise] .
+    op consumedProp : -> Prop [ctor] .
+    eq {SYS} |= consumedProp = consumed(SYS) .
+
+					 
+*** Properties
+  var C : Config .  
+  vars ES ES1 ES2 ES3 : Events .
+  var O : Oid .
+  var E : Event .
+   
+*** the last events for each Oid agree on the unique MO
+endm
+
+---(mc {initConfig} |=t <> (desired-state-phase(1,2,3)) with no time limit .)
+***(mc {initConfig} |=t <> (desired-state-phase(1,2,3)) in time <= roundTime .)
+
+---(mc {initConfig} |=t <> (desired-state-phase(4,2,3)) in time <= roundTime .)
+
+---(mc {initConfig} |=t <>[] (consumedProp) in time <= roundTime .)
+
+

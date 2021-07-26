@@ -1,0 +1,22 @@
+load le
+load ../events
+
+(tomod EVENT-MAP is 
+  inc EVENTS + LE-MESSAGE-DEFINITIONS .
+  
+*** subsort Nat < Time .   *** discrete time
+*** subsort Float < Time .  *** dense time
+  
+  *** user-specified interesting events 
+  op leader : Oid -> Event [ctor] .
+
+  var O : Oid .
+  vars M M' : MaxAck .
+  
+  *** rule-specific mapping
+  eq eventMap = ['acks-is-empty-1, leader(pr1(M))] ;;
+                ['on-receiving-unicast-error-ns, leader(pr1(M))] ;;
+                ['on-receiving-leader-1-ns,leader(pr1(M))] ;;
+                ['on-receiving-leader-3-s-1,leader(pr1(M'))] ;;
+                ['on-receiving-leader-4-s-1,leader(pr1(M'))] [nonexec] .
+endtom)
