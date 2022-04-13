@@ -1,5 +1,5 @@
 import sys
-TOTAL=200
+TOTAL=300
 FILE=sys.argv[1]
 OUT=sys.argv[2]
 RC=int(sys.argv[3])

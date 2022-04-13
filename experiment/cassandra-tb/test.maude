@@ -17,8 +17,8 @@ mod CASSANDRA-ANALYSIS is
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
----
-  eq initState = init(100,100,0,5,5,5,3,1,1,0,hotspot,one,one) . 
+--- 6th: #keys
+  eq initState = init(180,20,0,8,5,10,3,1,1,0,hotspot,one,one) . 
 
 
   --- Init parameters 
@@ -165,9 +165,9 @@ mod CASSANDRA-ANALYSIS is
   eq val(4,< M : Monitor | log: LOG > C) = delta(LOG) .  
   eq val(5,< M : Monitor | log: LOG > C) = gamma(LOG) .  
   eq val(6,< M : Monitor | log: LOG > C) = common(LOG) .  
-  eq val(7,< M : Monitor | log: LOG > C) = ryw(LOG) . 
+  eq val(7,< M : Monitor | log: LOG > C) = ryw(LOG) .  
   eq val(8,< M : Monitor | log: LOG > C) = gammaFreq(LOG) .   
-
+  
 ---(
   eq initState = 
 {0.0,start to 1 . 1} {0.0,start to 1 . 2} 
@@ -191,8 +191,6 @@ nil}
 )
 endm
 
-set clear rules off .
+---set clear rules off .
 
-rew initConfig .
-
-
+---rew initConfig .

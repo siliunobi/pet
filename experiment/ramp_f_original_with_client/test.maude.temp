@@ -19,7 +19,7 @@ mod RAMP-SNOW-ANALYSIS is
 
   
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init($1,$2,0,$3,2,20,$4,$6,$7,0,$5) .
+  eq initState = init($1,$2,0,$3,1,5,$4,$6,$7,0,$5) .
 
 
   --- Metrics

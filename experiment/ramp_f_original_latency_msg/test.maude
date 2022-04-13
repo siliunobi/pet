@@ -1,5 +1,3 @@
-set show advisories off .
-
 load initial-states
 
 mod RAMP-SNOW-ANALYSIS is
@@ -8,7 +6,7 @@ mod RAMP-SNOW-ANALYSIS is
   including MODEL-CHECKER .
 
   subsort Config < State .
-
+  
   eq LIMIT = 1.0e+100 .
 
   op initConfig : -> Config .
@@ -19,7 +17,7 @@ mod RAMP-SNOW-ANALYSIS is
   ops xl yl zl : -> LocalVar .
 
   --- init(RTX,WTX,RWTX,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-   eq initState = init(4,4,0,4,5,2,2,0,uniform) .
+   eq initState = init(190,10,0,40,500,2,2,0,zipf) .
 
 
   ---(

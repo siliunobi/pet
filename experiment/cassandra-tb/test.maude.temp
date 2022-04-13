@@ -17,8 +17,8 @@ mod CASSANDRA-ANALYSIS is
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
----
-  eq initState = init($1,$2,0,$3,5,5,3,1,1,0,hotspot,$4,one) . 
+--- 6th: #keys
+  eq initState = init($1,$2,0,$3,5,10,3,1,1,0,hotspot,$4,one) . 
 
 
   --- Init parameters 

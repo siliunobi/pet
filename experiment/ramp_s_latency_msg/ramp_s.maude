@@ -1,5 +1,5 @@
 load replica-table
----(
+
 mod RAMP-S is
   including CLIENT-REPLICA .
   including MESSAGE .
@@ -15,15 +15,15 @@ mod RAMP-S is
   eq nd = 0.0 .
 
   --- lognormal distribution
----  eq ld = sampleLogNormal(0.0,1.0) . --- miu, sigma 
----  eq rd = sampleLogNormal(0.0,1.0) .
-  eq ld = sampleExp(10.0) .
-  eq rd = sampleExp(10.0) .
+---  eq ld = sampleLogNormal(5.0,0.5) . --- miu, sigma 
+---  eq rd = sampleLogNormal(5.0,0.5) .
+  eq ld = sampleExp(0.01) .
+  eq rd = sampleExp(0.01) .
 
 
   --- weibull distribution
----   eq ld = sampleWeibull(5.0,1.0) . 
----   eq rd = sampleWeibull(3.0,300.0) .
+---   eq ld = sampleWeibull(1.5,1.0) . 
+---   eq rd = sampleWeibull(1.5,1.0) .
 
   --- or, ld = 0.0
   --- in our model, local delay seems to be local "processing" delay,
@@ -525,8 +525,8 @@ mod RAMP-S is
        2NDGETS[TID] =/= empty .
          
 endm
-)
 
+---(
 mod RAMP-S is
   including CLIENT-REPLICA .
   including MESSAGE .
@@ -1076,3 +1076,4 @@ mod RAMP-S is
        2NDGETS[TID] =/= empty .
          
 endm
+)

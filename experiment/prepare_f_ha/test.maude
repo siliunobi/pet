@@ -4,21 +4,21 @@ mod RAMP-SNOW-ANALYSIS is
   including INITIAL-STATES .
   including APMAUDE .
   including MODEL-CHECKER .
-  including RAMP-F .
 
   subsort Config < State .
-
+  
   eq LIMIT = 1.0e+100 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
   ops x y z : -> Key .
-  ops tb r1 r2 r3 t1 t2 t3 t4 d1 d2 d3 m : -> Address .
+  ops tb r1 r2 r3 t1 t2 t3 t4 : -> Address .
   ops xl yl zl : -> LocalVar .
 
+  
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init(2,2,0,4,2,4,4,2,2,0,uniform) .
+  eq initState = init(285,15,0,50,2,10,1000,2,2,0,zipf) .
 
 
   ---(
@@ -148,7 +148,6 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
   eq val(3,C) = pf(C) .
-        
 endm
 
 ---set clear rules off .

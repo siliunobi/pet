@@ -7,55 +7,26 @@ mod RAMP-SNOW-ANALYSIS is
   including RAMP-F .
 
   subsort Config < State .
-
+  
   eq LIMIT = 1.0e+100 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
   ops x y z : -> Key .
-  ops tb r1 r2 r3 t1 t2 t3 t4 d1 d2 d3 m : -> Address .
+  ops tb r1 r2 r3 t1 t2 t3 t4 : -> Address .
   ops xl yl zl : -> LocalVar .
 
-  *** non-replicated setting: DCS is fixed as 1
+  
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init(10,190,0,25,1,5,500,2,2,0,zipf) .
+  eq initState = init(190,10,0,25,1,5,1000,2,2,0,uniform) .
 
-
-  ---(
-  eq initState = { 0.0 | nil} < m : Monitor | log: noRecord > 
-                 < tb : Table | table: ([replicatingSites(x, 1 ;; 3) ;; replicatingSites(y, 2 ;; 4)]),
-                                datacenter: (dc(d1,1 ; 2) ; dc(d2,3 ; 4)) > 
-                 [ 1.0, 11 <- start ] [ 2.0, 12 <- start ]
-	 < 11 : Client | gotTxns: < 11 . 1 : Txn | operations: ((11 . 1 . 1 xl :=read x) (11 . 1 . 2 yl :=read y)), readSet: empty, 
-                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
-  					                           voteSites: noVS, 1stGetSites: no1st,
-  					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
-                        
-                     executing: noActor, 
-                     committed: emptyTxnList,
-					 dc: d1 >
-	 < 12 : Client | gotTxns: < 12 . 1 : Txn | operations: (write(12 . 1 . 1,x,1) write(12 . 1 . 2,y,1)), readSet: empty, 
-                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
-					                           voteSites: noVS, 1stGetSites: no1st,
-					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
-                     executing: noActor, 
-                     committed: emptyTxnList,
-					 dc: d2 >
-					   
-     < 1 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty > 
-     < 2 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty >
-     < 3 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty >
-     < 4 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty > .
-  )
 
   --- Metrics
   vars T T' T1 T2 T1' T2' NUMBER NUMBER' : Float .
   var C : Config .
   vars M TID TID' A A' : Address .
-  vars RECORD RECORD' RECORD'' RECORD1 RECORD2 RECORD3 RECORD4 : Record . 
+  vars RECORD RECORD' RECORD'' RECORD1 RECORD2 RECORD3 RECORD4 : Record .
   vars READS READS' WRITES WRITES' VS VS' : Versions .
   var FLAG : Bool .
   vars TS TS' TS1 TS2 TS1' TS2' : Timestamp .
@@ -65,8 +36,7 @@ mod RAMP-SNOW-ANALYSIS is
   vars TIDS TIDS' : AddressSet .
   var AS : AttributeSet .
 
-  --- commented out due to updated Record with Client_ID
-  ---(
+---(
   --- Throughput
   op totalRunTime : Record -> Float .
   op trt : Record Float -> Float .
@@ -118,8 +88,14 @@ mod RAMP-SNOW-ANALYSIS is
   op pf : Config -> Float .
   eq pf(< M : Monitor | log: RECORD, AS > C) = freshReads(RECORD) / totalReads(RECORD) .
   
-
+  op totalReads : Record -> Float .
+ ceq totalReads((record(TID,T1,T2,READS,WRITES,true) ; RECORD))
+   = totalReads(RECORD) + 1.0
+  if READS =/= empty .
+  eq totalReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD)) = totalReads(RECORD) [owise] .
+  eq totalReads(noRecord) = 0.0 .
   
+
   op freshReads : Record -> Float .
   op $freshReads : Record Record Float -> Float .
   eq freshReads(RECORD) = $freshReads(RECORD,RECORD,0.0) .
@@ -166,6 +142,7 @@ mod RAMP-SNOW-ANALYSIS is
 *** ryw; ryw vs pf vs cr
 *** read latency
 
+
   *** read atomicity
   op ra : Config -> Float .
   op ra : Record -> Float .
@@ -177,8 +154,8 @@ mod RAMP-SNOW-ANALYSIS is
           record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD'') = 0.0 
 	 if TS2 less-than TS2' . 
   eq ra(RECORD) = 1.0 [owise] .
-  )
-  
+)
+
    op totalReads : Record -> Float .
   ceq totalReads((record(A,TID,T1,T2,READS,WRITES,true) ; RECORD))
     = totalReads(RECORD) + 1.0
@@ -223,7 +200,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq noWrite((RECORD3 ; record(A',TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ; RECORD4),K1,A')
    = false .
   eq noWrite(RECORD3,K1,A') = true [owise] .
-  
+
 
   --- PVESTA interfaces
   ---(
@@ -235,9 +212,8 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(5,C) = isCr(C) .
   eq val(6,C) = ra(C) .
   )
+  eq val(7,C) = ryw(C) .  
 endm
 
-set clear rules off .
+---set clear rules off .
 ---rewrite initConfig .
-
-rew ryw(initConfig) .

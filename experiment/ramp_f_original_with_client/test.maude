@@ -7,49 +7,20 @@ mod RAMP-SNOW-ANALYSIS is
   including RAMP-F .
 
   subsort Config < State .
-
+  
   eq LIMIT = 1.0e+100 .
 
   op initConfig : -> Config .
   eq initConfig = run(initState,LIMIT) .
 
   ops x y z : -> Key .
-  ops tb r1 r2 r3 t1 t2 t3 t4 d1 d2 d3 m : -> Address .
+  ops tb r1 r2 r3 t1 t2 t3 t4 : -> Address .
   ops xl yl zl : -> LocalVar .
 
-  *** non-replicated setting: DCS is fixed as 1
+  
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init(10,10,0,5,1,3,2,2,2,0,zipf) .
+  eq initState = init(10,190,0,25,1,5,1000,2,2,0,uniform) .
 
-
-  ---(
-  eq initState = { 0.0 | nil} < m : Monitor | log: noRecord > 
-                 < tb : Table | table: ([replicatingSites(x, 1 ;; 3) ;; replicatingSites(y, 2 ;; 4)]),
-                                datacenter: (dc(d1,1 ; 2) ; dc(d2,3 ; 4)) > 
-                 [ 1.0, 11 <- start ] [ 2.0, 12 <- start ]
-	 < 11 : Client | gotTxns: < 11 . 1 : Txn | operations: ((11 . 1 . 1 xl :=read x) (11 . 1 . 2 yl :=read y)), readSet: empty, 
-                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
-  					                           voteSites: noVS, 1stGetSites: no1st,
-  					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
-                        
-                     executing: noActor, 
-                     committed: emptyTxnList,
-					 dc: d1 >
-	 < 12 : Client | gotTxns: < 12 . 1 : Txn | operations: (write(12 . 1 . 1,x,1) write(12 . 1 . 2,y,1)), readSet: empty, 
-                                               latest: empty, localVars: (xl |-> [0], yl |-> [0]),
-					                           voteSites: noVS, 1stGetSites: no1st,
-					                           2ndGetSites: no2nd, commitSites: noVS,
-											   txnSqn: -1.0 >, 
-                     executing: noActor, 
-                     committed: emptyTxnList,
-					 dc: d2 >
-					   
-     < 1 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty > 
-     < 2 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty >
-     < 3 : Replica | datastore: version(x,[0],eptTS,empty), latestCommit: empty >
-     < 4 : Replica | datastore: version(y,[0],eptTS,empty), latestCommit: empty > .
-  )
 
   --- Metrics
   vars T T' T1 T2 T1' T2' NUMBER : Float .
@@ -169,6 +140,7 @@ mod RAMP-SNOW-ANALYSIS is
 *** ryw; ryw vs pf vs cr
 *** read latency
 
+
   *** read atomicity
   op ra : Config -> Float .
   op ra : Record -> Float .
@@ -190,8 +162,8 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(4,C) = cr(C) .
   eq val(5,C) = isCr(C) .
   eq val(6,C) = ra(C) .
-        
+  
 endm
 
-set clear rules off .
-rewrite initConfig .
+---set clear rules off .
+---rewrite initConfig .

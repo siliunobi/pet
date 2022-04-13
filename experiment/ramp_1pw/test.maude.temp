@@ -19,14 +19,14 @@ mod RAMP-SNOW-ANALYSIS is
 
   
   --- init(RTX,WTX,RWTX,CLS,DCS,REPLS,KEYS,ROPS,WOPS,RWOPS,KAD) 
-  eq initState = init($1,$2,0,$3,2,20,$4,$6,$7,0,$5) .
+  eq initState = init($1,$2,0,$3,1,5,$4,$6,$7,0,$5) .
 
 
   --- Metrics
-  vars T T' T1 T2 T1' T2' NUMBER : Float .
+  vars T T' T1 T2 T1' T2' NUMBER NUMBER' : Float .
   var C : Config .
-  vars M TID TID' : Address .
-  vars RECORD RECORD' RECORD'' : Record . 
+  vars M TID TID' A A' : Address .
+  vars RECORD RECORD' RECORD'' RECORD1 RECORD2 RECORD3 RECORD4 : Record .
   vars READS READS' WRITES WRITES' VS VS' : Versions .
   var FLAG : Bool .
   vars TS TS' TS1 TS2 TS1' TS2' : Timestamp .
@@ -36,6 +36,7 @@ mod RAMP-SNOW-ANALYSIS is
   vars TIDS TIDS' : AddressSet .
   var AS : AttributeSet .
 
+---(
   --- Throughput
   op totalRunTime : Record -> Float .
   op trt : Record Float -> Float .
@@ -94,6 +95,7 @@ mod RAMP-SNOW-ANALYSIS is
   eq totalReads((record(TID,T1,T2,READS,WRITES,FLAG) ; RECORD)) = totalReads(RECORD) [owise] .
   eq totalReads(noRecord) = 0.0 .
   
+
   op freshReads : Record -> Float .
   op $freshReads : Record Record Float -> Float .
   eq freshReads(RECORD) = $freshReads(RECORD,RECORD,0.0) .
@@ -152,9 +154,56 @@ mod RAMP-SNOW-ANALYSIS is
           record(TID,T1,T2,(version(K1,V1,TS1,MD1),version(K2,V2,TS2,MD2),READS),WRITES,true) ; RECORD'') = 0.0 
 	 if TS2 less-than TS2' . 
   eq ra(RECORD) = 1.0 [owise] .
+)
+
+   op totalReads : Record -> Float .
+  ceq totalReads((record(A,TID,T1,T2,READS,WRITES,true) ; RECORD))
+    = totalReads(RECORD) + 1.0
+   if READS =/= empty .
+   eq totalReads((record(A,TID,T1,T2,READS,WRITES,FLAG) ; RECORD)) = totalReads(RECORD) [owise] .
+   eq totalReads(noRecord) = 0.0 .
+  
+  
+  *** ryw
+  op ryw : Config -> Float .
+  op ryw : Record Record Float -> Float .
+  eq ryw(< M : Monitor | log: RECORD, AS > C) = ryw(RECORD,RECORD,0.0) / totalReads(RECORD) .
+  
+ ceq ryw((record(A,TID,T1,T2,(version(K1,V1,TS1,MD1),READS),WRITES,true) ; RECORD2),
+         (RECORD3 ; record(A',TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ; RECORD4),NUMBER)
+   = ryw(RECORD2,
+         (RECORD3 ; record(A',TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ; RECORD4),NUMBER + 1.0) 
+     if A =/= A' /\ T1' > T1 .
+ ceq ryw((record(A,TID,T1,T2,(version(K1,V1,TS1,MD1),READS),WRITES,true) ; RECORD2),
+         (RECORD3 ; record(A,TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ;
+		  RECORD  ; record(A,TID,T1,T2,(version(K1,V1,TS1,MD1),READS),WRITES,true) ; RECORD4),NUMBER)
+   = ryw(RECORD2,
+         (RECORD3 ; record(A,TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ;
+          RECORD  ; record(A,TID,T1,T2,(version(K1,V1,TS1,MD1),READS),WRITES,true) ; RECORD4),NUMBER + 1.0)
+	 if noWrite(RECORD,K1,A) .
+	 
+ ceq ryw((record(A,TID,T1,T2,(version(K1,[0],ts(0, 0.0),empty),READS),WRITES,true) ; RECORD2),
+         (RECORD3 ; record(A,TID,T1,T2,(version(K1,[0],ts(0, 0.0),empty),READS),WRITES,true) ; RECORD4),NUMBER)		 
+   = ryw(RECORD2,
+         (RECORD3 ; record(A,TID,T1,T2,(version(K1,[0],ts(0, 0.0),empty),READS),WRITES,true) ; RECORD4),NUMBER + 1.0)
+	 if noWrite(RECORD3,K1,A) .
+	 
+  eq ryw((record(A,TID,T1,T2,READS,WRITES,FLAG) ; RECORD2),
+          RECORD3,NUMBER)
+   = ryw(RECORD2,RECORD3,NUMBER) [owise] .
+ 
+  eq ryw(noRecord,RECORD3,NUMBER) = NUMBER .
+
+
+
+  op noWrite : Record Key Address -> Bool .
+  eq noWrite((RECORD3 ; record(A',TID',T1',T2',READS',(version(K1,V1,TS1,MD1),WRITES'),true) ; RECORD4),K1,A')
+   = false .
+  eq noWrite(RECORD3,K1,A') = true [owise] .
 
 
   --- PVESTA interfaces
+  ---(
   eq val(0,C) = throughput(C) .
   eq val(1,C) = avgLatency(C) .
   eq val(2,C) = commitRate(C) .
@@ -162,7 +211,8 @@ mod RAMP-SNOW-ANALYSIS is
   eq val(4,C) = cr(C) .
   eq val(5,C) = isCr(C) .
   eq val(6,C) = ra(C) .
-  
+  )
+  eq val(7,C) = ryw(C) .  
 endm
 
 ---set clear rules off .
