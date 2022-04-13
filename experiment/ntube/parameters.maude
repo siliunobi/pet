@@ -1,0 +1,72 @@
+load apmaude
+load sampler
+
+mod PARAMETERS is
+  pr FLOAT .
+  inc APMAUDE + SAMPLER .
+
+  --- adjusted capacity; (0,1)
+  --- initially allocates at most delta of the remaining free capacity
+  op delta : -> Float .
+  ---eq delta = 0.8 .
+  
+  --- upper bound on expiration
+  op maxT : -> Float .
+  eq maxT = 300.0 .
+
+  --- minimum acceptable bandwidth
+  op minBW : -> Float .
+  eq minBW = 0.0 .
+  --- genRandom(0.0,50.0) 
+
+  --- maximum desired bandwidth
+  op maxBW : -> Float .
+  eq maxBW = float(sampleUniWithInt(11)) * 10.0 + 50.0 .
+  ---eq genRandom(Min, Max) = rand * (Max - Min) + Min .
+
+  --- msg delay
+  op mDelay : -> Float .
+  eq mDelay = sampleExp(10.0) .
+  ---genRandom(5.0,10.0) 
+  --- genRandom(0.0,1.0)
+
+  --- self loop for Table to probabilistically pick a source
+  --- to create a reservation
+  op tDelay : -> Float .
+  eq tDelay = sampleExp(1.0) .
+  --- 1.0 
+
+  --- renewal delay
+  op rnDelay : -> Float .
+  eq rnDelay = 2.0 .
+
+  --- deletion delay
+  op dDelay : -> Float .
+  eq dDelay = Infinity .
+  
+  --- snapshot delay
+  op ssDelay : -> Float .
+  eq ssDelay = 5.0 .
+
+  --- pvesta runtime upper bound
+  eq LIMIT = 50.0 .
+  
+  --- prob of drop a msg
+  op drop? : -> Nat .
+  eq drop? = 0 .
+  
+  *** parameters for generators
+  op resPerSrc : -> Nat .
+  ---eq resPerSrc = sampleUniWithInt(2) + 1 .
+  eq resPerSrc = 1 .
+
+  
+  --- length of a segment excluding the dest
+  --- resulting segment has length <= segLength; see "genPathsForS"
+  op segLength : -> Nat .
+  eq segLength = 4 .
+  
+  --- randomly chosen bandwidth capacity for "sink" (or dest's egress)
+  op randCap : -> Float .
+  eq randCap = (float(sampleUniWithInt(5) + 1) * 10.0) .
+endm

@@ -1,0 +1,18 @@
+load prelim
+
+  --- each link starts and ends in distinct ASes
+  --- the edges all point in the same direction
+  --- loop-free: each AS occurs at most once on the path
+
+fmod PATH-TABLE is
+  inc SORTS + ACTOR-MODEL .
+
+  sort PathTable .
+  subsort Path < PathTable .
+
+  op emptyPathTable : -> PathTable [ctor] .
+  op _;;_ : PathTable PathTable -> PathTable [ctor assoc id: emptyPathTable] .
+
+  op Table :             -> ActorType .
+  op paths:_ : PathTable -> Attribute .
+endfm

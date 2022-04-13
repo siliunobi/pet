@@ -1,0 +1,373 @@
+load prelim
+load parameters
+
+mod AUX is
+  inc MSG + SAMPLER + NODE + PARAMETERS .
+
+  var RID : ReservationId .
+  vars INDEX PTR PTR' FIRST FIRST' LAST LAST' N : Nat .
+  vars P P' P'' P''' : Path .
+  vars MINBW MAXBW MAXT EXP FL FL' FL1 FL2 FL3 RESBW RESBW' IDBW GT CAP CAP' : Float .
+  var ACCBW : AccBW .
+  vars IN IN' IN'' O O' O'' E E' E'' I SRC : Address .
+  ---var PT : PathTable .  
+  vars RM RM' : ReservationMap .
+  var VM : VersionMap .
+  var VR : VerRecord .
+  var VRS : VerRecords .
+  vars ITFS ITFS' ITFS'' : Interfaces .
+  vars ING EG : Interface .
+  var CONT : Content .
+  var RES : Reservation .
+  var RR : RsvRecord .
+
+---(
+  op crtr : Path -> Msg .
+  eq crtr(([IN,O,E] P)) = crtr(([IN,O,E] P),segment([IN,O,E] P),minBW,maxBW,maxT,O) .
+  
+  op crtd : Path -> Msg .
+  eq crtd(([IN,O,E] P)) = crtd(O) .
+
+  op size : PathTable -> Nat .
+  eq size(P ;; PT) = s size(PT) .
+  eq size(emptyPathTable) = 0 .
+  
+  op length : Path -> Nat .
+  eq length([IN,O,E] P) = s length(P) .
+  eq length(ept) = 0 .
+
+  op nth : PathTable -> Path .
+  op $nth : NzNat PathTable -> Path .
+  eq nth(PT) = $nth(sampleUniWithInt(size(PT)) + 1,PT) .
+  eq $nth(s N,(P ;; PT)) = $nth(N,PT) .
+  eq $nth(1,(P ;; PT)) = P .
+
+  op nthSrc : PathTable -> Address .
+  eq nthSrc(PT) = src(nth(PT)) .
+
+  op src : Path -> Address .
+  eq src(([IN,O,E] P)) = O .
+
+  op next : Address Path -> Address .
+  eq next(O,(P [IN,O,E] [IN',O',E'] P')) = O' . 
+  eq next(O,P) = null [owise] .  --- O is the last node, or there's only one node on a path
+
+  op prev : Address Path -> Address .
+  eq prev(O,(P [IN',O',E'] [IN,O,E] P')) = O' . 
+  eq prev(O,P) = null [owise] .  --- O is the first node
+ 
+  --- first node's position
+  op first : Content -> Nat .
+  eq first(reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW)) = FIRST .
+  
+  --- current position
+  op ptr : Content -> Nat .
+  eq ptr(reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW)) = PTR .
+
+  --- first node of a segment
+  op first : Path Path -> Nat .
+  eq first(P,(P' P P'')) = length(P') .
+
+  --- last node of a segment
+  op last : Path Path -> Nat .
+ ceq last(P,(P' P P'')) = N if s N := length(P') + length(P) .
+  
+  
+  
+  --- randomly cut off a segment (of length >= 1) from a path (starting from 2nd node)
+  --- between the randomly picked node and the last (could be the same)
+  --- this means there's always a source, and at least one node on a segment
+  op segment : Path -> Path .
+  op $segment : Nat Path -> Path .
+ ceq segment(P) = $segment(sampleUniWithInt(N) + 1,P) if s N := length(P) .
+  eq $segment(s N,([IN,O,E] P)) = [IN,O,E] $segment(N,P) .
+  eq $segment(0,([IN,O,E] P)) = [IN,O,E] .
+  
+
+  op atSrc : Nat -> Bool .
+  eq atSrc(0) = true .
+  eq atSrc(PTR) = false [owise] .
+  
+  op onWay : Nat Nat -> Bool .
+ ceq onWay(PTR,FIRST) = true if PTR > 0 /\ PTR < FIRST .
+  eq onWay(PTR,FIRST) = false [owise] .
+  
+  op atSrt : Nat Nat -> Bool .
+  eq atSrt(FIRST,FIRST) = true .
+  eq atSrt(PTR,FIRST) = false [owise] .
+  
+  op onPth : Nat Nat Nat -> Bool .
+ ceq onPth(PTR,FIRST,LAST) = true if PTR > FIRST /\ PTR < LAST .
+  eq onPth(PTR,FIRST,LAST) = false [owise] .
+  
+  op atEnd : Nat Nat -> Bool .
+  eq atEnd(LAST,LAST) = true .
+  eq atEnd(PTR,LAST) = false [owise] .
+
+
+  --- how much bandwidth could be reserved on the entire path
+  op finBW : Float AccBW -> Float .
+  eq finBW(MAXBW,ACCBW) = min(MAXBW,min(ACCBW)) .
+
+  eq min(MAXBW,undefined) = undefined .
+  
+  op min : AccBW -> Float .
+  op $min : AccBW Float -> Float .
+  --- minimum of empty 
+  eq min(ept) = undefined .
+  eq min(ACCBW) = $min(ACCBW,Infinity) [owise] .
+  eq $min(((FL1 ; FL2) ACCBW),FL3) = $min(ACCBW,min(FL3,min(FL1,FL2))) .
+  eq $min(ept,FL3) = FL3 .
+  
+
+  --- ideal bandwidth computed by the previous AS
+  op prevIdeal : AccBW -> Float .
+  eq prevIdeal((ACCBW (FL1 ; FL2))) = FL2 .
+  --- if ACCBW is nil
+  eq prevIdeal(ACCBW) = undefined [owise] .
+
+  --- delete the corresponding version from the reservation map
+  op remove : ReservationId Nat ReservationMap -> ReservationMap .
+  eq remove(RID,INDEX,(RID |-> [P,PTR,FIRST,LAST,(INDEX |-> VR,VM)],RM)) 
+     = RID |-> [P,PTR,FIRST,LAST,VM],RM .
+  eq remove(RID,INDEX,RM) = RM [owise] .
+
+  ---update(RID,INDEX,new-resBW,RM)
+  op update : ReservationId Nat Float ReservationMap -> ReservationMap .
+  eq update(RID,INDEX,RESBW',(RID |-> [P,PTR,FIRST,LAST,
+       (INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW >,VM)],RM)) 
+     = RID |-> [P,PTR,FIRST,LAST,
+       (INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW' >,VM)],RM .
+  eq update(RID,INDEX,RESBW',RM) = RM [owise] .
+  
+  op resbw : ReservationMap ReservationId Nat -> Float .
+  eq resbw((RID |-> [P,PTR,FIRST,LAST,
+       (INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW >,VM)],RM),RID,INDEX) = RESBW .
+
+  --- N-Tube's core
+  --- Bandwidth Allocation
+  op vrs : RsvRecord -> VerRecords .
+  eq vrs([P,PTR,FIRST,LAST,(INDEX |-> VR,VM)]) 
+     = vrs([P,PTR,FIRST,LAST,VM]) ; VR .
+  eq vrs([P,PTR,FIRST,LAST,empty]) = ept .
+  
+  --- maximum of a reservation's currently valid versions' resBW
+  op allocBW : VersionMap Float -> Float .
+  op $allocBW : VersionMap Float Float -> Float .
+  eq allocBW(VM,GT) = $allocBW(VM,GT,0.0) .
+  eq $allocBW((INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW >,VM),GT,FL) 
+   = if MINBW <= RESBW and EXP >= GT  --- EXP means maxT+GT where GT is the time when the reservation starts
+       then $allocBW(VM,GT,max(RESBW,FL))
+       else $allocBW(VM,GT,FL) fi .
+  eq $allocBW(empty,GT,FL) = FL .
+
+  --- available bandwidth
+  --- 4th argument Float is current global time
+  op avail : Interface Address ReservationMap Float Content -> Float .
+---  eq avail(< E,FL >,O,RM,GT,CONT) = delta * (FL - aggrAlloc(filterAvail(O,RM,CONT),E,GT)) .
+*** delta encoded
+*** but does it work for avail?
+  eq avail(< E,FL >,O,RM,GT,CONT) = FL - delta * aggrAlloc(filterAvail(O,RM,CONT),E,GT) .
+
+  --- 
+  op filterAvail : Address ReservationMap Content -> ReservationMap .
+  --- if there is already RID 
+  eq filterAvail(O,(RID |-> [P',PTR',FIRST',LAST',VM],RM),reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW))
+   = filterAvail(O,RM,reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW)) .
+  eq filterAvail(O,RM,CONT) = $filter(O,RM) [owise] .
+
+  --- aggregated allocated bandwidth of all current valid reservations
+  --- with the same egress interface 
+  --- 3rd argument Float is current global time
+  op aggrAlloc : ReservationMap Address Float -> Float .
+  eq aggrAlloc((RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),E,GT)  --- assume E is uniquely identified
+   = allocBW(VM,GT) + aggrAlloc(RM,E,GT) .
+  eq aggrAlloc((RID |-> [P,PTR,FIRST,LAST,VM],RM),E,GT)
+   = aggrAlloc(RM,E,GT) [owise] .
+  eq aggrAlloc(empty,E,GT) = 0.0 .
+
+  --- ideally provided
+  --- also deal with if the current node O is the first on a path
+  --- ingress, all ingress interfaces, egress, all egress interfaces, current node, reservation map, current time, incoming reservation msg
+  op ideal : Address Interfaces Address Interfaces Address ReservationMap Float Content -> Float .
+  eq ideal(IN,ITFS,E,ITFS',O,RM,GT,CONT) 
+   = (if first(CONT) == ptr(CONT)
+        then reqRatioStart(O,rid(CONT),IN,ITFS,ITFS',res(filter(O,RM,CONT,cap(ITFS,IN)),rid(CONT)),filter(O,RM,CONT,cap(ITFS,IN)),GT) *
+             linkRatioStart(O,IN,ITFS,ITFS',filter(O,RM,CONT,cap(ITFS,IN)),GT) 
+        else reqRatioTransit(O,rid(CONT),IN,ITFS,ITFS',res(filter(O,RM,CONT,cap(ITFS,IN)),rid(CONT)),filter(O,RM,CONT,cap(ITFS,IN)),GT) *
+             linkRatioTransit(O,IN,ITFS,ITFS',filter(O,RM,CONT,cap(ITFS,IN)),GT)
+      fi) * 
+     tubeRatio(O,IN,ITFS,E,ITFS',filter(O,RM,CONT,cap(ITFS,IN)),GT) * 
+	 cap(ITFS',E) .  
+*** delta encoded
+---     delta * cap(ITFS',E) 
+  
+  op res : ReservationMap ReservationId -> Reservation .
+  eq res((RID |-> RR,RM),RID) = RID |-> RR .
+  ---eq res(RM,RID) = empty [owise] .
+
+  --- return reservation ID from a reservation msg
+  op rid : Content -> ReservationId .
+  eq rid(reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW)) = RID .
+
+  op src : Content -> Address .
+  eq src(reserve(RID,INDEX,PTR,FIRST,LAST,([IN,O,E] P),MINBW,MAXBW,MAXT,ACCBW)) = O .
+
+  --- current node, current reservation map, incoming msg 
+  op filter : Address ReservationMap Content Float -> ReservationMap .
+  op $filter : Address ReservationMap -> ReservationMap .
+  --- if there is already RID in RM
+  eq filter(O,(RID |-> [P',PTR',FIRST',LAST',VM],RM),reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW),CAP)
+   = $filter(O,(RID |-> [P,PTR,FIRST,LAST,INDEX |-> < MINBW, MAXBW, (if atSrt(PTR,FIRST) then min(CAP,MAXBW) else min(prevIdeal(ACCBW),min(CAP,MAXBW)) fi), MAXT,MINBW >],RM)) .
+  --- owise 
+  eq filter(O,RM,reserve(RID,INDEX,PTR,FIRST,LAST,P,MINBW,MAXBW,MAXT,ACCBW),CAP)
+   = $filter(O,insert(RID,[P,PTR,FIRST,LAST,INDEX |-> < MINBW, MAXBW, (if atSrt(PTR,FIRST) then min(CAP,MAXBW) else min(prevIdeal(ACCBW),min(CAP,MAXBW)) fi), MAXT,MINBW >],RM)) [owise] .
+
+ ceq $filter(O,(RID |-> [P,PTR,FIRST,LAST,VM],RM)) 
+   = $filter(O,RM), RID |-> [P,PTR,FIRST,LAST,VM] if FIRST <= PTR and PTR <= LAST .
+  eq $filter(O,(RID |-> [P,PTR,FIRST,LAST,VM],RM)) = $filter(O,RM) [owise] .
+  eq $filter(O,empty) = empty .
+
+  --- current node, ingress, all ingress interfaces of the node, egress, reservation map, current time
+  op tubeRatio : Address Address Interfaces Address Interfaces ReservationMap Float -> Float . 
+  eq tubeRatio(O,IN,ITFS,E,ITFS',RM,GT) = min(cap(ITFS,IN),tubeDem(O,IN,ITFS,E,ITFS',RM,GT)) / aggrTubeDem(O,ITFS,E,ITFS',RM,GT) .
+  
+  op cap : Interfaces Address -> Float .
+  eq cap((< IN,CAP > ; ITFS),IN) = CAP .
+  ---eq cap(ITFS,IN) = 0.0 [owise] .
+  
+  
+  --- current node, all ingress interfaces of the node, egress, all egress interfaces, reservation map, current time
+  op aggrTubeDem : Address Interfaces Address Interfaces ReservationMap Float -> Float . 
+  op $aggrTubeDem : Address Interfaces Interfaces Address Interfaces ReservationMap Float -> Float . 
+  eq aggrTubeDem(O,ITFS,E,ITFS',RM,GT)
+   = $aggrTubeDem(O,ITFS,ITFS,E,ITFS',RM,GT) .
+  eq $aggrTubeDem(O,(< IN,CAP > ; ITFS),ITFS'',E,ITFS',RM,GT)
+   = min(CAP,tubeDem(O,IN,ITFS'',E,ITFS',RM,GT)) + $aggrTubeDem(O,ITFS,ITFS'',E,ITFS',RM,GT) .
+  eq $aggrTubeDem(O,ept,ITFS'',E,ITFS',RM,GT) = 0.0 .
+  
+  
+  --- node, ingress, egress, reservation map, current time
+  op tubeDem : Address Address Interfaces Address Interfaces ReservationMap Float -> Float .
+  op $tubeDem : Address Address Interfaces Address Interfaces ReservationMap ReservationMap Float -> Float .
+  eq tubeDem(O,IN,ITFS,E,ITFS',RM,GT) = $tubeDem(O,IN,ITFS,E,ITFS',RM,RM,GT) .
+  eq $tubeDem(O,IN,ITFS,E,ITFS',(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),RM',GT)
+  =  adjReqDem(O,(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM]),IN,ITFS,E,ITFS',RM',GT) + $tubeDem(O,IN,ITFS,E,ITFS',RM,RM',GT) .
+  eq $tubeDem(O,IN,ITFS,E,ITFS',(RID |-> [P,PTR,FIRST,LAST,VM],RM),RM',GT) 
+  =  $tubeDem(O,IN,ITFS,E,ITFS',RM,RM',GT) [owise] .
+  eq $tubeDem(O,IN,ITFS,E,ITFS',empty,RM',GT) = 0.0 .
+
+
+  --- for a single reservation 
+  --- node, reservation, ingress, egress, reservation map, current time
+  op adjReqDem : Address Reservation Address Interfaces Address Interfaces ReservationMap Float -> Float .
+  eq adjReqDem(O,RES,IN,ITFS,E,ITFS',RM,GT)
+   = min(inScalFctr(O,resSr(RES),IN,ITFS,ITFS',RM,GT),egScalFctr(O,resSr(RES),ITFS,E,ITFS',RM,GT)) * reqDem(O,RES,IN,ITFS,E,ITFS',GT) .
+  
+  op resSr : Reservation -> Address .
+  eq resSr(RID |-> [([IN,O,E] P),PTR,FIRST,LAST,VM]) = O .
+  
+  --- current node, reservation, ingress, all ingress interfaces, egress, all egress interfaces, current time
+  op reqDem : Address Reservation Address Interfaces Address Interfaces Float -> Float .
+  eq reqDem(O,(RID |-> [P,PTR,FIRST,LAST,VM]),IN,ITFS,E,ITFS',GT) = min(demBW(VM,GT),min(cap(ITFS,IN),cap(ITFS',E))) .
+
+  --- maximum of a reservation's currently valid versions' maxBW
+  op demBW : VersionMap Float -> Float . 
+  op $demBW : VersionMap Float Float -> Float .
+  eq demBW(VM,GT) = $demBW(VM,GT,0.0) .
+  eq $demBW((INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW >,VM),GT,FL)
+   = if MINBW <= RESBW and EXP >= GT
+       then $demBW(VM,GT,max(MAXBW,FL))
+       else $demBW(VM,GT,FL) fi .
+  eq $demBW(empty,GT,FL) = FL .
+  
+
+  --- current node, source, all ingress interfaces, egress, all egress interfaces, reservation map, current time
+  op egScalFctr : Address Address Interfaces Address Interfaces ReservationMap Float -> Float .
+  eq egScalFctr(O,SRC,ITFS,E,ITFS',RM,GT) 
+  =  min(cap(ITFS',E),egDem(O,SRC,ITFS,E,ITFS',RM,GT)) / egDem(O,SRC,ITFS,E,ITFS',RM,GT) .  
+  
+  --- current node, source of the reservation, ingress, all ingress interfaces, all egress interfaces, reservation map, current time
+  op inScalFctr : Address Address Address Interfaces Interfaces ReservationMap Float -> Float .
+  eq inScalFctr(O,SRC,IN,ITFS,ITFS',RM,GT)
+  =  min(cap(ITFS,IN),inDem(O,SRC,IN,ITFS,ITFS',RM,GT)) / inDem(O,SRC,IN,ITFS,ITFS',RM,GT) .
+
+
+  --- egress demand of source s on engress e
+  --- the aggregate over its requested demands with egress demand e
+  --- Note that it is ALL reservations under the above condition
+  --- current node, source, all ingress interfaces, egress, all egress interfaces, reservation map, current time
+  op egDem : Address Address Interfaces Address Interfaces ReservationMap Float -> Float .
+  eq egDem(O,SRC,ITFS,E,ITFS',(RID |-> [([IN',SRC,E'] P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),GT) 
+  =  egDem(O,SRC,ITFS,E,ITFS',RM,GT) + reqDem(O,(RID |-> [([IN',SRC,E'] P [IN,O,E] P'),PTR,FIRST,LAST,VM]),IN,ITFS,E,ITFS',GT) .
+  eq egDem(O,SRC,ITFS,E,ITFS',(RID |-> [P,PTR,FIRST,LAST,VM],RM),GT) = egDem(O,SRC,ITFS,E,ITFS',RM,GT) [owise] .
+  eq egDem(O,SRC,ITFS,E,ITFS',empty,GT) = 0.0 .
+
+  --- current node, source, ingress, all ingress interfaces, all egress interfaces, reservation map, current time
+  op inDem : Address Address Address Interfaces Interfaces ReservationMap Float -> Float .
+  eq inDem(O,SRC,IN,ITFS,ITFS',(RID |-> [([IN',SRC,E'] P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),GT)
+  =  inDem(O,SRC,IN,ITFS,ITFS',RM,GT) + reqDem(O,(RID |-> [([IN',SRC,E'] P [IN,O,E] P'),PTR,FIRST,LAST,VM]),IN,ITFS,E,ITFS',GT) .
+  eq inDem(O,SRC,IN,ITFS,ITFS',(RID |-> [P,PTR,FIRST,LAST,VM],RM),GT) = inDem(O,SRC,IN,ITFS,ITFS',RM,GT) [owise] .
+  eq inDem(O,SRC,IN,ITFS,ITFS',empty,GT) = 0.0 .
+  
+  --- current node, ingress, all ingress interfaces, all egress interfaces, reservation map, current time
+  --- current node: either start, or transit
+  op linkRatioStart : Address Address Interfaces Interfaces ReservationMap Float -> Float .
+  eq linkRatioStart(O,IN,ITFS,ITFS',RM,GT)
+  =  min(cap(ITFS,IN),startDem(O,IN,ITFS,ITFS',RM,GT)) /
+     (min(cap(ITFS,IN),startDem(O,IN,ITFS,ITFS',RM,GT)) + min(cap(ITFS,IN),transitDem(O,IN,ITFS,ITFS',RM,GT))) .
+
+  
+  ---
+  op linkRatioTransit : Address Address Interfaces Interfaces ReservationMap Float -> Float .
+  eq linkRatioTransit(O,IN,ITFS,ITFS',RM,GT)
+  =  min(cap(ITFS,IN),transitDem(O,IN,ITFS,ITFS',RM,GT)) /
+     (min(cap(ITFS,IN),startDem(O,IN,ITFS,ITFS',RM,GT)) + min(cap(ITFS,IN),transitDem(O,IN,ITFS,ITFS',RM,GT))) .
+  
+  --- current node, ingress, all ingress interfaces, all egress interfaces, reservation map, current time
+  op startDem : Address Address Interfaces Interfaces ReservationMap Float -> Float .
+  eq startDem(O,IN,ITFS,ITFS',(RID |-> [(P [IN,O,E] P'),FIRST,FIRST,LAST,VM],RM),GT)
+   = startDem(O,IN,ITFS,ITFS',RM,GT) + 
+     adjIdDem(O,ITFS,ITFS',(RID |-> [(P [IN,O,E] P'),FIRST,FIRST,LAST,VM]),(RID |-> [(P [IN,O,E] P'),FIRST,FIRST,LAST,VM],RM),GT) .
+  eq startDem(O,IN,ITFS,ITFS',(RID |-> [P,PTR,FIRST,LAST,VM],RM),GT)
+   = startDem(O,IN,ITFS,ITFS',RM,GT) [owise] .
+  eq startDem(O,IN,ITFS,ITFS',empty,GT) = 0.0 .  
+  
+  --- current node, ingress, all ingress interfaces, all egress interfaces, reservation map, current time
+  op transitDem : Address Address Interfaces Interfaces ReservationMap Float -> Float .
+ ceq transitDem(O,IN,ITFS,ITFS',(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),GT)
+  =  transitDem(O,IN,ITFS,ITFS',RM,GT) + 
+     adjIdDem(O,ITFS,ITFS',(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM]),(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM],RM),GT) 
+  if PTR > FIRST .
+  eq transitDem(O,IN,ITFS,ITFS',(RID |-> [P,PTR,FIRST,LAST,VM],RM),GT)
+  =  transitDem(O,IN,ITFS,ITFS',RM,GT) [owise] .
+  eq transitDem(O,IN,ITFS,ITFS',empty,GT) = 0.0 .
+  
+  --- for startDem
+  ---??? also for transitDem: IN is not needed
+  --- current node, all ingress interfaces, all egress interfaces, matching reservation, reservation map, current time
+  op adjIdDem : Address Interfaces Interfaces Reservation ReservationMap Float -> Float .
+  eq adjIdDem(O,ITFS,ITFS',(RID |-> [(P [IN,O,E] P'),PTR,FIRST,LAST,VM]),RM,GT)
+  =  egScalFctr(O,src((P [IN,O,E] P')),ITFS,E,ITFS',RM,GT) * min(idBW(VM,GT),min(cap(ITFS,IN),cap(ITFS',E))) .
+  
+  --- current node, rid, ingress, reservation map, current time
+  --- also deal with if the current node O is the first
+  op reqRatioStart : Address ReservationId Address Interfaces Interfaces Reservation ReservationMap Float  -> Float .
+  eq reqRatioStart(O,RID,IN,ITFS,ITFS',RES,RM,GT)
+  =  adjIdDem(O,ITFS,ITFS',RES,RM,GT) / startDem(O,IN,ITFS,ITFS',RM,GT) .
+  
+  op reqRatioTransit : Address ReservationId Address Interfaces Interfaces Reservation ReservationMap Float  -> Float .
+  eq reqRatioTransit(O,RID,IN,ITFS,ITFS',RES,RM,GT)
+  =  adjIdDem(O,ITFS,ITFS',RES,RM,GT) / transitDem(O,IN,ITFS,ITFS',RM,GT) .
+ 
+  --- maximum of a reservation's currently valid versions' idealBW
+  op idBW : VersionMap Float -> Float . 
+  op $idBW : VersionMap Float Float -> Float .
+  eq idBW(VM,GT) = $idBW(VM,GT,0.0) .
+  eq $idBW((INDEX |-> < MINBW,MAXBW,IDBW,EXP,RESBW >,VM),GT,FL)
+   = if MINBW <= RESBW and EXP >= GT
+       then $idBW(VM,GT,max(IDBW,FL))
+       else $idBW(VM,GT,FL) fi .
+  eq $idBW(empty,GT,FL) = FL .
+)
+endm

@@ -1,0 +1,156 @@
+load sampler
+load ntube
+
+fmod NAMES is
+  inc SORTS .
+
+  --- path table
+  op tb : -> Address .
+  
+  --- monitor
+  op m : -> Address .
+
+  --- nodes
+  ops n1 n2 n3 n4 n5 n6 n7 n8 n9 n10 
+      a1 a2 a3 a4 a5 a6 a7 a8 a9 a10
+	  a11 a12 : -> Address .
+
+  --- egresses
+  ops e1  e2  e3  e4  e5  e6  e7  e8  e9  e10
+      e11 e12 e13 e14 e15 e16 e17 e18 e19 e20 
+	  ae1 ae2 : -> Address .
+
+  --- ingresses
+  ops in1  in2  in3  in4  in5  in6  in7  in8  in9  in10
+      in11 in12 in13 in14 in15 in16 in17 in18 in19 in20 
+	  in2' 
+	  ain1 ain2 : -> Address .
+
+endfm
+
+mod PATH-GENERATOR is
+  inc NODE + NAMES + SAMPLER + N-TUBE .
+  
+  vars S M M' D D' DEG N N' : Nat .  --- Dest EGress
+  var C : Config .
+  var PP : PathPool .
+  var DEST : Address .
+  var R : Float .
+  var AL : AddrList .
+  
+  --- sources, intermediates, destinations, #egress-of-dest 
+  op init : Nat Nat Nat -> Config .
+  --- sources, #ingress-of-source, #egress-of-source
+  --- intermediates, #ingress-of-source, #egress-of-source
+  --- destinations, #ingress-of-source, #egress-of-source 
+  op $init : Nat Nat Nat Config -> Config .
+	
+  --- some parameters for triggering 'tb' and 'm' to start	
+  eq init(S,M,D) 
+   = { 0.0 | nil } < m : Monitor | snapshots: empty > [0.0, start to tb, 0] [0.0, snapshot to m, 0]
+     $init(S,M,D,< tb : Table | links: genLinks(S,M,D), paths: genPaths(S,M,D) >) .
+   
+  eq $init(s S,M,D,C) = $init(S,M,D,C < sc . (s S) : Node | reservationMap: empty, sqn: 0, sink: 0.0 >) .
+  eq $init(0,s M,D,C) = $init(0,M,D,C < md . (s M) : Node | reservationMap: empty, sqn: 0, sink: 0.0 >) .
+  eq $init(0,0,s D,C) = $init(0,0,D,C < dt . (s D) : Node | reservationMap: empty, sqn: 0, sink: randCap >) .  
+  eq $init(0,0,0,C) = C .
+   
+  op genLinks : Nat Nat Nat -> Links .
+  eq genLinks(S,M,D) = genLinksForS(S,M,D) ;; genLinksForM(M,D) .
+  
+  op genLinksForS : Nat Nat Nat -> Links .
+  op genLinksForS : Nat Nat Nat Nat Nat -> Links .
+  eq genLinksForS(S,M,D) = genLinksForS(S,M,M,D,D) .
+  eq genLinksForS(S,s M',M,D,D) 
+   = genLinksForS(S,M',M,D,D) ;; < (sc . S) (md . (s M')) 1 randCap > .
+  eq genLinksForS(S,0,M,s D',D) 
+   = genLinksForS(S,0,M,D',D) ;; < (sc . S) (dt . (s D')) 1 randCap > .
+  eq genLinksForS(s s S,0,M,0,D) 
+   = genLinksForS(s S,M,M,D,D) .
+  eq genLinksForS(1,0,M,0,D) = ept . 
+ 
+  op genLinksForM : Nat Nat -> Links .
+  op genLinksForM : Nat Nat Nat Nat -> Links .         
+  eq genLinksForM(M,D) = genLinksForM(M,1,D,1) .
+ ceq genLinksForM(M,M',D,D')
+   = genLinksForM(M,s M',D,D') ;; < (md . M) (md . M') 1 randCap > if M' < M .
+ ceq genLinksForM(M,M,D,D') 
+   = genLinksForM(M,M,D,s D') ;; < (md . M) (dt . D') 1 randCap > if D' < D .
+  eq genLinksForM(s M,s M,D,D) 
+   = genLinksForM(M,1,D,1) ;; < (md . (s M)) (dt . D) 1 randCap > .
+  eq genLinksForM(0,1,D,1) = ept . 
+  
+  ---(
+  --- old version
+  op genPaths : Nat Nat Nat -> PathPool .
+  eq genPaths(s S,M,D) = genPaths(S,M,D) ;; genPathsForS(s S,M,D) 
+       ;; genDirPath(s S,D) .  --- genDirPathForSnD could be commented out if no need for direct path
+  eq genPaths(0,M,D) = ept .
+  
+  op genPathsForS : Nat Nat Nat -> PathPool .
+  eq genPathsForS(S,s M,D) 
+   = genPathsForS(S,M,D) ;; genPathsThrM(S,s M,D) .
+  eq genPathsForS(S,0,D) = ept .
+	 
+  op genPathsThrM : Nat Nat Nat -> AddrList .
+  eq genPathsThrM(S,M,D) =
+       if sampleBerWithP(0.8) then (sc . S) ; genRestPathTillDest(M,(dt . (sampleUniWithInt(D) + 1)))  --- by tuning P tune the path length
+         else (sc . S) ; (md . M) ; (dt . (sampleUniWithInt(D) + 1)) fi .
+	   
+  op genRestPathTillDest : Nat Address -> AddrList .
+  eq genRestPathTillDest(s M,DEST) 
+   = (md . (s M)) ; genRestPathTillDest(M,DEST) .
+  eq genRestPathTillDest(0,DEST) = DEST .
+  )
+  ---(
+  --- old version
+  op genPaths : Nat Nat Nat -> PathPool .
+  eq genPaths(s S,M,D) = genPaths(S,M,D) ;; genPathsForS(s S,M,D,segLength) 
+       ;; genDirPath(s S,D) .  --- genDirPathForSnD could be commented out if no need for direct path
+  eq genPaths(0,M,D) = ept .
+  
+  op genPathsForS : Nat Nat Nat Nat -> PathPool .
+  eq genPathsForS(S,s M,D,N) 
+   = genPathsForS(S,M,D,N) ;; (if sampleBerWithP(0.5) then genPathsThrM(S,s M,D,N) else ept fi) .
+  eq genPathsForS(S,0,D,N) = ept .
+  )
+  
+  op genPaths : Nat Nat Nat -> PathPool .
+  eq genPaths(s S,M,D) = genPaths(S,M,D) ;; genPathsForS(s S,(sampleUniWithInt(M) + 1),M,D,segLength,resPerSrc) 
+       ;; genDirPath(s S,D) .  --- genDirPathForSnD could be commented out if no need for direct path
+  eq genPaths(0,M,D) = ept .
+  
+  
+  op genPathsForS : Nat Nat Nat Nat Nat Nat -> PathPool .
+  eq genPathsForS(S,M',M,D,N,s N') 
+   = genPathsForS(S,(sampleUniWithInt(M) + 1),M,D,N,N') ;; genPathsThrM(S,M',D,N) .
+  eq genPathsForS(S,M',M,D,N,0) = ept .
+	 
+  op genPathsThrM : Nat Nat Nat Nat -> AddrList .
+  	 
+  eq genPathsThrM(S,M,D,N) = 
+       if M <= N then (sc . S) ; genRestPathTillDest(M,(dt . (sampleUniWithInt(D) + 1)))
+	     else (sc . S) ; genRestPathWithLength(M,N,(dt . (sampleUniWithInt(D) + 1))) fi .
+	   
+  op genRestPathTillDest : Nat Address -> AddrList .
+  eq genRestPathTillDest(s M,DEST) 
+   = (md . (s M)) ; genRestPathTillDest(M,DEST) .
+  eq genRestPathTillDest(0,DEST) = DEST .
+  
+  op genRestPathWithLength : Nat Nat Address -> AddrList .
+  eq genRestPathWithLength(s M,s N,DEST)
+   = (md . (s M)) ; genRestPathWithLength(M,N,DEST) .
+  eq genRestPathWithLength(M,0,DEST) = DEST .
+  
+  
+  op genDirPath : Nat Nat -> PathPool .
+  eq genDirPath(S,s D) 
+   = genDirPath(S,D) ;; (if sampleBerWithP(0.0) then (sc . S) ; (dt . (s D)) else ept fi) .  --- with ?% prob generate direct path for each dest
+  eq genDirPath(S,0) = ept .
+  
+  --- the same paths collapse 
+  eq AL ;; AL = AL .  
+endm
+
+---set clear rules off .
+---rew init(2,2,2) .

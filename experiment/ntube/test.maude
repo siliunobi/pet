@@ -1,0 +1,372 @@
+*** Assumptions:
+*** 1. A link is one to one.
+*** 2. Both ingress and egress of a link have the same cap.
+*** 3. A reservation has only honest ASes on its path.
+
+load parameters
+load initial-state
+---load path-table 
+
+mod ANALYSIS is
+  inc PARAMETERS + NAMES + PATH-GENERATOR .
+
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+  
+  --- #sources, #intermediates, #destinations
+  ---eq initState = init(10,480,10) .
+  
+  
+  var C : Config .  vars O O' : Address .
+  var RS : Map{ReservationId,Snapshots} .  var SS : Snapshots .
+  var RID : ReservationId .  vars T FL CAP REQ RSV : Float .
+  vars REST REST' : AttributeSet .  var N : Nat .
+	
+  --- "local" analysis w/o SMC
+  
+  ---
+  *** the last snapshot for each reservation
+  op snapshots : Config -> Map{ReservationId,Snapshots} .
+  op snapshots : Map{ReservationId,Snapshots} Config -> Map{ReservationId,Snapshots} .
+  eq snapshots(< O : Monitor | snapshots: RS > C) = snapshots(RS,C) .
+  eq snapshots((RID |-> (SS ;; < T FL O >), RS),(C < O : Node | sink: CAP, REST >)) 
+   = ((RID |-> < T FL O CAP >), snapshots(RS,(C < O : Node | sink: CAP, REST >))) .
+  eq snapshots(empty,C) = empty .
+  
+  ---(
+  op snapshots : Config -> Map{ReservationId,Snapshots} .
+  eq snapshots(< O : Monitor | snapshots: RS > C) = RS .
+  )
+	
+	
+	
+	*** New Scenarios
+    --- common parameters
+    --- delta = 0.8
+    --- capacity: A 100 B 200 C 125 D 150
+	
+	---
+    --- Scenario 1, Fig.2
+    --- demands: 20, 80, 60
+    --- allocated: 15, 60, 45
+    ---(
+    eq initState = { 0.0 | nil } 
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+	 
+       < tb : Table | paths: ((n1 ; n4) ;; (n2 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (100.0 * delta) > ;; < n2 n4 1 (200.0 * delta) > 
+					          ;; < n3 n4 1 (125.0 * delta) >) >
+							
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n2 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (150.0 * delta) >
+
+      [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,20.0,maxT,n1), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,80.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,60.0,maxT,n3), 0]
+  				   .
+  	)
+	
+  --- Scenario 2, Fig.3
+  --- demands: 20, 400 (200 + 200), 60
+  --- allocated: 10, 80, 30
+  --- a1 and a2 are attackers, both requesting from the same ingress to egress
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+     < tb : Table | paths: ((n1 ; n4) ;; (a1 ; n2 ; n4) ;; 
+	                        (a2 ; n2 ; n4) ;; (n3 ; n4)),
+					links: (< n1 n4 1 (100.0 * delta) > ;; < n2 n4 1 (200.0 * delta) > 
+					          ;; < n3 n4 1 (125.0 * delta) > 
+							  ;; < a1 n2 1 Infinity > ;; < a2 n2 1 Infinity >) > 
+							
+     < n1 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < n2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < n3 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0 >
+     < n4 : Node | reservationMap: empty,
+                   sqn: 0, sink: (150.0 * delta) >			   
+     < a1 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+
+    [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,20.0,maxT,n1), 0]
+    [genRandom(0.0,0.1), crtr((a1 ; n2 ; n4),(n2 ; n4),minBW,100.0,maxT,a1), 0]
+	[genRandom(0.0,0.1), crtr((a2 ; n2 ; n4),(n2 ; n4),minBW,300.0,maxT,a2), 0]
+    [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,60.0,maxT,n3), 0]
+				   .
+	)
+	
+    --- Scenario 3, Fig.4
+    --- demands: 80 (a1), 120 (a1), 60
+    --- allocated: 32, 48, 40
+    ---(
+    eq initState = { 0.0 | nil }
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+       < tb : Table | paths: ((a1 ; n1 ; n4) ;; (a1 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (100.0 * delta) > ;; < a1 n4 1 (200.0 * delta) > 
+					          ;; < n3 n4 1 (125.0 * delta) > ;; < a1 n1 1 Infinity >) > 
+							
+       < a1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (150.0 * delta) >	
+
+      [genRandom(0.0,0.1), crtr((a1 ; n1 ; n4),(n1 ; n4),minBW,80.0,maxT,a1), 0]
+      [genRandom(0.0,0.1), crtr((a1 ; n4),n4,minBW,120.0,maxT,a1), 0]
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,60.0,maxT,n3), 0]
+  				   .
+  	)
+	
+  --- Scenario 4, Fig.5
+  --- demands: 80 (a3), 160 (a1,a2), 60
+  --- allocated: 32, 64, 24
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+     < tb : Table | paths: ((a3 ; n4) ;; (a1 ; n2 ; n4) ;; (a2 ; n2 ; n4) ;; (n3 ; n4)),
+	                links: (< a3 n4 1 (100.0 * delta) > ;; < n2 n4 1 (200.0 * delta) > 
+					        ;; < a1 n2 1 Infinity > ;; < a2 n2 1 Infinity >
+							;; < n3 n4 1 (125.0 * delta) >) > 
+							
+     < a3 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+				   
+     < n2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < n3 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0 >
+     < n4 : Node | reservationMap: empty,
+                   sqn: 0, sink: (150.0 * delta) >
+				   
+     < a1 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+
+    [genRandom(0.0,0.1), crtr((a3 ; n4),n4,minBW,80.0,maxT,a3), 0]
+    [genRandom(0.0,0.1), crtr((a1 ; n2 ; n4),(n2 ; n4),minBW,40.0,maxT,a1), 0]
+	[genRandom(0.0,0.1), crtr((a2 ; n2 ; n4),(n2 ; n4),minBW,120.0,maxT,a2), 0]
+    [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,60.0,maxT,n3), 0]
+				   .  
+  )
+  
+ 
+    --- Based on Scenario 3, Fig.4
+	--- increasing demands (10,10,80) -> (120,120,80)
+    ---(
+    eq initState = { 0.0 | nil }
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+       < tb : Table | paths: ((a1 ; n1 ; n4) ;; (a1 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (50.0 * delta) > ;; < a1 n4 1 (100.0 * delta) > 
+					          ;; < n3 n4 1 (120.0 * delta) > ;; < a1 n1 1 Infinity >) > 
+							
+       < a1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (160.0 * delta) >	
+
+      [genRandom(0.0,0.1), crtr((a1 ; n1 ; n4),(n1 ; n4),minBW,100.0,maxT,a1), 0]
+      [genRandom(0.0,0.1), crtr((a1 ; n4),n4,minBW,100.0,maxT,a1), 0]
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,50.0,maxT,n3), 0]
+  				   .
+  	)
+	
+
+  --- Based on Scenario 4, Fig.5
+  --- increasing #attackers, each with a fixed demand
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+     < tb : Table | paths: ((a3 ; n1 ; n4) ;; (a4 ; n1 ; a4) ;; (a5 ; n1 ; n4) ;; (a7 ; n1 ; n4) ;; (a9 ; n1 ; n4) ;; (a11 ; n1 ; n4)
+	                     ;; (a1 ; n2 ; n4) ;; (a2 ; n2 ; n4) ;; (a6 ; n2 ; n4) ;; (a8 ; n2 ; n4) ;; (a10 ; n2 ; n4) ;; (a12 ; n2 ; n4)
+						 ;; (n3 ; n4)),
+	                links: (< n1 n4 1 (60.0 * delta) > ;; < a3 n1 1 Infinity > ;; < a4 n1 1 Infinity > ;; < a5 n1 1 Infinity > ;; < a7 n1 1 Infinity > ;; < a9 n1 1 Infinity > ;; < a11 n1 1 Infinity >
+					     ;; < n2 n4 1 (120.0 * delta) > ;; < a1 n2 1 Infinity > ;; < a2 n2 1 Infinity > ;; < a6 n2 1 Infinity > ;; < a8 n2 1 Infinity > ;; < a10 n2 1 Infinity > ;; < a12 n2 1 Infinity >
+					     ;; < n3 n4 1 (100.0 * delta) >) > 
+							
+     < n1 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 				   
+     < n2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < n3 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0 >
+     < n4 : Node | reservationMap: empty,
+                   sqn: 0, sink: (120.0 * delta) >
+				   
+     < a1 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a2 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < a3 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a4 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < a5 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a6 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < a7 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a8 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  >
+     < a9 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a10 : Node | reservationMap: empty,
+                    sqn: 0, sink: 0.0  >
+     < a11 : Node | reservationMap: empty,
+                   sqn: 0, sink: 0.0  > 
+     < a12 : Node | reservationMap: empty,
+                    sqn: 0, sink: 0.0  >
+
+    [genRandom(0.0,0.1), crtr((a3 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a3), 0]
+	---[genRandom(0.0,0.1), crtr((a4 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a4), 0]
+	---[genRandom(0.0,0.1), crtr((a5 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a5), 0]
+	---[genRandom(0.0,0.1), crtr((a7 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a7), 0]
+    ---[genRandom(0.0,0.1), crtr((a9 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a9), 0]
+    ---[genRandom(0.0,0.1), crtr((a11 ; n1 ; n4),(n1 ; n4),minBW,20.0,maxT,a11), 0]
+		
+    [genRandom(0.0,0.1), crtr((a1 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a1), 0]
+	---[genRandom(0.0,0.1), crtr((a2 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a2), 0]
+	---[genRandom(0.0,0.1), crtr((a6 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a6), 0]
+	---[genRandom(0.0,0.1), crtr((a8 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a8), 0]
+	---[genRandom(0.0,0.1), crtr((a10 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a10), 0]
+	---[genRandom(0.0,0.1), crtr((a12 ; n2 ; n4),(n2 ; n4),minBW,20.0,maxT,a12), 0]
+	
+    [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,30.0,maxT,n3), 0]
+				   .  
+  )
+  
+  
+    --- Based on Scenario 3, Fig.4
+	--- increasing #requests per attacker (i.e., n1 and n2)
+    ---(
+    eq initState = { 0.0 | nil } 
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+	 
+       < tb : Table | paths: ((n1 ; n4) ;; (n2 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (60.0 * delta) > ;; < n2 n4 1 (80.0 * delta) > 
+					          ;; < n3 n4 1 (100.0 * delta) >) >
+							
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n2 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (125.0 * delta) >
+
+      [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+	  [genRandom(0.0,0.1), crtr((n1 ; n4),n4,minBW,10.0,maxT,n1), 0]
+
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,10.0,maxT,n2), 0]
+
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,50.0,maxT,n3), 0]
+  				   .
+  	)
+	
+    --- Based on Scenario 3, Fig.4
+	--- increasing demands (10,10,80) -> (120,120,80)
+    ---(
+    eq initState = { 0.0 | nil }
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+       < tb : Table | paths: ((a1 ; n1 ; n4) ;; (n2 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (110.0 * delta) > ;; < n2 n4 1 (100.0 * delta) > 
+					          ;; < n3 n4 1 (120.0 * delta) > ;; < a1 n1 1 (110.0 * delta) >) > 
+							
+       < a1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n2 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (160.0 * delta) >	
+
+      [genRandom(0.0,0.1), crtr((a1 ; n1 ; n4),(n1 ; n4),minBW,180.0,maxT,a1), 0]
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,40.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,50.0,maxT,n3), 0]
+  				   .
+  	)
+    
+    --- same as the above
+    --- for oopsla
+    eq initState = { 0.0 | nil }
+       < m : Monitor | snapshots: empty > [ssDelay, snapshot to m, 0]
+       < tb : Table | paths: ((a1 ; n1 ; n4) ;; (n2 ; n4) ;; (n3 ; n4)),
+	                  links: (< n1 n4 1 (110.0 * delta) > ;; < n2 n4 1 (100.0 * delta) > 
+					          ;; < n3 n4 1 (120.0 * delta) > ;; < a1 n1 1 (110.0 * delta) >) > 
+							
+       < a1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0  > 
+       < n1 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n2 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n3 : Node | reservationMap: empty,
+                     sqn: 0, sink: 0.0 >
+       < n4 : Node | reservationMap: empty,
+                     sqn: 0, sink: (200.0 * delta) >	
+
+      [genRandom(0.0,0.1), crtr((a1 ; n1 ; n4),(n1 ; n4),minBW,100.0,maxT,a1), 0]  *** made consistent with REQ in reduction
+      [genRandom(0.0,0.1), crtr((n2 ; n4),n4,minBW,40.0,maxT,n2), 0]
+      [genRandom(0.0,0.1), crtr((n3 ; n4),n4,minBW,50.0,maxT,n3), 0]
+  				   .
+             
+             
+  *** state predicate
+  op reduction : Address Float Config -> Float .
+  eq reduction(O,REQ,C) = reduction(O,REQ,snapshots(C)) .
+  
+  op reduction : Address Float Map{ReservationId,Snapshots} -> Float .
+  eq reduction(O,REQ, (r(O,N) |-> < T RSV O' CAP >, RS))
+   = (REQ - RSV) / REQ .
+
+  *** experiments
+  *** 1. delta = 0.9
+  *** 2. delta = 0.7
+  *** 3. delta = 0.5
+
+  eq delta = 0.5 .
+
+  *** quate
+  eq val(0,C) = reduction(a1,100.0,snapshots(C)) .  *** REQ          
+endm
+
+set clear rules off .
+---rew initConfig .
+---rew snapshots(initConfig) .
+---rew reduction(a1,100.0,initConfig) .
+---q

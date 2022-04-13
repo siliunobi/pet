@@ -1,0 +1,54 @@
+load apmaude
+load sampler
+
+mod PARAMETERS is
+  pr FLOAT .
+  inc APMAUDE + SAMPLER .
+
+  --- adjusted capacity; (0,1)
+  --- initially allocates at most delta of the remaining free capacity
+  op delta : -> Float .
+  eq delta = 0.8 .
+  
+  --- upper bound on expiration
+  op maxT : -> Float .
+  eq maxT = 300.0 .
+
+  --- minimum acceptable bandwidth
+  op minBW : -> Float .
+  eq minBW = 0.0 .
+  --- genRandom(0.0,50.0) 
+
+  --- maximum desired bandwidth
+  op maxBW : -> Float .
+  eq maxBW = genRandom(50.0,150.0) .
+
+  --- msg delay
+  op mDelay : -> Float .
+  eq mDelay = 2.0 .
+  --- genRandom(0.0,1.0)
+
+  --- self loop for Table to probabilistically pick a source
+  --- to create a reservation
+  op tDelay : -> Float .
+  eq tDelay = 1.0 .
+
+  --- renewal delay
+  op rnDelay : -> Float .
+  eq rnDelay = 2.0 .
+
+  --- deletion delay
+  op dDelay : -> Float .
+  eq dDelay = Infinity .
+  
+  --- snapshot delay
+  op ssDelay : -> Float .
+  eq ssDelay = 5.0 .
+
+  --- pvesta runtime upper bound
+  eq LIMIT = 100.0 .
+  
+  --- prob of drop a msg
+  op drop? : -> Nat .
+  eq drop? = 0 .
+endm

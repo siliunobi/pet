@@ -1,0 +1,212 @@
+*** Assumptions:
+*** 1. A link is one to one.
+*** 2. Both ingress and egress of a link have the same cap.
+*** 3. A reservation has only honest ASes on its path.
+
+load parameters
+load initial-state
+load path-table 
+load ntube
+
+mod ANALYSIS is
+  inc PARAMETERS + NAMES + PATH-TABLE + NODE + N-TUBE .
+
+  op initConfig : -> Config .
+  eq initConfig = run(initState,LIMIT) .
+
+  --- common parameters
+  --- delta = 0.8
+  --- capacity: A 100 B 200 C 125 D 150
+
+  --- Scenario 1, Fig.2
+  --- demands: 20, 80, 60
+  --- allocated: 15, 60, 45
+  ---(
+  eq initState = { 0.0 | nil } 
+     < m : Monitor | snapshots: empty > [5.0, snapshot to m, 0]
+	 
+     < tb : Table | paths: (([in1,n1,e1] [in4,n4,e4]) ;;
+                            ([in2,n2,e2] [in5,n4,e4]) ;;
+							([in3,n3,e3] [in6,n4,e4])) > 
+							
+     < n1 : Node | egress: < e1,100.0 * delta >,
+                   ingress: < in1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+     < n2 : Node | egress: < e2,200.0 * delta >,
+                   ingress: < in2,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  >
+     < n3 : Node | egress: < e3,125.0 * delta >,
+                   ingress: < in3,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0 >
+     < n4 : Node | egress: < e4,150.0 * delta >,
+                   ingress: (< in4,100.0 * delta > ; < in5,200.0 * delta > ; < in6,125.0 * delta >),
+                   reservationMap: empty,
+                   sqn: 0 >
+
+    [0.0, crtr([in1,n1,e1] [in4,n4,e4],[in4,n4,e4],minBW,20.0,maxT,n1), 0]
+    [4.0, crtr([in2,n2,e2] [in5,n4,e4],[in5,n4,e4],minBW,80.0,maxT,n2), 0]
+    [1.0, crtr([in3,n3,e3] [in6,n4,e4],[in6,n4,e4],minBW,60.0,maxT,n3), 0]
+				   .
+	)
+				   
+  --- Scenario 2, Fig.3
+  --- demands: 20, 400 (200 + 200), 60
+  --- allocated: 10, 80, 30
+  --- a1 and a2 are attackers, both requesting from the same ingress to egress
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [5.0, snapshot to m, 0]
+     < tb : Table | paths: (([in1,n1,e1] [in4,n4,e4]) ;;
+                            ([ain1,a1,ae1] [in2,n2,e2] [in5,n4,e4]) ;;
+							([ain2,a2,ae2] [in2',n2,e2] [in5,n4,e4])
+							([in3,n3,e3] [in6,n4,e4])) > 
+							
+     < n1 : Node | egress: < e1,100.0 * delta >,
+                   ingress: < in1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+     < n2 : Node | egress: < e2,200.0 * delta >,
+                   ingress: (< in2,Infinity > ; < in2',Infinity >),
+                   reservationMap: empty,
+                   sqn: 0  >
+     < n3 : Node | egress: < e3,125.0 * delta >,
+                   ingress: < in3,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0 >
+     < n4 : Node | egress: < e4,150.0 * delta >,
+                   ingress: (< in4,100.0 * delta > ; < in5,200.0 * delta > ; < in6,125.0 * delta >),
+                   reservationMap: empty,
+                   sqn: 0 >
+				   
+     < a1 : Node | egress: < ae1,Infinity >,
+                   ingress: < ain1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+     < a2 : Node | egress: < ae2,Infinity >,
+                   ingress: < ain2,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  >
+
+    [0.0, crtr([in1,n1,e1] [in4,n4,e4],[in4,n4,e4],minBW,20.0,maxT,n1), 0]
+    [0.0, crtr([ain1,a1,ae1] [in2,n2,e2] [in5,n4,e4],[in5,n4,e4],minBW,200.0,maxT,a1), 0]
+	[0.0, crtr([ain2,a2,ae2] [in2',n2,e2] [in5,n4,e4],[in5,n4,e4],minBW,200.0,maxT,a2), 0]
+    [0.0, crtr([in3,n3,e3] [in6,n4,e4],[in6,n4,e4],minBW,60.0,maxT,n3), 0]
+				   .
+	)
+
+  --- Scenario 3, Fig.4
+  --- demands: 80 (a1), 120 (a1), 60
+  --- allocated: 32, 48, 40
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [5.0, snapshot to m, 0]
+     < tb : Table | paths: (([in1,a1,e1] [in4,n4,e4]) ;;
+                            ([in2,a1,e2] [in5,n4,e4]) ;;
+							([in3,n3,e3] [in6,n4,e4])) > 
+							
+     < a1 : Node | egress: (< e1,100.0 * delta > ; < e2,200.0 * delta >),
+                   ingress: (< in1,Infinity > ; < in2,Infinity >),
+                   reservationMap: empty,
+                   sqn: 0  > 
+
+     < n3 : Node | egress: < e3,125.0 * delta >,
+                   ingress: < in3,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0 >
+     < n4 : Node | egress: < e4,150.0 * delta >,
+                   ingress: (< in4,100.0 * delta > ; < in5,200.0 * delta > ; < in6,125.0 * delta >),
+                   reservationMap: empty,
+                   sqn: 0 >
+
+    [1.0, crtr([in1,a1,e1] [in4,n4,e4],[in4,n4,e4],minBW,80.0,maxT,a1), 0]
+    [1.0, crtr([in2,a1,e2] [in5,n4,e4],[in5,n4,e4],minBW,120.0,maxT,a1), 0]
+    [0.0, crtr([in3,n3,e3] [in6,n4,e4],[in6,n4,e4],minBW,60.0,maxT,n3), 0]
+				   .
+	)
+
+  --- Scenario 4, Fig.5
+  --- demands: 80 (a3), 160 (a1,a2), 60
+  --- allocated: 32, 64, 24
+  ---(
+  eq initState = { 0.0 | nil }
+     < m : Monitor | snapshots: empty > [sampleExp(1.0), snapshot to m, 0]
+     < tb : Table | paths: (([in1,a3,e1] [in4,n4,e4]) ;;
+                            ([ain1,a1,ae1] [in2,n2,e2] [in5,n4,e4]) ;;
+							([ain2,a2,ae2] [in2',n2,e2] [in5,n4,e4])
+							([in3,n3,e3] [in6,n4,e4])) > 
+							
+     < a3 : Node | egress: < e1,100.0 * delta >,
+                   ingress: < in1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+				   
+     < n2 : Node | egress: < e2,200.0 * delta >,
+                   ingress: (< in2,Infinity > ; < in2',Infinity >),
+                   reservationMap: empty,
+                   sqn: 0  >
+     < n3 : Node | egress: < e3,125.0 * delta >,
+                   ingress: < in3,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0 >
+     < n4 : Node | egress: < e4,150.0 * delta >,
+                   ingress: (< in4,100.0 * delta > ; < in5,200.0 * delta > ; < in6,125.0 * delta >),
+                   reservationMap: empty,
+                   sqn: 0 >
+				   
+     < a1 : Node | egress: < ae1,Infinity >,
+                   ingress: < ain1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+     < a2 : Node | egress: < ae2,Infinity >,
+                   ingress: < ain2,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  >
+
+    [0.0, crtr([in1,a3,e1] [in4,n4,e4],[in4,n4,e4],minBW,80.0,maxT,a3), 0]
+    [0.0, crtr([ain1,a1,ae1] [in2,n2,e2] [in5,n4,e4],[in5,n4,e4],minBW,80.0,maxT,a1), 0]
+	[0.0, crtr([ain2,a2,ae2] [in2',n2,e2] [in5,n4,e4],[in5,n4,e4],minBW,80.0,maxT,a2), 0]
+    [0.0, crtr([in3,n3,e3] [in6,n4,e4],[in6,n4,e4],minBW,60.0,maxT,n3), 0]
+				   .  
+  )
+  
+  --- Scenario 5, longer paths
+  ---(
+  eq initState = { 0.0 | nil } 
+     < m : Monitor | snapshots: empty > [sampleExp(1.0), snapshot to m, 0]
+	 
+     < tb : Table | paths: (([in1,n1,e1] [in4,n4,e4] [in7,n5,e5]) ;;
+                            ([in2,n2,e2] [in5,n4,e4] [in7,n5,e6]) ;;
+							([in3,n3,e3] [in6,n4,e4] [in7,n5,e7])) > 
+							
+     < n1 : Node | egress: < e1,100.0 * delta >,
+                   ingress: < in1,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  > 
+     < n2 : Node | egress: < e2,200.0 * delta >,
+                   ingress: < in2,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0  >
+     < n3 : Node | egress: < e3,125.0 * delta >,
+                   ingress: < in3,Infinity >,
+                   reservationMap: empty,
+                   sqn: 0 >
+    < n4 : Node | egress: < e4,120.0 * delta >,
+                  ingress: (< in4,100.0 * delta > ; < in5,200.0 * delta > ; < in6,125.0 * delta >),
+                  reservationMap: empty,
+                  sqn: 0 >
+    < n5 : Node | egress: (< e5,10.0 * delta > ; < e6,20.0 * delta > ; < e7,30.0 * delta >),
+                  ingress: < in7,120.0 * delta >,
+                  reservationMap: empty,
+                  sqn: 0 >
+    [sampleExp(1.0), crtr(([in1,n1,e1] [in4,n4,e4] [in7,n5,e5]),([in4,n4,e4] [in7,n5,e5]),minBW,200.0,maxT,n1), 0]
+    [sampleExp(1.0), crtr(([in2,n2,e2] [in5,n4,e4] [in7,n5,e6]),([in5,n4,e4] [in7,n5,e6]),minBW,80.0,maxT,n2), 0]
+    [sampleExp(1.0), crtr(([in3,n3,e3] [in6,n4,e4] [in7,n5,e7]),([in6,n4,e4] [in7,n5,e7]),minBW,60.0,maxT,n3), 0]
+				   .
+	)
+endm
+
+set clear rules off .
+rew initConfig .

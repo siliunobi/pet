@@ -1,0 +1,337 @@
+load apmaude
+load parameters 
+
+fmod SORTS is
+  pr FLOAT .
+  inc ACTOR-MODEL .
+
+  sorts Interface Interfaces
+        ReservationId RsvRecord Path PathRecord VerRecord VerRecords 
+        AccBWEntry AccBW .
+  subsorts Interface < Interfaces .
+  subsort AccBWEntry < AccBW .
+  subsort PathRecord < Path .
+  subsort VerRecord < VerRecords .
+  subsort Nat < Address .
+  
+  op undefined : -> Float .
+  
+  ops sc md dt : -> Address .
+  
+  sort AddrList .
+  subsort Address < AddrList .
+  op empty : -> AddrList [ctor] .
+  op _;_ : AddrList AddrList -> AddrList [ctor assoc id: empty] .
+  
+  sort PathPool .
+  subsort AddrList < PathPool .
+  op ept : -> PathPool [ctor] .
+  op _;;_ : PathPool PathPool -> PathPool [ctor assoc comm id: ept] .
+
+  --- egress/ingress id, (current) capacity
+  op <_,_> : Address Float -> Interface [ctor] .
+
+  op ept : -> Interfaces [ctor] .
+  op _;_ : Interfaces Interfaces -> Interfaces [ctor assoc comm id: ept] .
+  
+  op _;_ : Float Float -> AccBWEntry [ctor] .  
+  op ept : -> AccBW [ctor] .
+  op __ : AccBW AccBW -> AccBW [ctor assoc id: ept] .
+
+  op r : Address Nat -> ReservationId [ctor] .
+
+  --- ingress, AS, egress
+  --- e.g., 1 . 3, 1, 1 . 5, where 1 is node's address
+  op [_,_,_] : Address Address Address -> PathRecord [ctor] .
+  op ept : -> Path [ctor] .
+  op __ : Path Path -> Path [ctor assoc id: ept] .
+
+  --- record for version map
+  --- minBW, maxBW, idBW, expT, resBW
+  op <_,_,_,_,_> : Float Float Float Float Float -> VerRecord [ctor] . 
+
+  op ept : -> VerRecords [ctor] .
+  op _;_ : VerRecords VerRecords -> VerRecords [ctor assoc comm id: ept] .
+
+  sorts VerRecordEle VerRecordList .
+  subsort VerRecordEle < VerRecordList .
+  op <_;_> : Nat Float -> VerRecordEle .
+  op nil : -> VerRecordList .
+  op _;;_ : VerRecordList VerRecordList -> VerRecordList [ctor assoc id: nil] .
+
+  --- not used yet
+  sort Contents .
+  subsort Content < Contents .
+  op nil : -> Contents [ctor] .
+  op _;;_ : Contents Contents -> Contents [ctor assoc id: nil] .
+  
+  sort Snapshot Snapshots .
+  subsort Snapshot < Snapshots .
+  op <___> : Float Float Address -> Snapshot .  --- used in monitoring N-Tube
+  op <____> : Float Float Address Float -> Snapshot .  --- used in analysis
+  op nil : -> Snapshots [ctor] .
+  op _;;_ : Snapshots Snapshots -> Snapshots [ctor assoc id: nil] .
+  
+  sorts Link Links .
+  subsort Link < Links .
+  op <____> : Address Address Nat Float -> Link .
+  op ept : -> Links [ctor] .
+  op _;;_ : Links Links -> Links [ctor assoc comm id: ept] .
+
+endfm
+view ReservationId from TRIV to SORTS is sort Elt to ReservationId . endv
+view VerRecord from TRIV to SORTS is sort Elt to VerRecord . endv
+view AccBW from TRIV to SORTS is sort Elt to AccBW . endv
+view Snapshots from TRIV to SORTS is sort Elt to Snapshots . endv
+
+fmod SORTS-AUX is
+  pr MAP{Nat,VerRecord} * (sort Map{Nat,VerRecord} to VersionMap) .
+
+  --- record for reservation map
+  --- path, pointer, first, last, version map
+  op [_,_,_,_,_] : AddrList Nat Nat Nat VersionMap -> RsvRecord [ctor] . 
+endfm
+view RsvRecord from TRIV to SORTS-AUX is sort Elt to RsvRecord . endv
+
+fmod MSG is
+  inc ACTOR-MODEL + SORTS .
+
+  --- reservation Id, index, pointer, first, last
+  --- path
+  --- minBW, maxBW
+  --- expT
+  --- accBW 
+  op reserve : ReservationId Nat Nat Nat Nat
+               AddrList 
+               Float Float 
+               Float
+               AccBW -> Content .
+
+  --- reply to reserve
+  op reply : ReservationId Nat Nat Nat Nat
+             AddrList 
+             Float Float 
+             Float
+             AccBW -> Content .
+
+  --- create a reservation
+  op crtr : AddrList AddrList Float Float Float Address -> Msg .
+
+  --- delete a reservation
+  op crtd : Address -> Msg .
+  op crtd : Path -> Msg .
+  
+  op delete : ReservationId Nat -> Content .
+
+  --- renewal
+  op renew : ReservationId AddrList AddrList Float Float Float Address -> Msg .
+
+  --- reset
+  op reset : ReservationId Nat -> Content .
+
+  --- aux msg
+  op start : -> Content .
+  op _to_  : AddrList Address -> Msg .
+  op _to_  : Content Address -> Msg .
+  
+  op snapshot : -> Content .
+endfm
+
+fmod NODE is
+  inc ACTOR-MODEL .
+  pr MAP{ReservationId,RsvRecord} * (sort Map{ReservationId,RsvRecord} to ReservationMap,
+                                     sort Entry{ReservationId,RsvRecord} to Reservation) .
+---  pr MAP{ReservationId,AccBW} * (sort Map{ReservationId,AccBW} to AccBWMap) .		
+  pr MAP{ReservationId,Snapshots} .							 
+
+  op Node :                            -> ActorType .
+  ---op egress:_ : Interfaces             -> Attribute .
+  ---op ingress:_ : Interfaces            -> Attribute .
+  --- stores all currently valid reservations
+  --- with a path traversing it
+  op reservationMap:_ : ReservationMap -> Attribute . 
+  --- together with node's address, identifies a reservation
+  --- serves as index for reservation's version
+  op sqn:_ : Nat                       -> Attribute .  
+  op sink:_ : Float -> Attribute .  --- dest's (only) egress
+
+  op Monitor : -> ActorType .
+  op snapshots:_ : Map{ReservationId,Snapshots} -> Attribute .
+ 
+  --- attacker may have the SAME attributes
+  op Attacker : -> ActorType .
+  
+  --- global obj
+  op Table : -> ActorType .
+  op links:_ : Links -> Attribute .
+  op paths:_ : PathPool -> Attribute .
+
+endfm
+
+--- old version:
+---(
+fmod SORTS is
+  pr FLOAT .
+  inc ACTOR-MODEL .
+
+  sorts Interface Interfaces
+        ReservationId RsvRecord Path PathRecord VerRecord VerRecords 
+        AccBWEntry AccBW .
+  subsorts Interface < Interfaces .
+  subsort AccBWEntry < AccBW .
+  subsort PathRecord < Path .
+  subsort VerRecord < VerRecords .
+  subsort Nat < Address .
+  
+  op undefined : -> Float .
+  
+  ops s m d : -> Address .
+  
+  sort AddrList .
+  subsort Address < AddrList .
+  op nil : -> AddrList [ctor] .
+  op _;_ : AddrList AddrList -> AddrList [ctor assoc id: nil] .
+  
+  sort PathPool .
+  subsort AddrList < PathPool .
+  op ept : -> PathPool [ctor] .
+  op _;;_ : PathPool PathPool -> PathPool [ctor assoc comm id: ept] .
+
+  --- egress/ingress id, (current) capacity
+  op <_,_> : Address Float -> Interface [ctor] .
+
+  op ept : -> Interfaces [ctor] .
+  op _;_ : Interfaces Interfaces -> Interfaces [ctor assoc comm id: ept] .
+  
+  op _;_ : Float Float -> AccBWEntry [ctor] .  
+  op ept : -> AccBW [ctor] .
+  op __ : AccBW AccBW -> AccBW [ctor assoc id: ept] .
+
+  op r : Address Nat -> ReservationId [ctor] .
+
+  --- ingress, AS, egress
+  --- e.g., 1 . 3, 1, 1 . 5, where 1 is node's address
+  op [_,_,_] : Address Address Address -> PathRecord [ctor] .
+  op ept : -> Path [ctor] .
+  op __ : Path Path -> Path [ctor assoc id: ept] .
+
+  --- record for version map
+  --- minBW, maxBW, idBW, expT, resBW
+  op <_,_,_,_,_> : Float Float Float Float Float -> VerRecord [ctor] . 
+
+  op ept : -> VerRecords [ctor] .
+  op _;_ : VerRecords VerRecords -> VerRecords [ctor assoc comm id: ept] .
+
+  sorts VerRecordEle VerRecordList .
+  subsort VerRecordEle < VerRecordList .
+  op <_;_> : Nat Float -> VerRecordEle .
+  op nil : -> VerRecordList .
+  op _;;_ : VerRecordList VerRecordList -> VerRecordList [ctor assoc id: nil] .
+
+  --- not used yet
+  sort Contents .
+  subsort Content < Contents .
+  op nil : -> Contents [ctor] .
+  op _;;_ : Contents Contents -> Contents [ctor assoc id: nil] .
+  
+  sort Snapshot Snapshots .
+  subsort Snapshot < Snapshots .
+  op <__> : Float Float -> Snapshot . 
+  op nil : -> Snapshots [ctor] .
+  op _;;_ : Snapshots Snapshots -> Snapshots [ctor assoc id: nil] .
+  
+  sorts Link Links .
+  subsort Link < Links .
+  op <____> : Address Address Nat Float -> Link .
+  op ept : -> Links [ctor] .
+  op _;;_ : Links Links -> Links [ctor assoc comm id: ept] .
+
+endfm
+view ReservationId from TRIV to SORTS is sort Elt to ReservationId . endv
+view VerRecord from TRIV to SORTS is sort Elt to VerRecord . endv
+view AccBW from TRIV to SORTS is sort Elt to AccBW . endv
+view Snapshots from TRIV to SORTS is sort Elt to Snapshots . endv
+
+fmod SORTS-AUX is
+  pr MAP{Nat,VerRecord} * (sort Map{Nat,VerRecord} to VersionMap) .
+
+  --- record for reservation map
+  --- path, pointer, first, last, version map
+  op [_,_,_,_,_] : Path Nat Nat Nat VersionMap -> RsvRecord [ctor] . 
+endfm
+view RsvRecord from TRIV to SORTS-AUX is sort Elt to RsvRecord . endv
+
+fmod MSG is
+  inc ACTOR-MODEL + SORTS .
+
+  --- reservation Id, index, pointer, first, last
+  --- path
+  --- minBW, maxBW
+  --- expT
+  --- accBW 
+  op reserve : ReservationId Nat Nat Nat Nat
+               Path 
+               Float Float 
+               Float
+               AccBW -> Content .
+
+  --- reply to reserve
+  op reply : ReservationId Nat Nat Nat Nat
+             Path 
+             Float Float 
+             Float
+             AccBW -> Content .
+
+  --- create a reservation
+  op crtr : AddrList AddrList Float Float Float Address -> Msg .
+
+  --- delete a reservation
+  op crtd : Address -> Msg .
+  op crtd : Path -> Msg .
+  
+  op delete : ReservationId Nat -> Content .
+
+  --- renewal
+  op renew : ReservationId Path Path Float Float Float Address -> Msg .
+
+  --- reset
+  op reset : ReservationId Nat -> Content .
+
+  --- aux msg
+  op start : -> Content .
+  op _to_  : Path Address -> Msg .
+  op _to_  : Content Address -> Msg .
+  
+  op snapshot : -> Content .
+endfm
+
+fmod NODE is
+  inc ACTOR-MODEL .
+  pr MAP{ReservationId,RsvRecord} * (sort Map{ReservationId,RsvRecord} to ReservationMap,
+                                     sort Entry{ReservationId,RsvRecord} to Reservation) .
+---  pr MAP{ReservationId,AccBW} * (sort Map{ReservationId,AccBW} to AccBWMap) .		
+  pr MAP{ReservationId,Snapshots} .							 
+
+  op Node :                            -> ActorType .
+  op egress:_ : Interfaces             -> Attribute .
+  op ingress:_ : Interfaces            -> Attribute .
+  --- stores all currently valid reservations
+  --- with a path traversing it
+  op reservationMap:_ : ReservationMap -> Attribute . 
+  --- together with node's address, identifies a reservation
+  --- serves as index for reservation's version
+  op sqn:_ : Nat                       -> Attribute .  
+
+  op Monitor : -> ActorType .
+  op snapshots:_ : Map{ReservationId,Snapshots} -> Attribute .
+ 
+  --- attacker may have the SAME attributes
+  op Attacker : -> ActorType .
+  
+  --- global obj
+  op Table : -> ActorType .
+  op links:_ : Links -> Attribute .
+  op paths:_ : PathPool -> Attribute .
+
+endfm
+)
