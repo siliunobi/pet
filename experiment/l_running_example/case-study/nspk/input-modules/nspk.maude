@@ -1,0 +1,185 @@
+(mod MESSAGE-CONTENT is
+  sort MsgContent . --- message content, application-specific
+endm)
+
+(omod MESSAGE-WRAPPER is including MESSAGE-CONTENT .
+  op msg_from_to_ : MsgContent Oid Oid -> Msg [ctor] .
+endom)
+
+(omod SORTS is protecting NAT . including MESSAGE-WRAPPER .
+  sort Nonce .
+  op nonce : Oid Nat -> Nonce [ctor] .
+  
+  sort Key .
+  op pubKey : Oid -> Key [ctor] .
+  
+  sorts PlainTextMsgContent EncrMsgContent .
+  op _;_ : Nonce Oid -> PlainTextMsgContent [ctor] . --- Message 1
+  op _;_ : Nonce Nonce -> PlainTextMsgContent [ctor] . --- Message 2
+  subsort Nonce < PlainTextMsgContent . --- Message 3
+  
+  op encrypt_with_ : PlainTextMsgContent Key -> EncrMsgContent [ctor] .  
+
+  subsort EncrMsgContent < MsgContent .
+  
+  sorts Sessions InitSessions .
+  subsort Sessions < InitSessions .
+  op emptySession : -> Sessions [ctor] .
+  op __ : InitSessions InitSessions -> InitSessions [ctor assoc comm id: emptySession] .
+  op __ : Sessions Sessions -> Sessions [ctor assoc comm id: emptySession] .
+  op notInitiated : Oid -> InitSessions [ctor] .
+  op initiated : Oid Nonce -> InitSessions [ctor] .
+  op trustedConnection : Oid -> Sessions [ctor] .
+  
+  sort RespSessions .
+  subsort Sessions < RespSessions .
+  op __ : RespSessions RespSessions -> RespSessions [ctor assoc comm id: emptySession] .
+  op responded : Oid Nonce -> RespSessions [ctor] .
+  
+  var NONCE : Nonce .
+  
+  sort NonceSet .
+  subsort Nonce < NonceSet .
+  op emptyNonceSet : -> NonceSet [ctor] .
+  op __ : NonceSet NonceSet -> NonceSet [ctor assoc comm id: emptyNonceSet] .
+  eq NONCE NONCE = NONCE .
+  
+  var ENCRMSG : EncrMsgContent .
+  
+  sort EncrMsgContentSet .
+  subsort EncrMsgContent < EncrMsgContentSet .
+  op emptyEncrMsg : -> EncrMsgContentSet [ctor] .
+  op __ : EncrMsgContentSet EncrMsgContentSet -> EncrMsgContentSet [ctor assoc comm id: emptyEncrMsg] .
+  eq ENCRMSG ENCRMSG = ENCRMSG .
+endom)
+
+(omod OID-SET is
+  sort OidSet .  subsort Oid < OidSet .
+  
+  op empty : -> OidSet [ctor] .
+  op _;_ : OidSet OidSet -> OidSet [ctor assoc comm id: empty] .
+endom)
+
+(omod OBJS is inc SORTS .  inc OID-SET .
+  class Initiator | initSessions : InitSessions, nonceCtr : Nat . 
+  
+  class Responder | respSessions : RespSessions, nonceCtr : Nat .
+  
+  class InitAndResp .
+  subclass InitAndResp < Initiator Responder .
+
+  class Intruder | initSessions : InitSessions,
+                   respSessions : RespSessions, nonceCtr : Nat,
+                   agentsSeen : OidSet,
+                   noncesSeen : NonceSet,
+                   encrMsgsSeen : EncrMsgContentSet .  
+endom)
+
+
+(omod NSPK is inc OBJS .
+  vars A B : Oid . vars M N : Nat .
+  vars NONCE NONCE' : Nonce . var IS : InitSessions .
+
+  rl [send-1] :
+     < A : Initiator | initSessions : notInitiated(B) IS, nonceCtr : N >
+  => 
+     < A : Initiator | initSessions : initiated(B, nonce(A, N)) IS, nonceCtr : N + 1 >
+     msg (encrypt (nonce(A, N) ; A) with pubKey(B)) from A to B .
+
+
+  rl [read-2-send-3] :
+     (msg (encrypt (NONCE ; NONCE') with pubKey(A)) from B to A)
+     < A : Initiator | initSessions : initiated(B, NONCE) IS >
+  =>
+     < A : Initiator | initSessions : trustedConnection(B) IS >
+     msg (encrypt NONCE' with pubKey(B)) from A to B .
+	 
+  
+  var RS : RespSessions .
+	 
+  crl [read-1-send-2] :
+      (msg (encrypt (NONCE ; A) with pubKey(B)) from A to B)
+      < B : Responder | respSessions : RS, nonceCtr : N >
+   =>
+      < B : Responder | respSessions : responded(A, nonce(B, N)) RS, nonceCtr : N + 1 >
+      msg (encrypt (NONCE ; nonce(B,N)) with pubKey(A)) from B to A
+      if not A inSession RS .
+	  
+  var SS : Sessions .
+  op _inSession_ : Oid Sessions -> Bool .
+  eq A inSession (responded(A,NONCE) SS) = true .
+  eq A inSession SS = false [owise] .
+
+  rl [read-3] :
+     (msg (encrypt NONCE with pubKey(B)) from A to B)
+     < B : Responder | respSessions : responded(A, NONCE) RS >
+  =>
+     < B : Responder | respSessions : trustedConnection(A) RS > .
+endom)
+
+
+(omod NSPK-INTRUDER is
+  including NSPK .
+  
+  vars NONCE NONCE' : Nonce . var NSET : NonceSet .
+  var ENCRMSG : EncrMsgContent . var ENCRMSGS : EncrMsgContentSet .
+  var N : Nat . var MSGC : PlainTextMsgContent .
+  vars A B I O O' O'' : Oid . var OS : OidSet .
+  var IS : InitSessions . var RS : RespSessions .
+  
+ 
+  crl [intruder-receive-message-1] :
+      (msg (encrypt (NONCE ; A) with pubKey(I)) from A to I)
+      < I : Intruder | respSessions : RS, nonceCtr : N, 
+	                   agentsSeen : OS, noncesSeen : NSET >
+   =>
+      < I : Intruder | respSessions : responded(A, nonce(I,N)) RS, nonceCtr : N + 1, 
+	                   agentsSeen : OS ; A, noncesSeen : NSET NONCE nonce(I, N) >
+      msg (encrypt (NONCE ; nonce(I,N)) with pubKey(A)) from I to A
+      if not A inSession RS .
+	  
+  crl [intercept-but-not-understand] :
+      (msg ENCRMSG from O' to O)
+      < I : Intruder | agentsSeen : OS, encrMsgsSeen : ENCRMSGS >
+   =>
+      < I : Intruder | agentsSeen : OS ; O ; O', encrMsgsSeen : ENCRMSG ENCRMSGS >
+      if O =/= I .
+	  
+  rl [intercept-msg1-and-understand] :
+     (msg (encrypt (NONCE ; A) with pubKey(I)) from O to I)
+     < I : Intruder | agentsSeen : OS, noncesSeen : NSET >
+  =>
+     < I : Intruder | agentsSeen : OS ; O ; A, noncesSeen : NSET NONCE > .
+	 
+  rl [intercept-msg2-and-understand] :
+     (msg (encrypt (NONCE ; NONCE') with pubKey(I)) from O to I)
+     < I : Intruder | agentsSeen : OS, noncesSeen : NSET >
+  =>
+     < I : Intruder | agentsSeen : OS ; O, noncesSeen : NSET NONCE NONCE' > .
+	 
+  crl [send-encrypted] :
+      < I : Intruder | encrMsgsSeen : (encrypt MSGC with pubKey(B)) ENCRMSGS,
+                       agentsSeen : A ; OS >
+  =>
+     < I : Intruder | >
+     (msg (encrypt MSGC with pubKey(B)) from A to B)
+     if A =/= B .
+	 
+  crl [send-1-fake] :
+      < I : Intruder | agentsSeen : A ; B ; OS, noncesSeen : NONCE NSET >
+  =>
+      < I : Intruder | >
+      (msg (encrypt (NONCE ; A) with pubKey(B)) from A to B)
+      if A =/= B /\ B =/= I .
+	  
+  crl [send-2-fake] :
+      < I : Intruder | agentsSeen : A ; B ; OS, noncesSeen : NONCE NONCE' NSET >
+  =>
+      < I : Intruder | >
+      (msg (encrypt (NONCE ; NONCE') with pubKey(A)) from B to A)
+      if A =/= B /\ A =/= I .
+	  
+  var MSG : Msg .
+  eq MSG MSG = MSG .
+  
+endom)
